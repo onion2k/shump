@@ -1,5 +1,6 @@
 import type { Entity } from '../ecs/components';
 import { EntityType, Faction } from '../ecs/entityTypes';
+import { PLAYER_MACHINE_GUN_INTERVAL_MS } from '../core/constants';
 
 export function createPlayer(): Omit<Entity, 'id'> {
   return {
@@ -10,6 +11,13 @@ export function createPlayer(): Omit<Entity, 'id'> {
     radius: 0.6,
     health: 10,
     maxHealth: 10,
-    fireCooldownMs: 0
+    fireCooldownMs: 0,
+    weaponMode: 'Auto Pulse',
+    weaponLevel: 1,
+    weaponEnergy: 100,
+    weaponEnergyMax: 100,
+    weaponEnergyRegenPerSecond: 40,
+    weaponEnergyCost: 4,
+    weaponFireIntervalMs: PLAYER_MACHINE_GUN_INTERVAL_MS
   };
 }

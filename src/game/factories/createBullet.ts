@@ -6,16 +6,19 @@ export function createBullet(
   y: number,
   vy: number,
   faction: Faction,
-  lifetimeMs = 2000
+  lifetimeMs = 2000,
+  damage = 1,
+  radius = 0.22
 ): Omit<Entity, 'id'> {
   return {
     type: EntityType.Bullet,
     faction,
     position: { x, y },
     velocity: { x: 0, y: vy },
-    radius: 0.22,
+    radius,
     health: 1,
     maxHealth: 1,
-    lifetimeMs
+    lifetimeMs,
+    damage
   };
 }

@@ -22,4 +22,12 @@ export interface Entity {
   patternFrequency?: number;
   spawnX?: number;
   ageMs?: number;
+  weaponMode?: string;
+  weaponLevel?: number;
+  weaponEnergy?: number;
+  weaponEnergyMax?: number;
+  weaponEnergyRegenPerSecond?: number;
+  weaponEnergyCost?: number;
+  weaponFireIntervalMs?: number;
+  damage?: number;
 }

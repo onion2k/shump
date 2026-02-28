@@ -1,6 +1,4 @@
 import type { Entity } from '../ecs/components';
-import { WORLD_BOUNDS } from '../core/constants';
-import { clamp } from '../util/math';
 import { EntityType } from '../ecs/entityTypes';
 
 export function movementSystem(entities: Entity[], deltaSeconds: number) {
@@ -22,10 +20,5 @@ export function movementSystem(entities: Entity[], deltaSeconds: number) {
 
     entity.position.x += entity.velocity.x * deltaSeconds;
     entity.position.y += entity.velocity.y * deltaSeconds;
-
-    if (entity.type === EntityType.Player) {
-      entity.position.x = clamp(entity.position.x, WORLD_BOUNDS.left + 0.5, WORLD_BOUNDS.right - 0.5);
-      entity.position.y = clamp(entity.position.y, WORLD_BOUNDS.bottom + 0.5, WORLD_BOUNDS.top - 0.5);
-    }
   }
 }

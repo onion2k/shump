@@ -40,15 +40,3 @@ body,
   padding: 0.5rem 1rem;
   cursor: pointer;
 }
-
-.hud {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  display: flex;
-  justify-content: space-between;
-  padding: 0.75rem;
-  pointer-events: none;
-  font-size: 0.9rem;
-}

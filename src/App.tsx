@@ -4,7 +4,6 @@ import { Game } from './game/core/Game';
 import { GameState } from './game/core/GameState';
 import { StartScreen } from './game/ui/StartScreen';
 import { GameOverScreen } from './game/ui/GameOverScreen';
-import { Hud } from './game/ui/Hud';
 
 export function App() {
   const game = useMemo(() => new Game(), []);
@@ -13,9 +12,8 @@ export function App() {
   useEffect(() => game.subscribe(setSnapshot), [game]);
 
   return (
-    <main className="app-shell">
-      <GameCanvas game={game} />
-      <Hud snapshot={snapshot} />
+    <main className="app-shell" data-game-state={snapshot.state}>
+      <GameCanvas game={game} snapshot={snapshot} />
       {snapshot.state === GameState.Boot && <StartScreen onStart={() => game.start()} />}
       {snapshot.state === GameState.GameOver && <GameOverScreen onRestart={() => game.restart()} />}
     </main>

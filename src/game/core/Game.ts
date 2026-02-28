@@ -9,13 +9,29 @@ import { damageSystem } from '../systems/damageSystem';
 import { despawnSystem } from '../systems/despawnSystem';
 import { GameState } from './GameState';
 import type { PointerState } from '../input/types';
-import { PLAYER_SPEED } from './constants';
+import {
+  BULLET_SPEED,
+  PLAYER_FOLLOW_GAIN,
+  PLAYER_MACHINE_GUN_INTERVAL_MS,
+  PLAYER_MAX_SPEED,
+  WORLD_BOUNDS,
+  type WorldBounds
+} from './constants';
 import { clamp } from '../util/math';
+import { Faction } from '../ecs/entityTypes';
+import { createBullet } from '../factories/createBullet';
 
 export interface GameSnapshot {
   state: GameState;
   score: number;
   playerHealth: number;
+  playerMaxHealth: number;
+  weaponMode: string;
+  weaponLevel: number;
+  weaponEnergyCurrent: number;
+  weaponEnergyMax: number;
+  weaponEnergyCost: number;
+  weaponFireIntervalMs: number;
 }
 
 type SnapshotListener = (snapshot: GameSnapshot) => void;
@@ -28,6 +44,7 @@ export class Game {
 
   private playerId = 0;
   private listeners = new Set<SnapshotListener>();
+  private playableBounds: WorldBounds = { ...WORLD_BOUNDS };
 
   constructor() {
     this.bootstrap();
@@ -40,6 +57,7 @@ export class Game {
     this.playerId = player.id;
     this.state = GameState.Boot;
     this.spawner.reset();
+    this.playableBounds = { ...WORLD_BOUNDS };
     this.notify();
   }
 
@@ -59,12 +77,14 @@ export class Game {
     }
 
     this.applyPlayerInput(pointer, deltaSeconds);
-    this.spawner.tick(this.entities, deltaSeconds);
+    this.handlePlayerWeapons(deltaSeconds);
+    this.spawner.tick(this.entities, deltaSeconds, this.playableBounds);
     shootingSystem(this.entities, deltaSeconds);
     movementSystem(this.entities.all(), deltaSeconds);
+    this.clampPlayerToBounds();
     const collisions = collisionSystem(this.entities.all());
     this.score += damageSystem(collisions);
-    despawnSystem(this.entities, deltaSeconds);
+    despawnSystem(this.entities, deltaSeconds, this.playableBounds);
 
     const player = this.entities.get(this.playerId);
     if (!player || player.health <= 0) {
@@ -79,7 +99,14 @@ export class Game {
     return {
       state: this.state,
       score: this.score,
-      playerHealth: player?.health ?? 0
+      playerHealth: player?.health ?? 0,
+      playerMaxHealth: player?.maxHealth ?? 0,
+      weaponMode: player?.weaponMode ?? 'Unknown',
+      weaponLevel: player?.weaponLevel ?? 0,
+      weaponEnergyCurrent: player?.weaponEnergy ?? 0,
+      weaponEnergyMax: player?.weaponEnergyMax ?? 0,
+      weaponEnergyCost: player?.weaponEnergyCost ?? 0,
+      weaponFireIntervalMs: player?.weaponFireIntervalMs ?? 0
     };
   }
 
@@ -89,7 +116,7 @@ export class Game {
       return;
     }
 
-    if (!pointer.active) {
+    if (!pointer.hasPosition) {
       player.velocity.x = 0;
       player.velocity.y = 0;
       return;
@@ -98,11 +125,12 @@ export class Game {
     const dx = pointer.x - player.position.x;
     const dy = pointer.y - player.position.y;
     const mag = Math.hypot(dx, dy) || 1;
-    const maxSpeedWithoutOvershoot = deltaSeconds > 0 ? mag / deltaSeconds : PLAYER_SPEED;
-    const speed = Math.min(PLAYER_SPEED, maxSpeedWithoutOvershoot);
+    const speedFromDistance = mag * PLAYER_FOLLOW_GAIN;
+    const maxSpeedWithoutOvershoot = deltaSeconds > 0 ? mag / deltaSeconds : PLAYER_MAX_SPEED;
+    const speed = Math.min(PLAYER_MAX_SPEED, speedFromDistance, maxSpeedWithoutOvershoot);
 
-    player.velocity.x = clamp((dx / mag) * speed, -PLAYER_SPEED, PLAYER_SPEED);
-    player.velocity.y = clamp((dy / mag) * speed, -PLAYER_SPEED, PLAYER_SPEED);
+    player.velocity.x = clamp((dx / mag) * speed, -PLAYER_MAX_SPEED, PLAYER_MAX_SPEED);
+    player.velocity.y = clamp((dy / mag) * speed, -PLAYER_MAX_SPEED, PLAYER_MAX_SPEED);
   }
 
   entitiesForRender() {
@@ -116,6 +144,43 @@ export class Game {
 
   countByType(type: EntityType): number {
     return this.entities.all().filter((entity) => entity.type === type).length;
+  }
+
+  setPlayableBounds(bounds: WorldBounds) {
+    this.playableBounds = bounds;
+  }
+
+  private handlePlayerWeapons(deltaSeconds: number) {
+    const player = this.entities.get(this.playerId);
+    if (!player) {
+      return;
+    }
+
+    const currentEnergy = player.weaponEnergy ?? 0;
+    const maxEnergy = player.weaponEnergyMax ?? 0;
+    const regen = player.weaponEnergyRegenPerSecond ?? 0;
+    const shotCost = player.weaponEnergyCost ?? 0;
+    const intervalMs = player.weaponFireIntervalMs ?? PLAYER_MACHINE_GUN_INTERVAL_MS;
+
+    player.weaponMode = 'Auto Pulse';
+    player.weaponEnergy = clamp(currentEnergy + regen * deltaSeconds, 0, maxEnergy);
+    player.fireCooldownMs = (player.fireCooldownMs ?? 0) - deltaSeconds * 1000;
+
+    if ((player.fireCooldownMs ?? 0) <= 0 && (player.weaponEnergy ?? 0) >= shotCost) {
+      this.entities.create(createBullet(player.position.x, player.position.y + 0.7, BULLET_SPEED, Faction.Player));
+      player.weaponEnergy = (player.weaponEnergy ?? 0) - shotCost;
+      player.fireCooldownMs = intervalMs;
+    }
+  }
+
+  private clampPlayerToBounds() {
+    const player = this.entities.get(this.playerId);
+    if (!player) {
+      return;
+    }
+
+    player.position.x = clamp(player.position.x, this.playableBounds.left + 0.5, this.playableBounds.right - 0.5);
+    player.position.y = clamp(player.position.y, this.playableBounds.bottom + 0.5, this.playableBounds.top - 0.5);
   }
 
   subscribe(listener: SnapshotListener): () => void {

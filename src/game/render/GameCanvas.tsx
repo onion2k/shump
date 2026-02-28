@@ -3,12 +3,14 @@ import { useEffect, useMemo, useRef } from 'react';
 import { SceneRoot } from './SceneRoot';
 import { PointerController } from '../input/PointerController';
 import { Game } from '../core/Game';
+import type { GameSnapshot } from '../core/Game';
 
 interface GameCanvasProps {
   game: Game;
+  snapshot: GameSnapshot;
 }
 
-export function GameCanvas({ game }: GameCanvasProps) {
+export function GameCanvas({ game, snapshot }: GameCanvasProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const pointer = useMemo(() => new PointerController(), []);
 
@@ -21,9 +23,9 @@ export function GameCanvas({ game }: GameCanvasProps) {
   }, [pointer]);
 
   return (
-    <div ref={wrapperRef} style={{ width: '100%', height: '100%' }}>
+    <div ref={wrapperRef} style={{ width: '100%', height: '100%', touchAction: 'none' }}>
       <Canvas>
-        <SceneRoot game={game} pointer={pointer} />
+        <SceneRoot game={game} pointer={pointer} snapshot={snapshot} />
       </Canvas>
     </div>
   );

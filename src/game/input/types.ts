@@ -1,5 +1,7 @@
 export interface PointerState {
-  active: boolean;
+  hasPosition: boolean;
   x: number;
   y: number;
+  leftButtonDown: boolean;
+  rightButtonDown: boolean;
 }
