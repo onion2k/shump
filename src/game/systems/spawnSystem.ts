@@ -3,6 +3,7 @@ import { createEnemy } from '../factories/createEnemy';
 import { buildSpawnQueue, defaultWaves, type ScheduledSpawn, type WaveDef } from './waveScript';
 import { WORLD_BOUNDS } from '../core/constants';
 import type { WorldBounds } from '../core/constants';
+import { BASE_PLAYFIELD_BOUNDS, scaleXAcrossBounds } from '../core/playfieldBounds';
 
 export class SpawnSystem {
   private elapsedMs = 0;
@@ -18,10 +19,7 @@ export class SpawnSystem {
 
     while (this.cursor < this.queue.length && this.queue[this.cursor].atMs <= this.elapsedMs) {
       const spawn = this.queue[this.cursor];
-      const baseWidth = WORLD_BOUNDS.right - WORLD_BOUNDS.left;
-      const dynamicWidth = bounds.right - bounds.left;
-      const widthScale = dynamicWidth / baseWidth;
-      const scaledX = spawn.x * widthScale;
+      const scaledX = scaleXAcrossBounds(spawn.x, BASE_PLAYFIELD_BOUNDS, bounds);
       const spawnY = bounds.top + 1.2;
       entityManager.create(
         createEnemy(

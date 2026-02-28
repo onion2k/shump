@@ -137,6 +137,7 @@ export class Game {
     return this.entities.all().map((entity) => ({
       id: entity.id,
       type: entity.type,
+      faction: entity.faction,
       x: entity.position.x,
       y: entity.position.y
     }));

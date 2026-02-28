@@ -1,6 +1,6 @@
 import { useFrame, useThree } from '@react-three/fiber';
 import { Stats } from '@react-three/drei';
-import { EntityType } from '../ecs/entityTypes';
+import { EntityType, Faction } from '../ecs/entityTypes';
 import { GameLoop } from '../core/GameLoop';
 import { useMemo } from 'react';
 import { PlayerMesh } from './meshes/PlayerMesh';
@@ -11,6 +11,7 @@ import { Game } from '../core/Game';
 import type { PointerController } from '../input/PointerController';
 import type { GameSnapshot } from '../core/Game';
 import { Hud3D } from './Hud3D';
+import { centeredBoundsFromSize } from '../core/playfieldBounds';
 
 interface SceneRootProps {
   game: Game;
@@ -26,12 +27,7 @@ export function SceneRoot({ game, pointer, snapshot }: SceneRootProps) {
 
   useFrame(({ clock }) => {
     const playViewport = viewport.getCurrentViewport(camera, [0, 0, 0]);
-    const bounds = {
-      left: -playViewport.width / 2,
-      right: playViewport.width / 2,
-      bottom: -playViewport.height / 2,
-      top: playViewport.height / 2
-    };
+    const bounds = centeredBoundsFromSize(playViewport.width, playViewport.height);
     pointer.setWorldBounds(bounds);
     game.setPlayableBounds(bounds);
 
@@ -74,7 +70,7 @@ export function SceneRoot({ game, pointer, snapshot }: SceneRootProps) {
 
         return (
           <group key={entity.id} position={position}>
-            <BulletMesh enemy={entity.y < 0} />
+            <BulletMesh enemy={entity.faction === Faction.Enemy} />
           </group>
         );
       })}
