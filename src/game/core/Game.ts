@@ -22,6 +22,7 @@ import {
 import { clamp } from '../util/math';
 import { GameEventBus } from './GameEventBus';
 import { createPickup } from '../factories/createPickup';
+import { ParticleSystem } from '../particles/particleSystem';
 
 export interface GameSnapshot {
   state: GameState;
@@ -43,6 +44,7 @@ export class Game {
   readonly entities = new EntityManager();
   readonly spawner = new SpawnSystem();
   readonly events = new GameEventBus();
+  readonly particles = new ParticleSystem();
   state = GameState.Boot;
   score = 0;
 
@@ -58,11 +60,38 @@ export class Game {
 
   bootstrap() {
     this.entities.clear();
+    this.particles.clearEmitters();
     this.score = 0;
     this.elapsedMs = 0;
     this.distanceTraveled = 0;
     const player = this.entities.create(createPlayer());
     this.playerId = player.id;
+    this.particles.addEmitter({
+      position: { x: player.position.x, y: player.position.y },
+      direction: -Math.PI / 2,
+      spread: Math.PI / 4,
+      lifetimeMs: 60_000,
+      particleType: 'thruster',
+      emissionRatePerSecond: 40,
+      particleLifetimeMs: 320,
+      particleSpeed: 4,
+      particleRadius: 0.09,
+      positionProvider: () => {
+        const currentPlayer = this.entities.get(this.playerId);
+        if (!currentPlayer) {
+          return { x: 0, y: 0 };
+        }
+
+        return {
+          x: currentPlayer.position.x,
+          y: currentPlayer.position.y - 0.45
+        };
+      },
+      velocityProvider: () => {
+        const currentPlayer = this.entities.get(this.playerId);
+        return currentPlayer?.velocity ?? { x: 0, y: 0 };
+      }
+    });
     this.state = GameState.Boot;
     this.spawner.reset();
     this.playableBounds = { ...WORLD_BOUNDS };
@@ -115,6 +144,7 @@ export class Game {
     this.applyPlayerInput(pointer, deltaSeconds);
     this.handlePlayerWeapons(deltaSeconds);
     this.spawner.tick(this.entities, deltaSeconds, this.playableBounds);
+    this.particles.tick(this.entities, deltaSeconds);
     shootingSystem(this.entities, deltaSeconds);
     homingSystem(this.entities, deltaSeconds);
     movementSystem(this.entities.all(), deltaSeconds);
@@ -206,6 +236,7 @@ export class Game {
       type: entity.type,
       faction: entity.faction,
       pickupKind: entity.pickupKind,
+      particleType: entity.particleType,
       x: entity.position.x,
       y: entity.position.y
     }));

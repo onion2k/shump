@@ -7,6 +7,7 @@ import { PlayerMesh } from './meshes/PlayerMesh';
 import { EnemyMesh } from './meshes/EnemyMesh';
 import { BulletMesh } from './meshes/BulletMesh';
 import { PickupMesh } from './meshes/PickupMesh';
+import { ParticleMesh } from './meshes/ParticleMesh';
 import { ParallaxBackground } from './ParallaxBackground';
 import { CameraRig } from './CameraRig';
 import { Game } from '../core/Game';
@@ -79,6 +80,14 @@ export function SceneRoot({ game, pointer, snapshot }: SceneRootProps) {
           return (
             <group key={entity.id} position={position}>
               <PickupMesh kind={entity.pickupKind ?? 'score'} />
+            </group>
+          );
+        }
+
+        if (entity.type === EntityType.Particle) {
+          return (
+            <group key={entity.id} position={position}>
+              <ParticleMesh kind={entity.particleType ?? 'default'} />
             </group>
           );
         }

@@ -2,7 +2,8 @@ export enum EntityType {
   Player = 'player',
   Enemy = 'enemy',
   Bullet = 'bullet',
-  Pickup = 'pickup'
+  Pickup = 'pickup',
+  Particle = 'particle'
 }
 
 export enum Faction {

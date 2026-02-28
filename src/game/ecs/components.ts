@@ -39,4 +39,5 @@ export interface Entity {
   homingTurnRate?: number;
   pickupKind?: 'score' | 'health' | 'energy';
   pickupValue?: number;
+  particleType?: string;
 }
