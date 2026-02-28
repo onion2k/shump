@@ -6,12 +6,15 @@ import { useMemo } from 'react';
 import { PlayerMesh } from './meshes/PlayerMesh';
 import { EnemyMesh } from './meshes/EnemyMesh';
 import { BulletMesh } from './meshes/BulletMesh';
+import { PickupMesh } from './meshes/PickupMesh';
+import { ParallaxBackground } from './ParallaxBackground';
 import { CameraRig } from './CameraRig';
 import { Game } from '../core/Game';
 import type { PointerController } from '../input/PointerController';
 import type { GameSnapshot } from '../core/Game';
 import { Hud3D } from './Hud3D';
 import { centeredBoundsFromSize } from '../core/playfieldBounds';
+import { EffectComposer, Selection, SelectiveBloom } from '@react-three/postprocessing';
 
 interface SceneRootProps {
   game: Game;
@@ -37,18 +40,22 @@ export function SceneRoot({ game, pointer, snapshot }: SceneRootProps) {
   });
 
   const renderEntities = game.entitiesForRender();
+  const playerEntity = renderEntities.find((entity) => entity.type === EntityType.Player);
+  const playerX = playerEntity?.x ?? 0;
 
   return (
-    <>
+    <Selection>
       <CameraRig />
       <ambientLight intensity={0.75} />
       <directionalLight intensity={1.1} position={[3, 8, 8]} />
       <Stats showPanel={0} className="fps-stats" />
       <Hud3D snapshot={snapshot} />
-      <mesh position={[0, 0, -2]}>
-        <planeGeometry args={[backgroundViewport.width, backgroundViewport.height]} />
-        <meshStandardMaterial color="#101c36" />
-      </mesh>
+      <ParallaxBackground
+        width={backgroundViewport.width}
+        height={backgroundViewport.height}
+        playerX={playerX}
+        scrollDistance={snapshot.distanceTraveled}
+      />
       {renderEntities.map((entity) => {
         const position: [number, number, number] = [entity.x, entity.y, 0];
 
@@ -68,12 +75,29 @@ export function SceneRoot({ game, pointer, snapshot }: SceneRootProps) {
           );
         }
 
+        if (entity.type === EntityType.Pickup) {
+          return (
+            <group key={entity.id} position={position}>
+              <PickupMesh kind={entity.pickupKind ?? 'score'} />
+            </group>
+          );
+        }
+
         return (
           <group key={entity.id} position={position}>
             <BulletMesh enemy={entity.faction === Faction.Enemy} />
           </group>
         );
       })}
-    </>
+      <EffectComposer multisampling={4}>
+        <SelectiveBloom
+          mipmapBlur
+          intensity={0.7}
+          luminanceThreshold={0.15}
+          luminanceSmoothing={0.4}
+          radius={0.7}
+        />
+      </EffectComposer>
+    </Selection>
   );
 }

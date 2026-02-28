@@ -9,7 +9,7 @@ export interface CollisionPair {
 
 export function collisionSystem(entities: Entity[]): CollisionPair[] {
   const bullets = entities.filter((entity) => entity.type === EntityType.Bullet);
-  const targets = entities.filter((entity) => entity.type !== EntityType.Bullet);
+  const targets = entities.filter((entity) => entity.type === EntityType.Player || entity.type === EntityType.Enemy);
   const pairs: CollisionPair[] = [];
 
   for (const bullet of bullets) {

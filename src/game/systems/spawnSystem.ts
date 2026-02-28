@@ -27,7 +27,8 @@ export class SpawnSystem {
           spawnY,
           spawn.movementPattern,
           spawn.patternAmplitude,
-          spawn.patternFrequency
+          spawn.patternFrequency,
+          spawn.movementParams
         )
       );
       this.cursor += 1;

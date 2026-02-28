@@ -9,7 +9,9 @@ describe('GameEventBus', () => {
     const globalTypes: string[] = [];
 
     bus.on('WeaponFired', (event) => {
-      typedProjectileIds.push(event.projectileEntityId);
+      if (typeof event.projectileEntityId === 'number') {
+        typedProjectileIds.push(event.projectileEntityId);
+      }
     });
 
     bus.subscribe((event) => {

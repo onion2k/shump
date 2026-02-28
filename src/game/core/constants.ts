@@ -21,3 +21,4 @@ export const PLAYER_CHARGE_RATE = 60;
 export const PLAYER_CHARGE_MIN_TO_FIRE = 8;
 export const ENEMY_SPAWN_INTERVAL_MS = 900;
 export const BULLET_SPEED = 26;
+export const WORLD_SCROLL_SPEED = 6;

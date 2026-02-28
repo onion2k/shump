@@ -8,7 +8,7 @@ export interface WeaponFiredEvent {
   shooterId: number;
   shooterFaction?: Faction;
   weaponMode: string;
-  projectileEntityId: number;
+  projectileEntityId?: number;
 }
 
 export interface EntityDestroyedEvent {

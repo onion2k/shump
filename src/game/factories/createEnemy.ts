@@ -1,12 +1,14 @@
 import type { Entity } from '../ecs/components';
 import { EntityType, Faction } from '../ecs/entityTypes';
+import type { MovementPatternId } from '../movement/patterns';
 
 export function createEnemy(
   x: number,
   y: number,
-  movementPattern: 'straight' | 'sine' | 'zigzag' = 'straight',
+  movementPattern: MovementPatternId = 'straight',
   patternAmplitude = 2,
-  patternFrequency = 1.8
+  patternFrequency = 1.8,
+  movementParams?: Record<string, number>
 ): Omit<Entity, 'id'> {
   return {
     type: EntityType.Enemy,
@@ -21,7 +23,9 @@ export function createEnemy(
     movementPattern,
     patternAmplitude,
     patternFrequency,
+    movementParams,
     spawnX: x,
+    spawnY: y,
     ageMs: 0
   };
 }

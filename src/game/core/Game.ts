@@ -7,20 +7,21 @@ import { shootingSystem } from '../systems/shootingSystem';
 import { collisionSystem } from '../systems/collisionSystem';
 import { damageSystem } from '../systems/damageSystem';
 import { despawnSystem } from '../systems/despawnSystem';
+import { playerWeaponSystem } from '../systems/playerWeaponSystem';
+import { homingSystem } from '../systems/homingSystem';
+import { pickupSystem } from '../systems/pickupSystem';
 import { GameState } from './GameState';
 import type { PointerState } from '../input/types';
 import {
-  BULLET_SPEED,
   PLAYER_FOLLOW_GAIN,
-  PLAYER_MACHINE_GUN_INTERVAL_MS,
   PLAYER_MAX_SPEED,
+  WORLD_SCROLL_SPEED,
   WORLD_BOUNDS,
   type WorldBounds
 } from './constants';
 import { clamp } from '../util/math';
-import { Faction } from '../ecs/entityTypes';
-import { createBullet } from '../factories/createBullet';
 import { GameEventBus } from './GameEventBus';
+import { createPickup } from '../factories/createPickup';
 
 export interface GameSnapshot {
   state: GameState;
@@ -33,6 +34,7 @@ export interface GameSnapshot {
   weaponEnergyMax: number;
   weaponEnergyCost: number;
   weaponFireIntervalMs: number;
+  distanceTraveled: number;
 }
 
 type SnapshotListener = (snapshot: GameSnapshot) => void;
@@ -48,6 +50,7 @@ export class Game {
   private listeners = new Set<SnapshotListener>();
   private playableBounds: WorldBounds = { ...WORLD_BOUNDS };
   private elapsedMs = 0;
+  private distanceTraveled = 0;
 
   constructor() {
     this.bootstrap();
@@ -57,6 +60,7 @@ export class Game {
     this.entities.clear();
     this.score = 0;
     this.elapsedMs = 0;
+    this.distanceTraveled = 0;
     const player = this.entities.create(createPlayer());
     this.playerId = player.id;
     this.state = GameState.Boot;
@@ -70,6 +74,32 @@ export class Game {
     this.notify();
   }
 
+  pause() {
+    if (this.state !== GameState.Playing) {
+      return;
+    }
+
+    this.state = GameState.Paused;
+    this.notify();
+  }
+
+  resume() {
+    if (this.state !== GameState.Paused) {
+      return;
+    }
+
+    this.state = GameState.Playing;
+    this.notify();
+  }
+
+  togglePause() {
+    if (this.state === GameState.Playing) {
+      this.pause();
+    } else if (this.state === GameState.Paused) {
+      this.resume();
+    }
+  }
+
   restart() {
     this.bootstrap();
     this.start();
@@ -81,17 +111,36 @@ export class Game {
     }
 
     this.elapsedMs += deltaSeconds * 1000;
+    this.distanceTraveled += WORLD_SCROLL_SPEED * deltaSeconds;
     this.applyPlayerInput(pointer, deltaSeconds);
     this.handlePlayerWeapons(deltaSeconds);
     this.spawner.tick(this.entities, deltaSeconds, this.playableBounds);
     shootingSystem(this.entities, deltaSeconds);
+    homingSystem(this.entities, deltaSeconds);
     movementSystem(this.entities.all(), deltaSeconds);
     this.clampPlayerToBounds();
     const collisions = collisionSystem(this.entities.all());
     this.score += damageSystem(collisions);
+    const pickupResult = pickupSystem(this.entities, this.playerId);
+    this.score += pickupResult.scoreDelta;
+    for (const collection of pickupResult.collections) {
+      this.events.emit({
+        type: 'PickupCollected',
+        atMs: this.elapsedMs,
+        collectorId: this.playerId,
+        pickupId: collection.pickupId,
+        pickupKind: collection.pickupKind
+      });
+    }
     const despawned = despawnSystem(this.entities, deltaSeconds, this.playableBounds);
 
     for (const { entity, reason } of despawned) {
+      if (reason === 'health' && entity.type === EntityType.Enemy) {
+        if (entity.id % 5 === 0) {
+          this.entities.create(createPickup(entity.position.x, entity.position.y, 'health', 2));
+        }
+      }
+
       this.events.emit({
         type: 'EntityDestroyed',
         atMs: this.elapsedMs,
@@ -123,7 +172,8 @@ export class Game {
       weaponEnergyCurrent: player?.weaponEnergy ?? 0,
       weaponEnergyMax: player?.weaponEnergyMax ?? 0,
       weaponEnergyCost: player?.weaponEnergyCost ?? 0,
-      weaponFireIntervalMs: player?.weaponFireIntervalMs ?? 0
+      weaponFireIntervalMs: player?.weaponFireIntervalMs ?? 0,
+      distanceTraveled: this.distanceTraveled
     };
   }
 
@@ -155,6 +205,7 @@ export class Game {
       id: entity.id,
       type: entity.type,
       faction: entity.faction,
+      pickupKind: entity.pickupKind,
       x: entity.position.x,
       y: entity.position.y
     }));
@@ -169,34 +220,22 @@ export class Game {
   }
 
   private handlePlayerWeapons(deltaSeconds: number) {
+    const result = playerWeaponSystem(this.entities, this.playerId, deltaSeconds);
+    this.score += result.scoreDelta;
+
     const player = this.entities.get(this.playerId);
     if (!player) {
       return;
     }
 
-    const currentEnergy = player.weaponEnergy ?? 0;
-    const maxEnergy = player.weaponEnergyMax ?? 0;
-    const regen = player.weaponEnergyRegenPerSecond ?? 0;
-    const shotCost = player.weaponEnergyCost ?? 0;
-    const intervalMs = player.weaponFireIntervalMs ?? PLAYER_MACHINE_GUN_INTERVAL_MS;
-
-    player.weaponMode = 'Auto Pulse';
-    player.weaponEnergy = clamp(currentEnergy + regen * deltaSeconds, 0, maxEnergy);
-    player.fireCooldownMs = (player.fireCooldownMs ?? 0) - deltaSeconds * 1000;
-
-    if ((player.fireCooldownMs ?? 0) <= 0 && (player.weaponEnergy ?? 0) >= shotCost) {
-      const projectile = this.entities.create(
-        createBullet(player.position.x, player.position.y + 0.7, BULLET_SPEED, Faction.Player)
-      );
-      player.weaponEnergy = (player.weaponEnergy ?? 0) - shotCost;
-      player.fireCooldownMs = intervalMs;
+    for (const shot of result.fired) {
       this.events.emit({
         type: 'WeaponFired',
         atMs: this.elapsedMs,
         shooterId: player.id,
         shooterFaction: player.faction,
-        weaponMode: player.weaponMode,
-        projectileEntityId: projectile.id
+        weaponMode: shot.weaponMode,
+        projectileEntityId: shot.projectileEntityId
       });
     }
   }

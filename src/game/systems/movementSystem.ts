@@ -1,5 +1,6 @@
 import type { Entity } from '../ecs/components';
 import { EntityType } from '../ecs/entityTypes';
+import { movementControllerRegistry } from '../movement/controllers';
 
 export function movementSystem(entities: Entity[], deltaSeconds: number) {
   for (const entity of entities) {
@@ -8,13 +9,21 @@ export function movementSystem(entities: Entity[], deltaSeconds: number) {
     if (entity.type === EntityType.Enemy) {
       const ageSeconds = entity.ageMs / 1000;
       const baseX = entity.spawnX ?? entity.position.x;
+      const baseY = entity.spawnY ?? entity.position.y;
       const amp = entity.patternAmplitude ?? 0;
       const frequency = entity.patternFrequency ?? 1;
+      const controller = movementControllerRegistry.resolve(entity.movementPattern);
+      const controlledX = controller({
+        ageSeconds,
+        baseX,
+        baseY,
+        amplitude: amp,
+        frequency,
+        params: entity.movementParams
+      });
 
-      if (entity.movementPattern === 'sine') {
-        entity.position.x = baseX + Math.sin(ageSeconds * frequency) * amp;
-      } else if (entity.movementPattern === 'zigzag') {
-        entity.position.x = baseX + Math.sign(Math.sin(ageSeconds * frequency)) * amp;
+      if (typeof controlledX === 'number') {
+        entity.position.x = controlledX;
       }
     }
 

@@ -1,4 +1,5 @@
 import { EntityType, Faction } from './entityTypes';
+import type { MovementPatternId } from '../movement/patterns';
 
 export interface Vec2 {
   x: number;
@@ -17,11 +18,13 @@ export interface Entity {
   fireCooldownMs?: number;
   lifetimeMs?: number;
   scoreValue?: number;
-  movementPattern?: 'straight' | 'sine' | 'zigzag';
+  movementPattern?: MovementPatternId;
   patternAmplitude?: number;
   patternFrequency?: number;
   spawnX?: number;
+  spawnY?: number;
   ageMs?: number;
+  movementParams?: Record<string, number>;
   weaponMode?: string;
   weaponLevel?: number;
   weaponEnergy?: number;
@@ -30,4 +33,10 @@ export interface Entity {
   weaponEnergyCost?: number;
   weaponFireIntervalMs?: number;
   damage?: number;
+  projectileKind?: 'standard' | 'missile';
+  projectileSpeed?: number;
+  homingTargetId?: number;
+  homingTurnRate?: number;
+  pickupKind?: 'score' | 'health' | 'energy';
+  pickupValue?: number;
 }

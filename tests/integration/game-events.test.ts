@@ -14,7 +14,7 @@ const idlePointer = {
 describe('game event emissions', () => {
   it('emits WeaponFired when the player autofires', () => {
     const game = new Game();
-    const events: Array<{ projectileEntityId: number; shooterId: number }> = [];
+    const events: Array<{ projectileEntityId?: number; shooterId: number }> = [];
 
     game.events.on('WeaponFired', (event) => {
       events.push({ projectileEntityId: event.projectileEntityId, shooterId: event.shooterId });
@@ -25,6 +25,10 @@ describe('game event emissions', () => {
 
     expect(events.length).toBeGreaterThan(0);
     const first = events[0];
+    expect(typeof first.projectileEntityId).toBe('number');
+    if (typeof first.projectileEntityId !== 'number') {
+      return;
+    }
     const bullet = game.entities.get(first.projectileEntityId);
 
     expect(bullet?.type).toBe(EntityType.Bullet);

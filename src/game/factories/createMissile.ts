@@ -1,26 +1,27 @@
 import type { Entity } from '../ecs/components';
 import { EntityType, Faction } from '../ecs/entityTypes';
 
-export function createBullet(
+export function createMissile(
   x: number,
   y: number,
+  vx: number,
   vy: number,
   faction: Faction,
-  lifetimeMs = 2000,
-  damage = 1,
-  radius = 0.22,
-  vx = 0
+  targetId?: number
 ): Omit<Entity, 'id'> {
   return {
     type: EntityType.Bullet,
     faction,
     position: { x, y },
     velocity: { x: vx, y: vy },
-    radius,
+    radius: 0.28,
     health: 1,
     maxHealth: 1,
-    lifetimeMs,
-    damage,
-    projectileKind: 'standard'
+    lifetimeMs: 2600,
+    damage: 3,
+    projectileKind: 'missile',
+    projectileSpeed: Math.hypot(vx, vy),
+    homingTargetId: targetId,
+    homingTurnRate: 7.5
   };
 }

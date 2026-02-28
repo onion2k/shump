@@ -26,4 +26,34 @@ describe('game flow', () => {
     expect(snapshot.weaponEnergyMax).toBeGreaterThan(0);
     expect(snapshot.weaponEnergyCurrent).toBeGreaterThanOrEqual(0);
   });
+
+  it('toggles playing <-> paused and halts simulation while paused', () => {
+    const game = new Game();
+    game.start();
+    expect(game.snapshot().state).toBe(GameState.Playing);
+
+    game.update(0.2, {
+      hasPosition: false,
+      x: 0,
+      y: 0,
+      leftButtonDown: false,
+      rightButtonDown: false
+    });
+    const distanceBeforePause = game.snapshot().distanceTraveled;
+
+    game.togglePause();
+    expect(game.snapshot().state).toBe(GameState.Paused);
+
+    game.update(0.5, {
+      hasPosition: true,
+      x: 4,
+      y: -8,
+      leftButtonDown: false,
+      rightButtonDown: false
+    });
+    expect(game.snapshot().distanceTraveled).toBeCloseTo(distanceBeforePause, 4);
+
+    game.togglePause();
+    expect(game.snapshot().state).toBe(GameState.Playing);
+  });
 });
