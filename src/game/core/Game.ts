@@ -20,6 +20,7 @@ import {
 import { clamp } from '../util/math';
 import { Faction } from '../ecs/entityTypes';
 import { createBullet } from '../factories/createBullet';
+import { GameEventBus } from './GameEventBus';
 
 export interface GameSnapshot {
   state: GameState;
@@ -39,12 +40,14 @@ type SnapshotListener = (snapshot: GameSnapshot) => void;
 export class Game {
   readonly entities = new EntityManager();
   readonly spawner = new SpawnSystem();
+  readonly events = new GameEventBus();
   state = GameState.Boot;
   score = 0;
 
   private playerId = 0;
   private listeners = new Set<SnapshotListener>();
   private playableBounds: WorldBounds = { ...WORLD_BOUNDS };
+  private elapsedMs = 0;
 
   constructor() {
     this.bootstrap();
@@ -53,6 +56,7 @@ export class Game {
   bootstrap() {
     this.entities.clear();
     this.score = 0;
+    this.elapsedMs = 0;
     const player = this.entities.create(createPlayer());
     this.playerId = player.id;
     this.state = GameState.Boot;
@@ -76,6 +80,7 @@ export class Game {
       return;
     }
 
+    this.elapsedMs += deltaSeconds * 1000;
     this.applyPlayerInput(pointer, deltaSeconds);
     this.handlePlayerWeapons(deltaSeconds);
     this.spawner.tick(this.entities, deltaSeconds, this.playableBounds);
@@ -84,7 +89,19 @@ export class Game {
     this.clampPlayerToBounds();
     const collisions = collisionSystem(this.entities.all());
     this.score += damageSystem(collisions);
-    despawnSystem(this.entities, deltaSeconds, this.playableBounds);
+    const despawned = despawnSystem(this.entities, deltaSeconds, this.playableBounds);
+
+    for (const { entity, reason } of despawned) {
+      this.events.emit({
+        type: 'EntityDestroyed',
+        atMs: this.elapsedMs,
+        entityId: entity.id,
+        entityType: entity.type,
+        entityFaction: entity.faction,
+        reason,
+        scoreValue: entity.scoreValue
+      });
+    }
 
     const player = this.entities.get(this.playerId);
     if (!player || player.health <= 0) {
@@ -168,9 +185,19 @@ export class Game {
     player.fireCooldownMs = (player.fireCooldownMs ?? 0) - deltaSeconds * 1000;
 
     if ((player.fireCooldownMs ?? 0) <= 0 && (player.weaponEnergy ?? 0) >= shotCost) {
-      this.entities.create(createBullet(player.position.x, player.position.y + 0.7, BULLET_SPEED, Faction.Player));
+      const projectile = this.entities.create(
+        createBullet(player.position.x, player.position.y + 0.7, BULLET_SPEED, Faction.Player)
+      );
       player.weaponEnergy = (player.weaponEnergy ?? 0) - shotCost;
       player.fireCooldownMs = intervalMs;
+      this.events.emit({
+        type: 'WeaponFired',
+        atMs: this.elapsedMs,
+        shooterId: player.id,
+        shooterFaction: player.faction,
+        weaponMode: player.weaponMode,
+        projectileEntityId: projectile.id
+      });
     }
   }
 
