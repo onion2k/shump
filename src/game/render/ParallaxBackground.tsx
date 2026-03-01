@@ -24,6 +24,11 @@ interface CloudLayerConfig {
   offset: number;
 }
 
+const TERRAIN_WIDTH_SCALE = 1.5;
+const TERRAIN_HEIGHT_SCALE = 2.4;
+const TERRAIN_WRAP_OVERLAP = 0;
+const TERRAIN_SCROLL_SPEED = 1;
+
 const CLOUD_LAYERS: CloudLayerConfig[] = [
   {
     z: -3.75,
@@ -58,8 +63,10 @@ const CLOUD_LAYERS: CloudLayerConfig[] = [
 ];
 
 export function ParallaxBackground({ width, height, playerX, scrollDistance }: ParallaxBackgroundProps) {
+  const terrainHeight = height * TERRAIN_HEIGHT_SCALE;
+
   const terrainGeometry = useMemo(() => {
-    const geometry = new PlaneGeometry(width * 1.5, height * 1.4, 440, 320);
+    const geometry = new PlaneGeometry(width * TERRAIN_WIDTH_SCALE, terrainHeight, 440, 320);
     const positions = geometry.attributes.position;
     const baseFrequency = 0.12;
     const largeScaleAmplitude = 0.5;
@@ -70,8 +77,19 @@ export function ParallaxBackground({ width, height, playerX, scrollDistance }: P
     for (let i = 0; i < positions.count; i += 1) {
       const x = positions.getX(i);
       const y = positions.getY(i);
-      const largeScale = perlinNoise2d((x + 17.1) * baseFrequency, (y - 9.4) * baseFrequency);
-      const detailScale = perlinNoise2d((x - 12.7) * baseFrequency * 1.6, (y + 14.6) * baseFrequency * 1.6);
+      const yT = clamp((y + terrainHeight * 0.5) / terrainHeight, 0, 1);
+      const largeScaleY = (y - 9.4) * baseFrequency;
+      const largeScalePeriod = terrainHeight * baseFrequency;
+      const largeScale = seamlessPerlinNoiseY((x + 17.1) * baseFrequency, largeScaleY, yT, largeScalePeriod);
+      const detailScaleFrequency = baseFrequency * 1.6;
+      const detailScaleY = (y + 14.6) * detailScaleFrequency;
+      const detailScalePeriod = terrainHeight * detailScaleFrequency;
+      const detailScale = seamlessPerlinNoiseY(
+        (x - 12.7) * detailScaleFrequency,
+        detailScaleY,
+        yT,
+        detailScalePeriod
+      );
       const z = largeScale * largeScaleAmplitude + detailScale * detailScaleAmplitude;
       positions.setZ(i, z);
       minZ = Math.min(minZ, z);
@@ -107,14 +125,23 @@ export function ParallaxBackground({ width, height, playerX, scrollDistance }: P
     positions.needsUpdate = true;
     geometry.computeVertexNormals();
     return geometry;
-  }, [width, height]);
+  }, [terrainHeight, width]);
 
   useEffect(() => () => terrainGeometry.dispose(), [terrainGeometry]);
 
+  const terrainSpan = Math.max(0.001, terrainHeight - TERRAIN_WRAP_OVERLAP);
+  const terrainWrappedY = wrapVertical(scrollDistance * TERRAIN_SCROLL_SPEED, terrainSpan);
+
   return (
     <group>
-      <mesh position={[0, 0, -4.65]} geometry={terrainGeometry}>
-        <meshStandardMaterial vertexColors roughness={0.95} metalness={0.02} />
+      <mesh position={[0, terrainWrappedY + terrainSpan, -4.65]} geometry={terrainGeometry}>
+        <meshBasicMaterial vertexColors toneMapped={false} />
+      </mesh>
+      <mesh position={[0, terrainWrappedY, -4.65]} geometry={terrainGeometry}>
+        <meshBasicMaterial vertexColors toneMapped={false} />
+      </mesh>
+      <mesh position={[0, terrainWrappedY - terrainSpan, -4.65]} geometry={terrainGeometry}>
+        <meshBasicMaterial vertexColors toneMapped={false} />
       </mesh>
 
       {CLOUD_LAYERS.map((layer, index) => (
@@ -183,6 +210,15 @@ function CloudBand({ layer, width, height, playerX, scrollDistance }: CloudBandP
 
   return (
     <>
+      <mesh position={[x, wrappedY + span, layer.z]} geometry={cloudGeometry}>
+        <meshBasicMaterial
+          vertexColors
+          transparent
+          opacity={layer.opacity}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </mesh>
       <mesh position={[x, wrappedY, layer.z]} geometry={cloudGeometry}>
         <meshBasicMaterial
           vertexColors
@@ -267,6 +303,13 @@ function clamp(value: number, min: number, max: number): number {
 function smoothstep(edge0: number, edge1: number, x: number): number {
   const t = clamp((x - edge0) / (edge1 - edge0), 0, 1);
   return t * t * (3 - 2 * t);
+}
+
+function seamlessPerlinNoiseY(x: number, y: number, t: number, period: number): number {
+  const wrappedT = clamp(t, 0, 1);
+  const sampleA = perlinNoise2d(x, y);
+  const sampleB = perlinNoise2d(x, y - period);
+  return lerp(sampleA, sampleB, wrappedT);
 }
 
 function wrapVertical(value: number, span: number): number {
