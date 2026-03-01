@@ -85,11 +85,14 @@
       "spreadRadians": 0.7853981633974483,
       "lifetimeMs": 60000,
       "particleType": "thruster",
-      "emissionRatePerSecond": 40,
-      "particleLifetimeMs": 320,
-      "particleSpeed": 4,
-      "particleRadius": 0.09,
-      "offsetY": -0.7
+      "emissionRatePerSecond": 30,
+      "particleLifetimeMs": 600,
+      "particleSpeed": 7,
+      "particleRadius": 0.045,
+      "directionRandomness": 0.2,
+      "velocityRandomness": 0.5,
+      "lifetimeRandomness": 0.3,
+      "offsetY": -0.95
     },
     "explosion": {
       "fireBurst": {
