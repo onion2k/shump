@@ -483,11 +483,14 @@ export class Game {
       position: { x, y },
       direction: 0,
       spread: Math.PI * 2,
+      directionRandomness: fireBurst.directionRandomness,
       lifetimeMs: fireBurst.emitterLifetimeMs,
       particleType: 'fire',
       emissionRatePerSecond: fireBurst.emissionRatePerSecond,
       particleLifetimeMs: fireBurst.particleLifetimeMs,
       particleSpeed: fireBurst.particleSpeed,
+      lifetimeRandomness: fireBurst.lifetimeRandomness,
+      velocityRandomness: fireBurst.velocityRandomness,
       particleRadius: fireBurst.particleRadius
     });
 
@@ -495,11 +498,14 @@ export class Game {
       position: { x, y },
       direction: 0,
       spread: Math.PI * 2,
+      directionRandomness: smokeBurst.directionRandomness,
       lifetimeMs: smokeBurst.emitterLifetimeMs,
       particleType: 'smoke',
       emissionRatePerSecond: smokeBurst.emissionRatePerSecond,
       particleLifetimeMs: smokeBurst.particleLifetimeMs,
       particleSpeed: smokeBurst.particleSpeed,
+      lifetimeRandomness: smokeBurst.lifetimeRandomness,
+      velocityRandomness: smokeBurst.velocityRandomness,
       particleRadius: smokeBurst.particleRadius
     });
 
@@ -520,11 +526,14 @@ export class Game {
         position: { x, y },
         direction: Math.atan2(vy, vx),
         spread: trail.spreadRadians,
+        directionRandomness: trail.directionRandomness,
         lifetimeMs: shardLifetimeMs,
         particleType: 'fire',
         emissionRatePerSecond: trail.emissionRatePerSecond,
         particleLifetimeMs: trail.particleLifetimeMs,
         particleSpeed: trail.particleSpeed,
+        lifetimeRandomness: trail.lifetimeRandomness,
+        velocityRandomness: trail.velocityRandomness,
         particleRadius: trail.particleRadius,
         positionProvider: () => ({ x: trailSource.x, y: trailSource.y }),
         velocityProvider: () => ({

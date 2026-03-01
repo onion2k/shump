@@ -89,7 +89,7 @@
       "particleLifetimeMs": 320,
       "particleSpeed": 4,
       "particleRadius": 0.09,
-      "offsetY": -0.45
+      "offsetY": -0.7
     },
     "explosion": {
       "fireBurst": {
@@ -97,7 +97,10 @@
         "emissionRatePerSecond": 520,
         "particleLifetimeMs": 260,
         "particleSpeed": 8.8,
-        "particleRadius": 0.13
+        "particleRadius": 0.09,
+        "directionRandomness": 0.25,
+        "velocityRandomness": 0.35,
+        "lifetimeRandomness": 0.3
       },
       "smokeBurst": {
         "delayMs": 110,
@@ -105,7 +108,10 @@
         "emissionRatePerSecond": 180,
         "particleLifetimeMs": 720,
         "particleSpeed": 2.2,
-        "particleRadius": 0.2
+        "particleRadius": 0.14,
+        "directionRandomness": 0.35,
+        "velocityRandomness": 0.25,
+        "lifetimeRandomness": 0.4
       },
       "shards": {
         "count": 4,
@@ -113,15 +119,18 @@
         "speedMax": 10.2,
         "lifetimeMinMs": 360,
         "lifetimeMaxMs": 520,
-        "radiusMin": 0.21,
-        "radiusMax": 0.28
+        "radiusMin": 0.14,
+        "radiusMax": 0.2
       },
       "trail": {
         "spreadRadians": 0.6283185307179586,
         "emissionRatePerSecond": 130,
         "particleLifetimeMs": 220,
         "particleSpeed": 2.6,
-        "particleRadius": 0.09,
+        "particleRadius": 0.06,
+        "directionRandomness": 0.3,
+        "velocityRandomness": 0.35,
+        "lifetimeRandomness": 0.35,
         "inheritVelocityFactor": 0.15
       }
     }
