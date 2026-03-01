@@ -56,4 +56,29 @@ describe('game flow', () => {
     game.togglePause();
     expect(game.snapshot().state).toBe(GameState.Playing);
   });
+
+  it('can run debug-only ticks without advancing gameplay state', () => {
+    const game = new Game();
+    game.start();
+    game.setDebugModeActive(true);
+    game.setDebugEmitterEnabled(true);
+    game.pause();
+    const distanceBefore = game.snapshot().distanceTraveled;
+
+    game.update(
+      0.5,
+      {
+        hasPosition: false,
+        x: 0,
+        y: 0,
+        leftButtonDown: false,
+        rightButtonDown: false
+      },
+      { runGameplay: false, runDebug: true }
+    );
+
+    expect(game.snapshot().state).toBe(GameState.Paused);
+    expect(game.snapshot().distanceTraveled).toBeCloseTo(distanceBefore, 4);
+    expect(game.entities.all().some((entity) => entity.particleType === 'debug')).toBe(true);
+  });
 });

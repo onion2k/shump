@@ -53,6 +53,9 @@ export interface DebugEmitterSettings {
   emissionRatePerSecond: number;
   particleLifetimeMs: number;
   particleSpeed: number;
+  directionRandomness: number;
+  velocityRandomness: number;
+  lifetimeRandomness: number;
   particleRadius: number;
   velocityX: number;
   velocityY: number;
@@ -66,6 +69,11 @@ export interface GpuParticleSpawn {
   lifetimeMs: number;
   radius: number;
   particleType: string;
+}
+
+export interface GameUpdateOptions {
+  runGameplay?: boolean;
+  runDebug?: boolean;
 }
 
 interface ScheduledEmitter {
@@ -98,6 +106,7 @@ export class Game {
   private trailSources: TrailSource[] = [];
   private debugEmitterId?: number;
   private debugEmitterEnabled = false;
+  private debugModeActive = false;
   private debugEmitterSettings: DebugEmitterSettings = {
     ...gameSettings.particles.debugEmitterDefaults
   };
@@ -191,8 +200,23 @@ export class Game {
     this.start();
   }
 
-  update(deltaSeconds: number, pointer: PointerState) {
+  update(deltaSeconds: number, pointer: PointerState, options: GameUpdateOptions = {}) {
+    const runGameplay = options.runGameplay ?? true;
+    const runDebug = options.runDebug ?? true;
+
+    if (!runGameplay && runDebug && this.debugModeActive) {
+      this.syncDebugEmitter();
+      this.tickDebugEmitter(deltaSeconds);
+      this.notify();
+      return;
+    }
+
     if (this.state !== GameState.Playing) {
+      if (runDebug && this.state === GameState.Paused && this.debugModeActive) {
+        this.syncDebugEmitter();
+        this.tickDebugEmitter(deltaSeconds);
+        this.notify();
+      }
       return;
     }
 
@@ -339,6 +363,10 @@ export class Game {
   setDebugEmitterEnabled(enabled: boolean) {
     this.debugEmitterEnabled = enabled;
     this.syncDebugEmitter();
+  }
+
+  setDebugModeActive(active: boolean) {
+    this.debugModeActive = active;
   }
 
   setDebugEmitterSettings(settings: Partial<DebugEmitterSettings>) {
@@ -536,14 +564,31 @@ export class Game {
       position: { x: settings.positionX, y: settings.positionY },
       direction: settings.directionDegrees * toRadians,
       spread: Math.max(0, settings.spreadDegrees) * toRadians,
+      directionRandomness: Math.max(0, settings.directionRandomness),
       lifetimeMs: Math.max(1, settings.emitterLifetimeMs),
       particleType: settings.particleType,
       emissionRatePerSecond: Math.max(0, settings.emissionRatePerSecond),
       particleLifetimeMs: Math.max(1, settings.particleLifetimeMs),
+      lifetimeRandomness: Math.max(0, settings.lifetimeRandomness),
       particleSpeed: settings.particleSpeed,
+      velocityRandomness: Math.max(0, settings.velocityRandomness),
       particleRadius: Math.max(0.01, settings.particleRadius),
       velocityProvider: () => ({ x: settings.velocityX, y: settings.velocityY })
     };
+  }
+
+  private tickDebugEmitter(deltaSeconds: number) {
+    const debugEmitterId = this.debugEmitterId;
+    if (typeof debugEmitterId !== 'number') {
+      return;
+    }
+
+    this.particles.tick(
+      this.entities,
+      deltaSeconds,
+      this.useGpuParticles ? this.handleParticleSpawn : undefined,
+      (id) => id === debugEmitterId
+    );
   }
 
   subscribe(listener: SnapshotListener): () => void {

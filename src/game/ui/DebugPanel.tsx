@@ -128,6 +128,39 @@ export function DebugPanel({
             />
           </label>
           <label>
+            <span>Direction Randomness</span>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={settings.directionRandomness}
+              onChange={(event) => onPatchSettings({ directionRandomness: numberInputValue(event) })}
+            />
+          </label>
+          <label>
+            <span>Velocity Randomness</span>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={settings.velocityRandomness}
+              onChange={(event) => onPatchSettings({ velocityRandomness: numberInputValue(event) })}
+            />
+          </label>
+          <label>
+            <span>Lifetime Randomness</span>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={settings.lifetimeRandomness}
+              onChange={(event) => onPatchSettings({ lifetimeRandomness: numberInputValue(event) })}
+            />
+          </label>
+          <label>
             <span>Particle Radius</span>
             <input
               type="number"

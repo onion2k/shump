@@ -23,6 +23,15 @@ body,
   overflow: hidden;
 }
 
+.app-shell.debug-open {
+  background: #030814;
+}
+
+.game-stage {
+  width: 100%;
+  height: 100%;
+}
+
 .overlay {
   position: absolute;
   inset: 0;

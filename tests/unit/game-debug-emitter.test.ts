@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Game } from '../../src/game/core/Game';
+import { GameState } from '../../src/game/core/GameState';
 
 describe('game debug emitter', () => {
   it('adds and removes debug emitter when toggled', () => {
@@ -45,5 +46,71 @@ describe('game debug emitter', () => {
     expect(debugParticle?.position.y).toBeCloseTo(1.25);
     expect(debugParticle?.velocity.x).toBeCloseTo(3);
     expect(debugParticle?.velocity.y).toBeCloseTo(0);
+  });
+
+  it('emits debug particles while paused when debug mode is active', () => {
+    const game = new Game();
+    game.setDebugEmitterSettings({
+      positionX: 1,
+      positionY: -2,
+      directionDegrees: 0,
+      spreadDegrees: 0,
+      particleSpeed: 0,
+      velocityX: 0,
+      velocityY: 0,
+      emissionRatePerSecond: 10,
+      particleLifetimeMs: 250
+    });
+    game.setDebugEmitterEnabled(true);
+    game.start();
+    game.pause();
+    game.setDebugModeActive(true);
+    game.update(0.2, {
+      hasPosition: false,
+      x: 0,
+      y: 0,
+      leftButtonDown: false,
+      rightButtonDown: false
+    });
+
+    const debugParticle = game
+      .entities
+      .all()
+      .find((entity) => entity.particleType === 'debug');
+
+    expect(debugParticle).toBeTruthy();
+    expect(debugParticle?.position.x).toBeCloseTo(1);
+    expect(debugParticle?.position.y).toBeCloseTo(-2);
+    expect(game.snapshot().state).toBe(GameState.Paused);
+  });
+
+  it('emits debug particles in debug-only mode from boot state', () => {
+    const game = new Game();
+    game.setDebugModeActive(true);
+    game.setDebugEmitterEnabled(true);
+    game.update(
+      0.2,
+      {
+        hasPosition: false,
+        x: 0,
+        y: 0,
+        leftButtonDown: false,
+        rightButtonDown: false
+      },
+      { runGameplay: false, runDebug: true }
+    );
+
+    const debugParticle = game
+      .entities
+      .all()
+      .find((entity) => entity.particleType === 'debug');
+    const thrusterParticle = game
+      .entities
+      .all()
+      .find((entity) => entity.particleType === 'thruster');
+
+    expect(debugParticle).toBeTruthy();
+    expect(thrusterParticle).toBeFalsy();
+    expect(game.snapshot().state).toBe(GameState.Boot);
   });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { GameCanvas } from './game/render/GameCanvas';
 import { Game, type DebugEmitterSettings } from './game/core/Game';
 import { GameState } from './game/core/GameState';
@@ -17,6 +17,9 @@ const INITIAL_DEBUG_EMITTER_SETTINGS: DebugEmitterSettings = {
   emissionRatePerSecond: 50,
   particleLifetimeMs: 500,
   particleSpeed: 3.5,
+  directionRandomness: 0,
+  velocityRandomness: 0,
+  lifetimeRandomness: 0,
   particleRadius: 0.12,
   velocityX: 0,
   velocityY: 0
@@ -28,6 +31,7 @@ export function App() {
   const [debugPanelOpen, setDebugPanelOpen] = useState(false);
   const [debugEmitterEnabled, setDebugEmitterEnabled] = useState(false);
   const [debugEmitterSettings, setDebugEmitterSettings] = useState<DebugEmitterSettings>(INITIAL_DEBUG_EMITTER_SETTINGS);
+  const debugForcedPauseRef = useRef(false);
 
   useEffect(() => game.subscribe(setSnapshot), [game]);
   useEffect(() => {
@@ -36,6 +40,26 @@ export function App() {
   useEffect(() => {
     game.setDebugEmitterSettings(debugEmitterSettings);
   }, [debugEmitterSettings, game]);
+  useEffect(() => {
+    game.setDebugModeActive(debugPanelOpen);
+  }, [debugPanelOpen, game]);
+  useEffect(() => {
+    if (debugPanelOpen) {
+      if (game.snapshot().state === GameState.Playing) {
+        debugForcedPauseRef.current = true;
+        game.pause();
+      } else {
+        debugForcedPauseRef.current = false;
+      }
+      return;
+    }
+
+    if (debugForcedPauseRef.current && game.snapshot().state === GameState.Paused) {
+      game.resume();
+    }
+
+    debugForcedPauseRef.current = false;
+  }, [debugPanelOpen, game]);
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === '`' || event.key === 'F1') {
@@ -48,6 +72,10 @@ export function App() {
         return;
       }
 
+      if (debugPanelOpen) {
+        return;
+      }
+
       game.togglePause();
     }
 
@@ -55,11 +83,13 @@ export function App() {
     return () => {
       window.removeEventListener('keydown', onKeyDown);
     };
-  }, [game]);
+  }, [debugPanelOpen, game]);
 
   return (
-    <main className="app-shell" data-game-state={snapshot.state}>
-      <GameCanvas game={game} snapshot={snapshot} />
+    <main className={`app-shell ${debugPanelOpen ? 'debug-open' : ''}`} data-game-state={snapshot.state}>
+      <div className="game-stage">
+        <GameCanvas game={game} snapshot={snapshot} debugMode={debugPanelOpen} />
+      </div>
       <DebugPanel
         open={debugPanelOpen}
         emitterEnabled={debugEmitterEnabled}
@@ -68,9 +98,9 @@ export function App() {
         onSetEmitterEnabled={setDebugEmitterEnabled}
         onPatchSettings={(patch) => setDebugEmitterSettings((current) => ({ ...current, ...patch }))}
       />
-      {snapshot.state === GameState.Boot && <StartScreen onStart={() => game.start()} />}
-      {snapshot.state === GameState.Paused && <PauseScreen onResume={() => game.resume()} />}
-      {snapshot.state === GameState.GameOver && <GameOverScreen onRestart={() => game.restart()} />}
+      {!debugPanelOpen && snapshot.state === GameState.Boot && <StartScreen onStart={() => game.start()} />}
+      {!debugPanelOpen && snapshot.state === GameState.Paused && <PauseScreen onResume={() => game.resume()} />}
+      {!debugPanelOpen && snapshot.state === GameState.GameOver && <GameOverScreen onRestart={() => game.restart()} />}
     </main>
   );
 }

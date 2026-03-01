@@ -73,6 +73,9 @@
       "emissionRatePerSecond": 50,
       "particleLifetimeMs": 500,
       "particleSpeed": 3.5,
+      "directionRandomness": 0,
+      "velocityRandomness": 0,
+      "lifetimeRandomness": 0,
       "particleRadius": 0.12,
       "velocityX": 0,
       "velocityY": 0

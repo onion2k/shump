@@ -8,24 +8,25 @@ import type { GameSnapshot } from '../core/Game';
 interface GameCanvasProps {
   game: Game;
   snapshot: GameSnapshot;
+  debugMode: boolean;
 }
 
-export function GameCanvas({ game, snapshot }: GameCanvasProps) {
+export function GameCanvas({ game, snapshot, debugMode }: GameCanvasProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const pointer = useMemo(() => new PointerController(), []);
 
   useEffect(() => {
-    if (!wrapperRef.current) {
+    if (!wrapperRef.current || debugMode) {
       return;
     }
 
     return pointer.attach(wrapperRef.current);
-  }, [pointer]);
+  }, [debugMode, pointer]);
 
   return (
     <div ref={wrapperRef} style={{ width: '100%', height: '100%', touchAction: 'none' }}>
       <Canvas>
-        <SceneRoot game={game} pointer={pointer} snapshot={snapshot} />
+        <SceneRoot game={game} pointer={pointer} snapshot={snapshot} debugMode={debugMode} />
       </Canvas>
     </div>
   );
