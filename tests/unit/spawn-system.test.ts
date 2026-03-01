@@ -3,6 +3,7 @@ import { SpawnSystem } from '../../src/game/systems/spawnSystem';
 import { EntityManager } from '../../src/game/ecs/EntityManager';
 import type { WaveDef } from '../../src/game/systems/waveScript';
 import { EntityType } from '../../src/game/ecs/entityTypes';
+import { WORLD_BOUNDS } from '../../src/game/core/constants';
 
 describe('SpawnSystem wave scripting', () => {
   it('spawns scripted enemies only after their scheduled times', () => {
@@ -51,5 +52,34 @@ describe('SpawnSystem wave scripting', () => {
     const newRunEntities = new EntityManager();
     spawnSystem.tick(newRunEntities, 0.01);
     expect(newRunEntities.count()).toBe(1);
+  });
+
+  it('spawns progression waves regularly and mixes archetypes at higher progress', () => {
+    const entityManager = new EntityManager();
+    const spawnSystem = new SpawnSystem();
+
+    for (let i = 0; i < 360; i += 1) {
+      spawnSystem.tick(entityManager, 0.05, WORLD_BOUNDS, 820);
+    }
+
+    const enemies = entityManager.all().filter((entity) => entity.type === EntityType.Enemy);
+    const archetypes = new Set(enemies.map((enemy) => enemy.enemyArchetype));
+
+    expect(enemies.length).toBeGreaterThan(8);
+    expect(archetypes.has('scout')).toBe(true);
+    expect(archetypes.has('striker')).toBe(true);
+    expect(archetypes.size).toBeGreaterThanOrEqual(2);
+  });
+
+  it('caps active enemies to avoid overwhelming spikes', () => {
+    const entityManager = new EntityManager();
+    const spawnSystem = new SpawnSystem();
+
+    for (let i = 0; i < 900; i += 1) {
+      spawnSystem.tick(entityManager, 0.05, WORLD_BOUNDS, 0);
+    }
+
+    const enemies = entityManager.all().filter((entity) => entity.type === EntityType.Enemy);
+    expect(enemies.length).toBeLessThanOrEqual(1000);
   });
 });

@@ -104,4 +104,55 @@ describe('enemy movement patterns', () => {
     expect(enemy.position.x).toBeLessThan(1.5);
     expect(enemy.position.y).toBeCloseTo(8.6, 3);
   });
+
+  it('applies curve movement toward the configured direction', () => {
+    const enemy = {
+      id: 5,
+      type: EntityType.Enemy,
+      faction: Faction.Enemy,
+      position: { x: -4, y: 10 },
+      velocity: { x: 0, y: -1 },
+      radius: 0.7,
+      health: 2,
+      maxHealth: 2,
+      movementPattern: 'curve' as const,
+      patternAmplitude: 3,
+      patternFrequency: 1,
+      movementParams: { curveDirection: 1 },
+      spawnX: -4,
+      ageMs: 0
+    };
+
+    movementSystem([enemy], 0.8);
+
+    expect(enemy.position.x).toBeGreaterThan(-2.5);
+    expect(enemy.position.y).toBeCloseTo(9.2, 3);
+  });
+
+  it('applies spiral movement with damped horizontal radius', () => {
+    const enemy = {
+      id: 6,
+      type: EntityType.Enemy,
+      faction: Faction.Enemy,
+      position: { x: 2, y: 11 },
+      velocity: { x: 0, y: -1 },
+      radius: 0.7,
+      health: 2,
+      maxHealth: 2,
+      movementPattern: 'spiral' as const,
+      patternAmplitude: 2.8,
+      patternFrequency: 1,
+      movementParams: { spiralTurns: 2, spiralDecay: 0.5 },
+      spawnX: 2,
+      ageMs: 0
+    };
+
+    movementSystem([enemy], 0.1);
+    const earlyOffset = Math.abs(enemy.position.x - 2);
+    movementSystem([enemy], 1);
+    const lateOffset = Math.abs(enemy.position.x - 2);
+
+    expect(earlyOffset).toBeGreaterThan(lateOffset);
+    expect(enemy.position.y).toBeCloseTo(9.9, 3);
+  });
 });

@@ -1,6 +1,7 @@
 import { EntityType, Faction } from './entityTypes';
 import type { MovementPatternId } from '../movement/patterns';
 import type { PlayerWeaponMode } from '../weapons/playerWeapons';
+import type { EnemyArchetypeId } from '../content/enemyArchetypes';
 
 export interface Vec2 {
   x: number;
@@ -17,11 +18,13 @@ export interface Entity {
   health: number;
   maxHealth: number;
   fireCooldownMs?: number;
+  enemyFireIntervalMs?: number;
   lifetimeMs?: number;
   scoreValue?: number;
   movementPattern?: MovementPatternId;
   patternAmplitude?: number;
   patternFrequency?: number;
+  enemyArchetype?: EnemyArchetypeId;
   spawnX?: number;
   spawnY?: number;
   ageMs?: number;

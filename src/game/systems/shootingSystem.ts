@@ -29,6 +29,6 @@ export function shootingSystem(entityManager: EntityManager, deltaSeconds: numbe
         Faction.Enemy
       )
     );
-    entity.fireCooldownMs = gameSettings.enemy.fireIntervalMs;
+    entity.fireCooldownMs = entity.enemyFireIntervalMs ?? gameSettings.enemy.fireIntervalMs;
   }
 }

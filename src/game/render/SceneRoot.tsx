@@ -117,9 +117,10 @@ export function SceneRoot({ game, pointer, snapshot, debugMode }: SceneRootProps
             }
 
             if (entity.type === EntityType.Enemy) {
+              const healthRatio = entity.maxHealth > 0 ? entity.health / entity.maxHealth : 1;
               return (
                 <group key={entity.id} position={position}>
-                  <EnemyMesh />
+                  <EnemyMesh archetype={entity.enemyArchetype} healthRatio={healthRatio} />
                 </group>
               );
             }

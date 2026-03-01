@@ -35,6 +35,7 @@ import { gameSettings } from '../config/gameSettings';
 import { getPlayerWeaponMaxLevel, PLAYER_WEAPON_ORDER, type PlayerWeaponMode } from '../weapons/playerWeapons';
 import { enemyDropTuning, particleTuning, playerTuning, podTuning } from './gameTuning';
 import { findNearestEnemy, normalizeDirection } from './gameEntityHelpers';
+import type { EnemyArchetypeId } from '../content/enemyArchetypes';
 
 export interface GameSnapshot {
   state: GameState;
@@ -347,6 +348,9 @@ export class Game {
       id: entity.id,
       type: entity.type,
       faction: entity.faction,
+      health: entity.health,
+      maxHealth: entity.maxHealth,
+      enemyArchetype: entity.enemyArchetype as EnemyArchetypeId | undefined,
       pickupKind: entity.pickupKind,
       pickupWeaponMode: entity.pickupWeaponMode,
       projectileKind: entity.projectileKind,

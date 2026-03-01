@@ -13,6 +13,8 @@ describe('MovementControllerRegistry', () => {
     const zigzag = registry.resolve('zigzag');
     const bezier = registry.resolve('bezier');
     const lissajous = registry.resolve('lissajous');
+    const curve = registry.resolve('curve');
+    const spiral = registry.resolve('spiral');
 
     expect(
       straight({
@@ -70,6 +72,35 @@ describe('MovementControllerRegistry', () => {
     });
     expect(lissajousX).toBeGreaterThan(-3.5);
     expect(lissajousX).toBeLessThan(1.5);
+
+    expect(
+      curve({
+        ageSeconds: 0.8,
+        baseX: -3,
+        baseY: 0,
+        amplitude: 3,
+        frequency: 1,
+        params: { curveDirection: 1 }
+      })
+    ).toBeGreaterThan(-1);
+
+    const earlySpiral = spiral({
+      ageSeconds: 0.1,
+      baseX: 0,
+      baseY: 0,
+      amplitude: 3,
+      frequency: 1,
+      params: { spiralTurns: 2, spiralDecay: 0.5 }
+    });
+    const lateSpiral = spiral({
+      ageSeconds: 1.1,
+      baseX: 0,
+      baseY: 0,
+      amplitude: 3,
+      frequency: 1,
+      params: { spiralTurns: 2, spiralDecay: 0.5 }
+    });
+    expect(Math.abs(earlySpiral ?? 0)).toBeGreaterThan(Math.abs(lateSpiral ?? 0));
   });
 
   it('falls back to straight behavior when pattern is undefined', () => {

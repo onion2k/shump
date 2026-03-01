@@ -47,6 +47,19 @@ const defaultLissajousController: MovementController = ({ ageSeconds, baseX, amp
   const modulation = 0.65 + 0.35 * Math.cos(t * b);
   return baseX + Math.sin(t * a + phase) * amplitude * modulation;
 };
+const defaultCurveController: MovementController = ({ ageSeconds, baseX, amplitude, frequency, params }) => {
+  const direction = params?.curveDirection ?? 1;
+  const t = clamp(ageSeconds * frequency, 0, 1);
+  const eased = t * t * (3 - 2 * t);
+  return baseX + direction * amplitude * eased;
+};
+const defaultSpiralController: MovementController = ({ ageSeconds, baseX, amplitude, frequency, params }) => {
+  const spiralTurns = params?.spiralTurns ?? 1.8;
+  const decay = params?.spiralDecay ?? 0.45;
+  const theta = ageSeconds * frequency * Math.PI * 2 * spiralTurns;
+  const radius = amplitude * Math.exp(-ageSeconds * frequency * decay);
+  return baseX + Math.cos(theta) * radius;
+};
 
 export function createDefaultMovementControllerRegistry(): MovementControllerRegistry {
   const registry = new MovementControllerRegistry();
@@ -55,6 +68,8 @@ export function createDefaultMovementControllerRegistry(): MovementControllerReg
   registry.register('zigzag', defaultZigZagController);
   registry.register('bezier', defaultBezierController);
   registry.register('lissajous', defaultLissajousController);
+  registry.register('curve', defaultCurveController);
+  registry.register('spiral', defaultSpiralController);
   return registry;
 }
 
