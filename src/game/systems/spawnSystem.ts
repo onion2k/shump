@@ -18,6 +18,10 @@ import { BASE_PLAYFIELD_BOUNDS, scaleXAcrossBounds } from '../core/playfieldBoun
 const MAX_SPAWNS_PER_TICK = 3;
 const BASE_ACTIVE_ENEMY_CAP = 1000;
 
+export interface SpawnTickOptions {
+  enemyDensityScale?: number;
+}
+
 export class SpawnSystem {
   private elapsedMs = 0;
   private cursor = 0;
@@ -31,20 +35,33 @@ export class SpawnSystem {
     this.queue = waves ? buildSpawnQueue(waves) : [];
   }
 
-  tick(entityManager: EntityManager, deltaSeconds: number, bounds: WorldBounds = WORLD_BOUNDS, distanceTraveled = 0) {
+  tick(
+    entityManager: EntityManager,
+    deltaSeconds: number,
+    bounds: WorldBounds = WORLD_BOUNDS,
+    distanceTraveled = 0,
+    options: SpawnTickOptions = {}
+  ) {
     this.elapsedMs += deltaSeconds * 1000;
 
     if (!this.scriptedMode) {
       this.scheduleProgressionWaves(distanceTraveled);
     }
 
+    const enemyDensityScale = clampDensityScale(options.enemyDensityScale ?? 1);
+    const maxSpawnsPerTick = Math.max(1, Math.round(MAX_SPAWNS_PER_TICK * enemyDensityScale));
     let spawnedThisTick = 0;
     let activeEnemies = this.countActiveEnemies(entityManager);
     const level = progressionLevel(distanceTraveled, this.elapsedMs);
-    const activeEnemyCap = BASE_ACTIVE_ENEMY_CAP + Math.min(7, level * 2);
+    const baseActiveEnemyCap = BASE_ACTIVE_ENEMY_CAP + Math.min(7, level * 2);
+    const activeEnemyCap = Math.max(6, Math.floor(baseActiveEnemyCap * enemyDensityScale));
 
     while (this.cursor < this.queue.length && this.queue[this.cursor].atMs <= this.elapsedMs) {
-      if (spawnedThisTick >= MAX_SPAWNS_PER_TICK || activeEnemies >= activeEnemyCap) {
+      if (spawnedThisTick >= maxSpawnsPerTick || activeEnemies >= activeEnemyCap) {
+        if (enemyDensityScale < 0.999) {
+          this.cursor += 1;
+          continue;
+        }
         break;
       }
 
@@ -115,4 +132,12 @@ export class SpawnSystem {
       x: spreadX
     };
   }
+}
+
+function clampDensityScale(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 1;
+  }
+
+  return Math.max(0.2, Math.min(1, value));
 }

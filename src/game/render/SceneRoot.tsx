@@ -31,7 +31,7 @@ interface SceneRootProps {
 }
 
 const USE_GPU_PARTICLES = true;
-const MOBILE_BREAKPOINT_PX = 768;
+const PARTICLE_MOBILE_BREAKPOINT_PX = 768;
 const MOBILE_PARTICLE_SCALE = 0.8;
 
 export function SceneRoot({ game, pointer, snapshot, debugMode, showEnemyPatterns }: SceneRootProps) {
@@ -50,7 +50,16 @@ export function SceneRoot({ game, pointer, snapshot, debugMode, showEnemyPattern
     };
   }, [game]);
 
-  useFrame(({ clock }) => {
+  useEffect(() => {
+    game.setAdaptiveDensityEnabled(true);
+    return () => {
+      game.setAdaptiveDensityEnabled(false);
+    };
+  }, [game]);
+
+  useFrame(({ clock }, deltaSeconds) => {
+    game.reportFrameDelta(deltaSeconds);
+
     if (debugMode) {
       loop.frame(clock.elapsedTime * 1000, (dt) => {
         game.update(
@@ -83,7 +92,7 @@ export function SceneRoot({ game, pointer, snapshot, debugMode, showEnemyPattern
   const particles = renderEntities.filter((entity) => entity.type === EntityType.Particle);
   const playerEntity = renderEntities.find((entity) => entity.type === EntityType.Player);
   const playerX = playerEntity?.x ?? 0;
-  const particleScale = size.width <= MOBILE_BREAKPOINT_PX ? MOBILE_PARTICLE_SCALE : 1;
+  const particleScale = size.width <= PARTICLE_MOBILE_BREAKPOINT_PX ? MOBILE_PARTICLE_SCALE : 1;
   const patternCandidates = showEnemyPatterns
     ? nonParticleEntities.filter((entity) => entity.type === EntityType.Enemy).slice(0, 120)
     : [];

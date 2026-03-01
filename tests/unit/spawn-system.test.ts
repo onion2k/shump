@@ -99,4 +99,27 @@ describe('SpawnSystem wave scripting', () => {
     const enemies = entityManager.all().filter((entity) => entity.type === EntityType.Enemy);
     expect(enemies.length).toBeLessThanOrEqual(1000);
   });
+
+  it('scales spawn density down and sheds overdue spawns when performance scale is reduced', () => {
+    const waves: WaveDef[] = [
+      {
+        startMs: 0,
+        spawns: [
+          { offsetMs: 0, x: -4, movementPattern: 'straight' },
+          { offsetMs: 0, x: -2, movementPattern: 'straight' },
+          { offsetMs: 0, x: 0, movementPattern: 'straight' },
+          { offsetMs: 0, x: 2, movementPattern: 'straight' },
+          { offsetMs: 0, x: 4, movementPattern: 'straight' }
+        ]
+      }
+    ];
+    const entityManager = new EntityManager();
+    const spawnSystem = new SpawnSystem(waves);
+
+    spawnSystem.tick(entityManager, 0.05, WORLD_BOUNDS, 0, { enemyDensityScale: 0.4 });
+    spawnSystem.tick(entityManager, 0.05, WORLD_BOUNDS, 0, { enemyDensityScale: 0.4 });
+
+    const enemies = entityManager.all().filter((entity) => entity.type === EntityType.Enemy);
+    expect(enemies.length).toBe(1);
+  });
 });

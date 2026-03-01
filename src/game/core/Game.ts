@@ -20,6 +20,7 @@ import {
   BULLET_SPEED,
   WORLD_SCROLL_SPEED,
   WORLD_BOUNDS,
+  FIXED_TIMESTEP_MS,
   type WorldBounds
 } from './constants';
 import { clamp } from '../util/math';
@@ -100,6 +101,12 @@ interface TrailSource {
 
 type SnapshotListener = (snapshot: GameSnapshot) => void;
 
+const TARGET_FPS = 60;
+const ADAPTIVE_MIN_DENSITY_SCALE = 0.4;
+const ADAPTIVE_LOW_FPS_HOLD_MS = 800;
+const ADAPTIVE_RECOVERY_HOLD_MS = 1800;
+const BASE_ACTIVE_PICKUP_CAP = 18;
+
 export class Game {
   readonly entities = new EntityManager();
   readonly spawner = new SpawnSystem();
@@ -124,6 +131,11 @@ export class Game {
   private elapsedMs = 0;
   private distanceTraveled = 0;
   private missileThrusterAccumulator = 0;
+  private adaptiveDensityEnabled = false;
+  private averageFrameMs = FIXED_TIMESTEP_MS;
+  private lowFpsAccumulatedMs = 0;
+  private recoveryAccumulatedMs = 0;
+  private enemyDensityScale = 1;
 
   constructor() {
     this.bootstrap();
@@ -211,6 +223,38 @@ export class Game {
     this.start();
   }
 
+  reportFrameDelta(deltaSeconds: number) {
+    if (!this.adaptiveDensityEnabled) {
+      return;
+    }
+
+    const sampleMs = clamp(deltaSeconds * 1000, 1, 250);
+    const smoothing = 0.08;
+    this.averageFrameMs += (sampleMs - this.averageFrameMs) * smoothing;
+    const fps = 1000 / Math.max(1, this.averageFrameMs);
+
+    if (fps < TARGET_FPS) {
+      this.lowFpsAccumulatedMs += sampleMs;
+      this.recoveryAccumulatedMs = Math.max(0, this.recoveryAccumulatedMs - sampleMs * 0.25);
+    } else if (fps > TARGET_FPS + 2) {
+      this.recoveryAccumulatedMs += sampleMs;
+      this.lowFpsAccumulatedMs = Math.max(0, this.lowFpsAccumulatedMs - sampleMs * 0.5);
+    } else {
+      this.lowFpsAccumulatedMs = Math.max(0, this.lowFpsAccumulatedMs - sampleMs * 0.2);
+      this.recoveryAccumulatedMs = Math.max(0, this.recoveryAccumulatedMs - sampleMs * 0.2);
+    }
+
+    if (this.lowFpsAccumulatedMs >= ADAPTIVE_LOW_FPS_HOLD_MS && this.enemyDensityScale > ADAPTIVE_MIN_DENSITY_SCALE) {
+      this.enemyDensityScale = Math.max(ADAPTIVE_MIN_DENSITY_SCALE, this.enemyDensityScale - 0.1);
+      this.lowFpsAccumulatedMs = ADAPTIVE_LOW_FPS_HOLD_MS * 0.35;
+      this.recoveryAccumulatedMs = 0;
+    } else if (this.recoveryAccumulatedMs >= ADAPTIVE_RECOVERY_HOLD_MS && this.enemyDensityScale < 1) {
+      this.enemyDensityScale = Math.min(1, this.enemyDensityScale + 0.08);
+      this.recoveryAccumulatedMs = ADAPTIVE_RECOVERY_HOLD_MS * 0.35;
+      this.lowFpsAccumulatedMs = 0;
+    }
+  }
+
   update(deltaSeconds: number, pointer: PointerState, options: GameUpdateOptions = {}) {
     const runGameplay = options.runGameplay ?? true;
     const runDebug = options.runDebug ?? true;
@@ -236,7 +280,9 @@ export class Game {
     this.updateTrailSources(deltaSeconds);
     this.applyPlayerInput(pointer, deltaSeconds);
     this.handlePlayerWeapons(deltaSeconds);
-    this.spawner.tick(this.entities, deltaSeconds, this.playableBounds);
+    this.spawner.tick(this.entities, deltaSeconds, this.playableBounds, this.distanceTraveled, {
+      enemyDensityScale: this.getEnemyDensityScale()
+    });
     this.flushScheduledEmitters();
     this.syncDebugEmitter();
     this.particles.tick(this.entities, deltaSeconds, this.useGpuParticles ? this.handleParticleSpawn : undefined);
@@ -263,15 +309,17 @@ export class Game {
     }
     const despawned = despawnSystem(this.entities, deltaSeconds, this.playableBounds);
 
+    let activePickups = this.countActivePickups();
     for (const { entity, reason } of despawned) {
       if (reason === 'health' && entity.type === EntityType.Enemy) {
         this.spawnEnemyExplosion(entity.position.x, entity.position.y);
-        if (entity.id % enemyDropTuning.healthDropModulo === 0) {
+        if (this.shouldSpawnDropPickup(entity.id, enemyDropTuning.healthDropModulo, activePickups, 17)) {
           this.entities.create(
             createPickup(entity.position.x, entity.position.y, 'health', enemyDropTuning.healthPickupValue)
           );
+          activePickups += 1;
         }
-        if (entity.id % enemyDropTuning.weaponDropModulo === 0) {
+        if (this.shouldSpawnDropPickup(entity.id, enemyDropTuning.weaponDropModulo, activePickups, 53)) {
           this.entities.create(
             createPickup(
               entity.position.x,
@@ -282,6 +330,7 @@ export class Game {
               this.pickWeaponPickupMode(entity.id)
             )
           );
+          activePickups += 1;
         }
       }
 
@@ -379,6 +428,16 @@ export class Game {
 
   setPlayableBounds(bounds: WorldBounds) {
     this.playableBounds = bounds;
+  }
+
+  setAdaptiveDensityEnabled(enabled: boolean) {
+    this.adaptiveDensityEnabled = enabled;
+    if (!enabled) {
+      this.averageFrameMs = FIXED_TIMESTEP_MS;
+      this.lowFpsAccumulatedMs = 0;
+      this.recoveryAccumulatedMs = 0;
+      this.enemyDensityScale = 1;
+    }
   }
 
   setUseGpuParticles(enabled: boolean) {
@@ -498,6 +557,32 @@ export class Game {
 
       this.emitWeaponFiredEvent(player, shot.weaponMode, shot.projectileEntityId);
     }
+  }
+
+  private getEnemyDensityScale(): number {
+    return this.adaptiveDensityEnabled ? this.enemyDensityScale : 1;
+  }
+
+  private countActivePickups(): number {
+    return this.entities.all().filter((entity) => entity.type === EntityType.Pickup).length;
+  }
+
+  private shouldSpawnDropPickup(entityId: number, modulo: number, activePickups: number, salt: number): boolean {
+    if (entityId % modulo !== 0) {
+      return false;
+    }
+
+    const densityScale = this.getEnemyDensityScale();
+    const activePickupCap = Math.max(3, Math.floor(BASE_ACTIVE_PICKUP_CAP * densityScale));
+    if (activePickups >= activePickupCap) {
+      return false;
+    }
+
+    if (densityScale >= 0.999) {
+      return true;
+    }
+
+    return deterministicRoll(entityId, salt) <= densityScale;
   }
 
   private syncPodsWithPlayer(deltaSeconds: number) {
@@ -915,4 +1000,10 @@ export class Game {
       listener(snapshot);
     }
   }
+}
+
+function deterministicRoll(seed: number, salt: number): number {
+  const mixed = Math.imul(seed ^ (salt * 0x9e3779b9), 0x85ebca6b) ^ 0xc2b2ae35;
+  const scrambled = mixed ^ (mixed >>> 13);
+  return (scrambled >>> 0) / 4294967296;
 }
