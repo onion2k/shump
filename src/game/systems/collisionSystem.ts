@@ -13,6 +13,10 @@ export function collisionSystem(entities: Entity[]): CollisionPair[] {
   const pairs: CollisionPair[] = [];
 
   for (const bullet of bullets) {
+    if (bullet.projectileKind === 'laser') {
+      continue;
+    }
+
     for (const target of targets) {
       if (!bullet.faction || bullet.faction === target.faction) {
         continue;

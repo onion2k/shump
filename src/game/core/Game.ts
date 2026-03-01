@@ -1,6 +1,7 @@
 import { EntityManager } from '../ecs/EntityManager';
-import { EntityType } from '../ecs/entityTypes';
+import { EntityType, Faction } from '../ecs/entityTypes';
 import { createPlayer } from '../factories/createPlayer';
+import { createPod } from '../factories/createPod';
 import { SpawnSystem } from '../systems/spawnSystem';
 import { movementSystem } from '../systems/movementSystem';
 import { shootingSystem } from '../systems/shootingSystem';
@@ -16,6 +17,7 @@ import type { PointerState } from '../input/types';
 import {
   PLAYER_FOLLOW_GAIN,
   PLAYER_MAX_SPEED,
+  BULLET_SPEED,
   WORLD_SCROLL_SPEED,
   WORLD_BOUNDS,
   type WorldBounds
@@ -24,10 +26,13 @@ import { clamp } from '../util/math';
 import { GameEventBus } from './GameEventBus';
 import { createPickup } from '../factories/createPickup';
 import { createParticle } from '../factories/createParticle';
+import { createBullet } from '../factories/createBullet';
+import { createMissile } from '../factories/createMissile';
 import { ParticleSystem } from '../particles/particleSystem';
 import type { ParticleEmitterConfig } from '../particles/particleSystem';
 import { randomRange } from '../util/random';
 import { gameSettings } from '../config/gameSettings';
+import { getPlayerWeaponMaxLevel, PLAYER_WEAPON_ORDER, type PlayerWeaponMode } from '../weapons/playerWeapons';
 
 export interface GameSnapshot {
   state: GameState;
@@ -114,6 +119,7 @@ export class Game {
   private playableBounds: WorldBounds = { ...WORLD_BOUNDS };
   private elapsedMs = 0;
   private distanceTraveled = 0;
+  private missileThrusterAccumulator = 0;
 
   constructor() {
     this.bootstrap();
@@ -129,6 +135,7 @@ export class Game {
     this.score = 0;
     this.elapsedMs = 0;
     this.distanceTraveled = 0;
+    this.missileThrusterAccumulator = 0;
     const player = this.entities.create(createPlayer());
     this.playerId = player.id;
     const thrusterSettings = gameSettings.particles.thrusterEmitter;
@@ -233,6 +240,9 @@ export class Game {
     homingSystem(this.entities, deltaSeconds);
     movementSystem(this.entities.all(), deltaSeconds);
     this.clampPlayerToBounds();
+    this.syncPodsWithPlayer(deltaSeconds);
+    this.handlePodWeapons(deltaSeconds);
+    this.emitMissileThrusterParticles(deltaSeconds);
     const collisions = collisionSystem(this.entities.all());
     this.score += damageSystem(collisions);
     const pickupResult = pickupSystem(this.entities, this.playerId);
@@ -243,7 +253,8 @@ export class Game {
         atMs: this.elapsedMs,
         collectorId: this.playerId,
         pickupId: collection.pickupId,
-        pickupKind: collection.pickupKind
+        pickupKind: collection.pickupKind,
+        pickupWeaponMode: collection.pickupWeaponMode
       });
     }
     const despawned = despawnSystem(this.entities, deltaSeconds, this.playableBounds);
@@ -253,6 +264,9 @@ export class Game {
         this.spawnEnemyExplosion(entity.position.x, entity.position.y);
         if (entity.id % 5 === 0) {
           this.entities.create(createPickup(entity.position.x, entity.position.y, 'health', 2));
+        }
+        if (entity.id % 7 === 0) {
+          this.entities.create(createPickup(entity.position.x, entity.position.y, 'weapon', 1, 8000, this.pickWeaponPickupMode(entity.id)));
         }
       }
 
@@ -321,6 +335,12 @@ export class Game {
       type: entity.type,
       faction: entity.faction,
       pickupKind: entity.pickupKind,
+      pickupWeaponMode: entity.pickupWeaponMode,
+      projectileKind: entity.projectileKind,
+      projectileSpeed: entity.projectileSpeed,
+      radius: entity.radius,
+      vx: entity.velocity.x,
+      vy: entity.velocity.y,
       particleType: entity.particleType,
       ageMs: entity.ageMs,
       lifetimeMs: entity.lifetimeMs,
@@ -369,6 +389,67 @@ export class Game {
     this.debugModeActive = active;
   }
 
+  selectWeaponBySlot(slot: number): boolean {
+    const player = this.entities.get(this.playerId);
+    if (!player) {
+      return false;
+    }
+
+    const selectedMode = PLAYER_WEAPON_ORDER[slot - 1];
+    if (!selectedMode) {
+      return false;
+    }
+
+    const unlocked = player.unlockedWeaponModes ?? [];
+    if (!unlocked.includes(selectedMode)) {
+      return false;
+    }
+
+    const levels = player.weaponLevels ?? {};
+    const maxLevel = getPlayerWeaponMaxLevel(selectedMode);
+    const currentLevel = levels[selectedMode] ?? 1;
+
+    if (player.weaponMode === selectedMode) {
+      const nextLevel = currentLevel >= maxLevel ? 1 : currentLevel + 1;
+      levels[selectedMode] = nextLevel;
+      player.weaponLevels = levels;
+      player.weaponLevel = nextLevel;
+      player.fireCooldownMs = 0;
+      this.notify();
+      return true;
+    }
+
+    player.weaponMode = selectedMode;
+    player.fireCooldownMs = 0;
+    player.weaponLevels = levels;
+    player.weaponLevel = Math.min(currentLevel, maxLevel);
+    this.notify();
+    return true;
+  }
+
+  cyclePods(): number {
+    const player = this.entities.get(this.playerId);
+    if (!player) {
+      return 0;
+    }
+
+    player.podCount = ((player.podCount ?? 0) + 1) % 4;
+    this.syncPodsWithPlayer(0);
+    this.notify();
+    return player.podCount;
+  }
+
+  togglePodWeaponMode(): 'Auto Pulse' | 'Homing Missile' {
+    const player = this.entities.get(this.playerId);
+    if (!player) {
+      return 'Auto Pulse';
+    }
+
+    player.podWeaponMode = player.podWeaponMode === 'Homing Missile' ? 'Auto Pulse' : 'Homing Missile';
+    this.notify();
+    return player.podWeaponMode;
+  }
+
   setDebugEmitterSettings(settings: Partial<DebugEmitterSettings>) {
     this.debugEmitterSettings = {
       ...this.debugEmitterSettings,
@@ -387,6 +468,10 @@ export class Game {
     }
 
     for (const shot of result.fired) {
+      if (shot.weaponMode === 'Continuous Laser') {
+        this.spawnLaserFocusEmitter(player.position.x, player.position.y + 0.95, player.velocity.x, player.velocity.y);
+      }
+
       this.events.emit({
         type: 'WeaponFired',
         atMs: this.elapsedMs,
@@ -394,6 +479,133 @@ export class Game {
         shooterFaction: player.faction,
         weaponMode: shot.weaponMode,
         projectileEntityId: shot.projectileEntityId
+      });
+    }
+  }
+
+  private syncPodsWithPlayer(deltaSeconds: number) {
+    const player = this.entities.get(this.playerId);
+    if (!player) {
+      return;
+    }
+
+    const desiredCount = clamp(player.podCount ?? 0, 0, 3);
+    player.podCount = desiredCount;
+    const existingPods = this.entities.all().filter((entity) => entity.type === EntityType.Pod);
+
+    for (const pod of existingPods) {
+      if ((pod.podIndex ?? -1) >= desiredCount) {
+        this.entities.remove(pod.id);
+      }
+    }
+
+    const activePods = this.entities
+      .all()
+      .filter((entity) => entity.type === EntityType.Pod)
+      .sort((a, b) => (a.podIndex ?? 0) - (b.podIndex ?? 0));
+
+    for (let index = 0; index < desiredCount; index += 1) {
+      if (activePods.some((pod) => pod.podIndex === index)) {
+        continue;
+      }
+      this.entities.create(createPod(index, player.position.x, player.position.y));
+    }
+
+    if (desiredCount === 0) {
+      return;
+    }
+
+    const pods = this.entities
+      .all()
+      .filter((entity) => entity.type === EntityType.Pod)
+      .sort((a, b) => (a.podIndex ?? 0) - (b.podIndex ?? 0));
+    const orbitSeconds = this.elapsedMs * 0.001;
+    const orbitAngularSpeed = 2.3;
+    const orbitRadius = 1.15;
+
+    for (const pod of pods) {
+      const index = pod.podIndex ?? 0;
+      const angle = orbitSeconds * orbitAngularSpeed + (index / desiredCount) * Math.PI * 2;
+      pod.position.x = player.position.x + Math.cos(angle) * orbitRadius;
+      pod.position.y = player.position.y + 0.2 + Math.sin(angle) * orbitRadius * 0.55;
+      pod.velocity.x = 0;
+      pod.velocity.y = 0;
+      pod.fireCooldownMs = (pod.fireCooldownMs ?? 0) - deltaSeconds * 1000;
+    }
+  }
+
+  private handlePodWeapons(deltaSeconds: number) {
+    if (deltaSeconds <= 0) {
+      return;
+    }
+
+    const player = this.entities.get(this.playerId);
+    if (!player) {
+      return;
+    }
+
+    const podWeaponMode = player.podWeaponMode ?? 'Auto Pulse';
+    const pods = this.entities.all().filter((entity) => entity.type === EntityType.Pod);
+    if (pods.length === 0) {
+      return;
+    }
+
+    for (const pod of pods) {
+      if ((pod.fireCooldownMs ?? 0) > 0) {
+        continue;
+      }
+
+      const target = this.findNearestEnemy(pod.position.x, pod.position.y);
+      const direction = this.normalizeDirection(
+        target ? target.position.x - pod.position.x : 0,
+        target ? target.position.y - pod.position.y : 1
+      );
+
+      if (podWeaponMode === 'Homing Missile') {
+        const missileSpeed = 19;
+        const missile = this.entities.create(
+          createMissile(
+            pod.position.x,
+            pod.position.y,
+            direction.x * missileSpeed,
+            direction.y * missileSpeed,
+            Faction.Player,
+            target?.id
+          )
+        );
+        pod.fireCooldownMs = 580;
+        this.events.emit({
+          type: 'WeaponFired',
+          atMs: this.elapsedMs,
+          shooterId: player.id,
+          shooterFaction: player.faction,
+          weaponMode: 'Pod Homing Missile',
+          projectileEntityId: missile.id
+        });
+        continue;
+      }
+
+      const pulseSpeed = BULLET_SPEED * 0.95;
+      const bullet = this.entities.create(
+        createBullet(
+          pod.position.x,
+          pod.position.y,
+          direction.y * pulseSpeed,
+          Faction.Player,
+          1800,
+          1,
+          0.16,
+          direction.x * pulseSpeed
+        )
+      );
+      pod.fireCooldownMs = 240;
+      this.events.emit({
+        type: 'WeaponFired',
+        atMs: this.elapsedMs,
+        shooterId: player.id,
+        shooterFaction: player.faction,
+        weaponMode: 'Pod Auto Pulse',
+        projectileEntityId: bullet.id
       });
     }
   }
@@ -406,6 +618,41 @@ export class Game {
 
     player.position.x = clamp(player.position.x, this.playableBounds.left + 0.5, this.playableBounds.right - 0.5);
     player.position.y = clamp(player.position.y, this.playableBounds.bottom + 0.5, this.playableBounds.top - 0.5);
+  }
+
+  private pickWeaponPickupMode(seed: number): PlayerWeaponMode {
+    const nonDefaultModes = PLAYER_WEAPON_ORDER.slice(1);
+    return nonDefaultModes[seed % nonDefaultModes.length];
+  }
+
+  private findNearestEnemy(x: number, y: number) {
+    let nearest: ReturnType<EntityManager['all']>[number] | undefined;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+
+    for (const entity of this.entities.all()) {
+      if (entity.type !== EntityType.Enemy || entity.health <= 0) {
+        continue;
+      }
+
+      const dx = entity.position.x - x;
+      const dy = entity.position.y - y;
+      const distance = dx * dx + dy * dy;
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearest = entity;
+      }
+    }
+
+    return nearest;
+  }
+
+  private normalizeDirection(x: number, y: number) {
+    const magnitude = Math.hypot(x, y);
+    if (magnitude === 0) {
+      return { x: 0, y: 1 };
+    }
+
+    return { x: x / magnitude, y: y / magnitude };
   }
 
   private syncDebugEmitter() {
@@ -541,6 +788,60 @@ export class Game {
           y: trailSource.vy * trail.inheritVelocityFactor
         })
       });
+    }
+  }
+
+  private spawnLaserFocusEmitter(x: number, y: number, vx: number, vy: number) {
+    this.particles.addEmitter({
+      position: { x, y },
+      direction: Math.PI / 2,
+      spread: 0.22,
+      directionRandomness: 0.12,
+      lifetimeMs: 95,
+      particleType: 'laser-focus',
+      emissionRatePerSecond: 260,
+      particleLifetimeMs: 120,
+      particleSpeed: 1.5,
+      lifetimeRandomness: 0.25,
+      velocityRandomness: 0.3,
+      particleRadius: 0.045,
+      velocityProvider: () => ({ x: vx * 0.08, y: vy * 0.08 })
+    });
+  }
+
+  private emitMissileThrusterParticles(deltaSeconds: number) {
+    this.missileThrusterAccumulator += deltaSeconds * 85;
+    const spawnSteps = Math.floor(this.missileThrusterAccumulator);
+    if (spawnSteps <= 0) {
+      return;
+    }
+    this.missileThrusterAccumulator -= spawnSteps;
+
+    const missiles = this.entities
+      .all()
+      .filter((entity) => entity.type === EntityType.Bullet && entity.projectileKind === 'missile' && entity.faction === Faction.Player);
+
+    for (const missile of missiles) {
+      const velocity = this.normalizeDirection(missile.velocity.x, missile.velocity.y);
+      for (let i = 0; i < spawnSteps; i += 1) {
+        const spread = randomRange(-0.16, 0.16);
+        const backwardX = -velocity.x + spread;
+        const backwardY = -velocity.y + spread * 0.35;
+        const trailDirection = this.normalizeDirection(backwardX, backwardY);
+        const spawnX = missile.position.x - velocity.x * 0.3;
+        const spawnY = missile.position.y - velocity.y * 0.3;
+        this.emitOneShotParticle(
+          createParticle(
+            spawnX,
+            spawnY,
+            trailDirection.x * 4 + missile.velocity.x * 0.08,
+            trailDirection.y * 4 + missile.velocity.y * 0.08,
+            'missile-thruster',
+            randomRange(110, 180),
+            randomRange(0.025, 0.045)
+          )
+        );
+      }
     }
   }
 

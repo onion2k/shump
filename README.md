@@ -9,7 +9,7 @@ The project uses an ECS-style simulation loop, renders gameplay in 3D, and inclu
 - Pointer/touch movement with auto-fire.
 - Game states: boot, playing, paused, game over.
 - Enemy wave spawning with multiple movement patterns (`straight`, `sine`, `zigzag`, `lissajous`, `bezier`).
-- Multiple player weapon modes in the simulation (`Auto Pulse`, `Laser Beam`, `Homing Missile`).
+- Multiple player weapon modes in the simulation (`Auto Pulse`, `Continuous Laser`, `Heavy Cannon`, `Sine SMG`).
 - Pickups for health, weapon energy, and score.
 - Event bus for gameplay events like `WeaponFired`, `EntityDestroyed`, and `PickupCollected`.
 - HUD showing score, health, and weapon data.

@@ -1,9 +1,15 @@
 import type { EntityManager } from '../ecs/EntityManager';
 import { EntityType, Faction } from '../ecs/entityTypes';
 import { BULLET_SPEED, PLAYER_MACHINE_GUN_INTERVAL_MS } from '../core/constants';
-import { clamp, distanceSquared } from '../util/math';
+import { clamp } from '../util/math';
 import { createBullet } from '../factories/createBullet';
-import { createMissile } from '../factories/createMissile';
+import { createLaserBeam } from '../factories/createLaserBeam';
+import {
+  createDefaultUnlockedWeapons,
+  createDefaultWeaponLevels,
+  isPlayerWeaponMode,
+  type PlayerWeaponMode
+} from '../weapons/playerWeapons';
 
 interface WeaponFireRecord {
   weaponMode: string;
@@ -15,14 +21,19 @@ export interface PlayerWeaponResult {
   scoreDelta: number;
 }
 
-const LASER_DAMAGE = 2;
-const LASER_INTERVAL_MS = 140;
-const LASER_ENERGY_COST = 8;
-const LASER_RANGE = 32;
-const LASER_HALF_WIDTH = 0.9;
-const MISSILE_INTERVAL_MS = 300;
-const MISSILE_ENERGY_COST = 12;
-const MISSILE_SPEED = 20;
+const AUTO_PULSE_BASE_INTERVAL_MS = PLAYER_MACHINE_GUN_INTERVAL_MS;
+const AUTO_PULSE_BASE_COST = 4;
+
+const LASER_BASE_INTERVAL_MS = 55;
+const LASER_BASE_COST = 3;
+const LASER_BASE_RANGE = 32;
+const LASER_BASE_HALF_WIDTH = 0.7;
+
+const CANNON_BASE_INTERVAL_MS = 360;
+const CANNON_BASE_COST = 14;
+
+const SINE_SMG_BASE_INTERVAL_MS = 58;
+const SINE_SMG_BASE_COST = 2;
 
 export function playerWeaponSystem(entityManager: EntityManager, playerId: number, deltaSeconds: number): PlayerWeaponResult {
   const player = entityManager.get(playerId);
@@ -35,122 +46,238 @@ export function playerWeaponSystem(entityManager: EntityManager, playerId: numbe
   const currentEnergy = player.weaponEnergy ?? 0;
   const maxEnergy = player.weaponEnergyMax ?? 0;
   const regen = player.weaponEnergyRegenPerSecond ?? 0;
-  const fallbackShotCost = player.weaponEnergyCost ?? 0;
-  const fallbackIntervalMs = player.weaponFireIntervalMs ?? PLAYER_MACHINE_GUN_INTERVAL_MS;
 
-  player.weaponMode = player.weaponMode ?? 'Auto Pulse';
   player.weaponEnergy = clamp(currentEnergy + regen * deltaSeconds, 0, maxEnergy);
   player.fireCooldownMs = (player.fireCooldownMs ?? 0) - deltaSeconds * 1000;
+
+  const activeWeapon = ensurePlayerWeaponState(player);
+  const weaponLevel = player.weaponLevels?.[activeWeapon] ?? 1;
+  player.weaponLevel = weaponLevel;
 
   if ((player.fireCooldownMs ?? 0) > 0) {
     return { fired, scoreDelta };
   }
 
-  if (player.weaponMode === 'Laser Beam') {
-    if ((player.weaponEnergy ?? 0) < LASER_ENERGY_COST) {
+  if (activeWeapon === 'Continuous Laser') {
+    const laserResult = fireContinuousLaser(entityManager, player, weaponLevel);
+    if (!laserResult.fired) {
       return { fired, scoreDelta };
     }
 
-    const laserHit = pickLaserTarget(entityManager, player.position.x, player.position.y);
-    if (laserHit) {
-      laserHit.health -= LASER_DAMAGE;
-      if (laserHit.health <= 0) {
-        scoreDelta += laserHit.scoreValue ?? 0;
-      }
-    }
-
-    player.weaponEnergy = (player.weaponEnergy ?? 0) - LASER_ENERGY_COST;
-    player.fireCooldownMs = LASER_INTERVAL_MS;
-    fired.push({ weaponMode: player.weaponMode });
-    return { fired, scoreDelta };
-  }
-
-  if (player.weaponMode === 'Homing Missile') {
-    if ((player.weaponEnergy ?? 0) < MISSILE_ENERGY_COST) {
-      return { fired, scoreDelta };
-    }
-
-    const target = pickNearestEnemy(entityManager, player.position.x, player.position.y);
-    const direction = target
-      ? normalize(target.position.x - player.position.x, target.position.y - player.position.y)
-      : { x: 0, y: 1 };
-
-    const missile = entityManager.create(
-      createMissile(
+    player.weaponEnergy = (player.weaponEnergy ?? 0) - laserResult.energyCost;
+    player.weaponFireIntervalMs = laserResult.intervalMs;
+    player.weaponEnergyCost = laserResult.energyCost;
+    player.fireCooldownMs = laserResult.intervalMs;
+    entityManager.create(
+      createLaserBeam(
         player.position.x,
-        player.position.y + 0.7,
-        direction.x * MISSILE_SPEED,
-        direction.y * MISSILE_SPEED,
-        Faction.Player,
-        target?.id
+        player.position.y + 0.95,
+        laserResult.range,
+        laserResult.halfWidth,
+        Math.max(90, laserResult.intervalMs * 0.65)
       )
     );
-
-    player.weaponEnergy = (player.weaponEnergy ?? 0) - MISSILE_ENERGY_COST;
-    player.fireCooldownMs = MISSILE_INTERVAL_MS;
-    fired.push({ weaponMode: player.weaponMode, projectileEntityId: missile.id });
+    fired.push({ weaponMode: activeWeapon });
+    scoreDelta += laserResult.scoreDelta;
     return { fired, scoreDelta };
   }
 
-  if ((player.weaponEnergy ?? 0) < fallbackShotCost) {
+  if (activeWeapon === 'Heavy Cannon') {
+    const cannonResult = fireHeavyCannon(entityManager, player, weaponLevel);
+    if (!cannonResult.fired) {
+      return { fired, scoreDelta };
+    }
+
+    player.weaponEnergy = (player.weaponEnergy ?? 0) - cannonResult.energyCost;
+    player.weaponFireIntervalMs = cannonResult.intervalMs;
+    player.weaponEnergyCost = cannonResult.energyCost;
+    player.fireCooldownMs = cannonResult.intervalMs;
+    fired.push(...cannonResult.firedRecords);
     return { fired, scoreDelta };
   }
 
-  const bullet = entityManager.create(createBullet(player.position.x, player.position.y + 0.7, BULLET_SPEED, Faction.Player));
-  player.weaponEnergy = (player.weaponEnergy ?? 0) - fallbackShotCost;
-  player.fireCooldownMs = fallbackIntervalMs;
-  fired.push({ weaponMode: player.weaponMode, projectileEntityId: bullet.id });
+  if (activeWeapon === 'Sine SMG') {
+    const smgResult = fireSineSmg(entityManager, player, weaponLevel);
+    if (!smgResult.fired) {
+      return { fired, scoreDelta };
+    }
+
+    player.weaponEnergy = (player.weaponEnergy ?? 0) - smgResult.energyCost;
+    player.weaponFireIntervalMs = smgResult.intervalMs;
+    player.weaponEnergyCost = smgResult.energyCost;
+    player.fireCooldownMs = smgResult.intervalMs;
+    fired.push(...smgResult.firedRecords);
+    return { fired, scoreDelta };
+  }
+
+  const pulseResult = fireAutoPulse(entityManager, player, weaponLevel);
+  if (!pulseResult.fired) {
+    return { fired, scoreDelta };
+  }
+
+  player.weaponEnergy = (player.weaponEnergy ?? 0) - pulseResult.energyCost;
+  player.weaponFireIntervalMs = pulseResult.intervalMs;
+  player.weaponEnergyCost = pulseResult.energyCost;
+  player.fireCooldownMs = pulseResult.intervalMs;
+  fired.push(...pulseResult.firedRecords);
   return { fired, scoreDelta };
 }
 
-function pickNearestEnemy(entityManager: EntityManager, x: number, y: number) {
-  let nearest: ReturnType<EntityManager['all']>[number] | undefined;
-  let bestDistance = Number.POSITIVE_INFINITY;
+function ensurePlayerWeaponState(player: NonNullable<ReturnType<EntityManager['get']>>): PlayerWeaponMode {
+  const levels = player.weaponLevels ?? createDefaultWeaponLevels();
+  player.weaponLevels = levels;
 
-  for (const entity of entityManager.all()) {
-    if (entity.type !== EntityType.Enemy || entity.health <= 0) {
-      continue;
-    }
+  const unlocked = player.unlockedWeaponModes ?? createDefaultUnlockedWeapons();
+  player.unlockedWeaponModes = unlocked;
 
-    const dist = distanceSquared(x, y, entity.position.x, entity.position.y);
-    if (dist < bestDistance) {
-      bestDistance = dist;
-      nearest = entity;
-    }
+  const requested = player.weaponMode;
+  if (requested && isPlayerWeaponMode(requested) && unlocked.includes(requested)) {
+    return requested;
   }
 
-  return nearest;
+  const fallback = unlocked[0] ?? 'Auto Pulse';
+  player.weaponMode = fallback;
+  return fallback;
 }
 
-function pickLaserTarget(entityManager: EntityManager, x: number, y: number) {
-  let target: ReturnType<EntityManager['all']>[number] | undefined;
-  let nearestAheadY = Number.POSITIVE_INFINITY;
+function fireAutoPulse(
+  entityManager: EntityManager,
+  player: NonNullable<ReturnType<EntityManager['get']>>,
+  level: number
+): { fired: boolean; energyCost: number; intervalMs: number; firedRecords: WeaponFireRecord[] } {
+  const streamOffsets =
+    level <= 1
+      ? [0]
+      : level === 2
+        ? [-0.24, 0.24]
+        : [-0.34, 0, 0.34];
+  const intervalMs = Math.max(56, AUTO_PULSE_BASE_INTERVAL_MS - (Math.min(level, 8) - 1) * 5);
+  const energyCost = AUTO_PULSE_BASE_COST + Math.max(0, streamOffsets.length - 1);
+  const damage = level >= 5 ? 2 : 1;
+  const speed = BULLET_SPEED + Math.min(4, level - 1) * 0.7;
 
-  for (const entity of entityManager.all()) {
-    if (entity.type !== EntityType.Enemy || entity.health <= 0) {
-      continue;
-    }
-
-    const dy = entity.position.y - y;
-    const dx = Math.abs(entity.position.x - x);
-    if (dy < 0 || dy > LASER_RANGE || dx > LASER_HALF_WIDTH) {
-      continue;
-    }
-
-    if (dy < nearestAheadY) {
-      nearestAheadY = dy;
-      target = entity;
-    }
+  if ((player.weaponEnergy ?? 0) < energyCost) {
+    return { fired: false, energyCost, intervalMs, firedRecords: [] };
   }
 
-  return target;
+  const firedRecords: WeaponFireRecord[] = [];
+  for (const offset of streamOffsets) {
+    const bullet = entityManager.create(
+      createBullet(player.position.x + offset, player.position.y + 0.7, speed, Faction.Player, 2000, damage, 0.22)
+    );
+    firedRecords.push({ weaponMode: 'Auto Pulse', projectileEntityId: bullet.id });
+  }
+
+  return { fired: true, energyCost, intervalMs, firedRecords };
 }
 
-function normalize(x: number, y: number): { x: number; y: number } {
-  const mag = Math.hypot(x, y);
-  if (mag === 0) {
-    return { x: 0, y: 1 };
+function fireContinuousLaser(
+  entityManager: EntityManager,
+  player: NonNullable<ReturnType<EntityManager['get']>>,
+  level: number
+): { fired: boolean; scoreDelta: number; energyCost: number; intervalMs: number; range: number; halfWidth: number } {
+  const intervalMs = Math.max(34, LASER_BASE_INTERVAL_MS - (Math.min(level, 8) - 1) * 2);
+  const energyCost = LASER_BASE_COST + Math.floor((level - 1) / 2);
+  const damage = 1 + Math.floor((level - 1) / 2);
+  const range = LASER_BASE_RANGE + Math.min(level, 8) * 2;
+  const halfWidth = LASER_BASE_HALF_WIDTH + Math.min(level, 8) * 0.08;
+  const targetCount = 1 + Math.floor((level - 1) / 3);
+
+  if ((player.weaponEnergy ?? 0) < energyCost) {
+    return { fired: false, scoreDelta: 0, energyCost, intervalMs, range, halfWidth };
   }
 
-  return { x: x / mag, y: y / mag };
+  const targets = pickLaserTargets(entityManager, player.position.x, player.position.y, range, halfWidth, targetCount);
+  let scoreDelta = 0;
+  for (const target of targets) {
+    target.health -= damage;
+    if (target.health <= 0) {
+      scoreDelta += target.scoreValue ?? 0;
+    }
+  }
+
+  return { fired: true, scoreDelta, energyCost, intervalMs, range, halfWidth };
+}
+
+function fireHeavyCannon(
+  entityManager: EntityManager,
+  player: NonNullable<ReturnType<EntityManager['get']>>,
+  level: number
+): { fired: boolean; energyCost: number; intervalMs: number; firedRecords: WeaponFireRecord[] } {
+  const intervalMs = Math.max(180, CANNON_BASE_INTERVAL_MS - (Math.min(level, 8) - 1) * 24);
+  const energyCost = CANNON_BASE_COST + Math.floor((level - 1) / 3);
+  const damage = 6 + (level - 1) * 2;
+  const speed = 13 + Math.min(level, 8) * 0.8;
+  const offsets = level >= 3 ? [-0.22, 0.22] : [0];
+
+  if ((player.weaponEnergy ?? 0) < energyCost) {
+    return { fired: false, energyCost, intervalMs, firedRecords: [] };
+  }
+
+  const firedRecords: WeaponFireRecord[] = [];
+  for (const offset of offsets) {
+    const vx = offset * 1.8;
+    const bullet = entityManager.create(
+      createBullet(player.position.x + offset, player.position.y + 0.75, speed, Faction.Player, 2600, damage, 0.3, vx)
+    );
+    firedRecords.push({ weaponMode: 'Heavy Cannon', projectileEntityId: bullet.id });
+  }
+
+  return { fired: true, energyCost, intervalMs, firedRecords };
+}
+
+function fireSineSmg(
+  entityManager: EntityManager,
+  player: NonNullable<ReturnType<EntityManager['get']>>,
+  level: number
+): { fired: boolean; energyCost: number; intervalMs: number; firedRecords: WeaponFireRecord[] } {
+  const intervalMs = Math.max(28, SINE_SMG_BASE_INTERVAL_MS - (Math.min(level, 10) - 1) * 3);
+  const energyCost = SINE_SMG_BASE_COST + Math.floor((level - 1) / 4);
+  const damage = 1 + Math.floor((level - 1) / 5);
+  const speed = BULLET_SPEED * 0.9;
+  const lateralAmplitude = Math.min(0.95, 0.32 + level * 0.07);
+  const streams = level >= 4 ? 2 : 1;
+  const basePhase = player.weaponOscillator ?? 0;
+
+  if ((player.weaponEnergy ?? 0) < energyCost) {
+    return { fired: false, energyCost, intervalMs, firedRecords: [] };
+  }
+
+  const firedRecords: WeaponFireRecord[] = [];
+  for (let stream = 0; stream < streams; stream += 1) {
+    const streamPhase = basePhase + stream * (Math.PI / 5);
+    const vx = Math.sin(streamPhase) * BULLET_SPEED * 0.45 * lateralAmplitude;
+    const offset = streams === 2 ? (stream === 0 ? -0.14 : 0.14) : 0;
+    const bullet = entityManager.create(
+      createBullet(player.position.x + offset, player.position.y + 0.68, speed, Faction.Player, 1800, damage, 0.18, vx)
+    );
+    firedRecords.push({ weaponMode: 'Sine SMG', projectileEntityId: bullet.id });
+  }
+
+  player.weaponOscillator = (basePhase + 0.46 + level * 0.02) % (Math.PI * 2);
+  return { fired: true, energyCost, intervalMs, firedRecords };
+}
+
+function pickLaserTargets(
+  entityManager: EntityManager,
+  x: number,
+  y: number,
+  range: number,
+  halfWidth: number,
+  targetCount: number
+) {
+  const candidates = entityManager
+    .all()
+    .filter((entity) => {
+      if (entity.type !== EntityType.Enemy || entity.health <= 0) {
+        return false;
+      }
+
+      const dy = entity.position.y - y;
+      const dx = Math.abs(entity.position.x - x);
+      return dy >= 0 && dy <= range && dx <= halfWidth;
+    })
+    .sort((a, b) => a.position.y - b.position.y);
+
+  return candidates.slice(0, targetCount);
 }

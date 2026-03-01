@@ -5,6 +5,7 @@ import { GameLoop } from '../core/GameLoop';
 import { useEffect, useMemo } from 'react';
 import { PlayerMesh } from './meshes/PlayerMesh';
 import { EnemyMesh } from './meshes/EnemyMesh';
+import { PodMesh } from './meshes/PodMesh';
 import { BulletMesh } from './meshes/BulletMesh';
 import { PickupMesh } from './meshes/PickupMesh';
 import { ParticleInstances } from './meshes/ParticleInstances';
@@ -17,6 +18,7 @@ import type { GameSnapshot } from '../core/Game';
 import { Hud3D } from './Hud3D';
 import { centeredBoundsFromSize } from '../core/playfieldBounds';
 import { Bloom, EffectComposer } from '@react-three/postprocessing';
+import type { PlayerWeaponMode } from '../weapons/playerWeapons';
 
 interface SceneRootProps {
   game: Game;
@@ -122,17 +124,32 @@ export function SceneRoot({ game, pointer, snapshot, debugMode }: SceneRootProps
               );
             }
 
+            if (entity.type === EntityType.Pod) {
+              return (
+                <group key={entity.id} position={position}>
+                  <PodMesh />
+                </group>
+              );
+            }
+
             if (entity.type === EntityType.Pickup) {
               return (
                 <group key={entity.id} position={position}>
-                  <PickupMesh kind={entity.pickupKind ?? 'score'} />
+                  <PickupMesh kind={entity.pickupKind ?? 'score'} weaponMode={entity.pickupWeaponMode as PlayerWeaponMode | undefined} />
                 </group>
               );
             }
 
             return (
               <group key={entity.id} position={position}>
-                <BulletMesh enemy={entity.faction === Faction.Enemy} />
+                <BulletMesh
+                  enemy={entity.faction === Faction.Enemy}
+                  projectileKind={entity.projectileKind}
+                  projectileSpeed={entity.projectileSpeed}
+                  radius={entity.radius}
+                  vx={entity.vx}
+                  vy={entity.vy}
+                />
               </group>
             );
           })}

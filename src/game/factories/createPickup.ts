@@ -1,12 +1,14 @@
 import type { Entity } from '../ecs/components';
 import { EntityType } from '../ecs/entityTypes';
+import type { PlayerWeaponMode } from '../weapons/playerWeapons';
 
 export function createPickup(
   x: number,
   y: number,
   kind: NonNullable<Entity['pickupKind']>,
   value: number,
-  lifetimeMs = 8000
+  lifetimeMs = 8000,
+  pickupWeaponMode?: PlayerWeaponMode
 ): Omit<Entity, 'id'> {
   return {
     type: EntityType.Pickup,
@@ -17,6 +19,7 @@ export function createPickup(
     maxHealth: 1,
     lifetimeMs,
     pickupKind: kind,
+    pickupWeaponMode,
     pickupValue: value
   };
 }

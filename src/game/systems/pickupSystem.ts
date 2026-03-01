@@ -1,11 +1,13 @@
 import type { EntityManager } from '../ecs/EntityManager';
 import { EntityType } from '../ecs/entityTypes';
 import { distanceSquared } from '../util/math';
+import { isPlayerWeaponMode } from '../weapons/playerWeapons';
 
 export interface PickupCollection {
   pickupId: number;
   pickupKind: string;
   pickupValue: number;
+  pickupWeaponMode?: string;
 }
 
 export interface PickupResult {
@@ -41,6 +43,24 @@ export function pickupSystem(entityManager: EntityManager, playerId: number): Pi
       const maxEnergy = player.weaponEnergyMax ?? 0;
       const currentEnergy = player.weaponEnergy ?? 0;
       player.weaponEnergy = Math.min(maxEnergy, currentEnergy + value);
+    } else if (kind === 'weapon') {
+      const pickupWeaponMode = entity.pickupWeaponMode;
+      if (pickupWeaponMode && isPlayerWeaponMode(pickupWeaponMode)) {
+        const unlockedWeaponModes = player.unlockedWeaponModes ?? [];
+        if (!unlockedWeaponModes.includes(pickupWeaponMode)) {
+          player.unlockedWeaponModes = [...unlockedWeaponModes, pickupWeaponMode];
+        }
+
+        const levels = player.weaponLevels ?? {};
+        if (player.weaponMode === pickupWeaponMode) {
+          const currentLevel = levels[pickupWeaponMode] ?? 1;
+          levels[pickupWeaponMode] = currentLevel + Math.max(1, value);
+        }
+        player.weaponLevels = levels;
+        player.weaponMode = pickupWeaponMode;
+        player.weaponLevel = levels[pickupWeaponMode] ?? 1;
+        player.fireCooldownMs = 0;
+      }
     } else {
       scoreDelta += value;
     }
@@ -48,7 +68,8 @@ export function pickupSystem(entityManager: EntityManager, playerId: number): Pi
     collections.push({
       pickupId: entity.id,
       pickupKind: kind,
-      pickupValue: value
+      pickupValue: value,
+      pickupWeaponMode: entity.pickupWeaponMode
     });
 
     entityManager.remove(entity.id);

@@ -27,6 +27,7 @@ export interface PickupCollectedEvent {
   collectorId: number;
   pickupId: number;
   pickupKind: string;
+  pickupWeaponMode?: string;
 }
 
 export interface BiomeChangedEvent {

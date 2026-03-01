@@ -1,6 +1,7 @@
 import type { Entity } from '../ecs/components';
 import { EntityType, Faction } from '../ecs/entityTypes';
 import { gameSettings } from '../config/gameSettings';
+import { createDefaultUnlockedWeapons, createDefaultWeaponLevels } from '../weapons/playerWeapons';
 
 export function createPlayer(): Omit<Entity, 'id'> {
   return {
@@ -18,6 +19,11 @@ export function createPlayer(): Omit<Entity, 'id'> {
     weaponEnergyMax: gameSettings.player.weapon.energyMax,
     weaponEnergyRegenPerSecond: gameSettings.player.weapon.energyRegenPerSecond,
     weaponEnergyCost: gameSettings.player.weapon.energyCost,
-    weaponFireIntervalMs: gameSettings.player.weapon.fireIntervalMs
+    weaponFireIntervalMs: gameSettings.player.weapon.fireIntervalMs,
+    weaponLevels: createDefaultWeaponLevels(),
+    unlockedWeaponModes: createDefaultUnlockedWeapons(),
+    weaponOscillator: 0,
+    podCount: 0,
+    podWeaponMode: 'Auto Pulse'
   };
 }

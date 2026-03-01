@@ -13,7 +13,11 @@ function createPlayer(entityManager: EntityManager) {
     health: 6,
     maxHealth: 10,
     weaponEnergy: 30,
-    weaponEnergyMax: 100
+    weaponEnergyMax: 100,
+    weaponMode: 'Auto Pulse',
+    weaponLevel: 1,
+    weaponLevels: { 'Auto Pulse': 1, 'Continuous Laser': 1, 'Heavy Cannon': 1, 'Sine SMG': 1 },
+    unlockedWeaponModes: ['Auto Pulse']
   });
 }
 
@@ -72,5 +76,44 @@ describe('pickupSystem', () => {
 
     expect(result.scoreDelta).toBe(55);
     expect(result.collections).toHaveLength(1);
+  });
+
+  it('switches weapon on weapon pickup and powers up when pickup matches selected weapon', () => {
+    const entityManager = new EntityManager();
+    const player = createPlayer(entityManager);
+
+    entityManager.create({
+      type: EntityType.Pickup,
+      position: { x: 0, y: 0.2 },
+      velocity: { x: 0, y: 0 },
+      radius: 0.45,
+      health: 1,
+      maxHealth: 1,
+      pickupKind: 'weapon',
+      pickupWeaponMode: 'Continuous Laser',
+      pickupValue: 1
+    });
+
+    pickupSystem(entityManager, player.id);
+
+    expect(player.weaponMode).toBe('Continuous Laser');
+    expect(player.unlockedWeaponModes).toContain('Continuous Laser');
+    expect(player.weaponLevels?.['Continuous Laser']).toBe(1);
+
+    entityManager.create({
+      type: EntityType.Pickup,
+      position: { x: 0, y: 0.2 },
+      velocity: { x: 0, y: 0 },
+      radius: 0.45,
+      health: 1,
+      maxHealth: 1,
+      pickupKind: 'weapon',
+      pickupWeaponMode: 'Continuous Laser',
+      pickupValue: 1
+    });
+
+    pickupSystem(entityManager, player.id);
+    expect(player.weaponLevels?.['Continuous Laser']).toBe(2);
+    expect(player.weaponLevel).toBe(2);
   });
 });

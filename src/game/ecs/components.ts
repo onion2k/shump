@@ -1,5 +1,6 @@
 import { EntityType, Faction } from './entityTypes';
 import type { MovementPatternId } from '../movement/patterns';
+import type { PlayerWeaponMode } from '../weapons/playerWeapons';
 
 export interface Vec2 {
   x: number;
@@ -32,12 +33,19 @@ export interface Entity {
   weaponEnergyRegenPerSecond?: number;
   weaponEnergyCost?: number;
   weaponFireIntervalMs?: number;
+  weaponLevels?: Partial<Record<PlayerWeaponMode, number>>;
+  unlockedWeaponModes?: PlayerWeaponMode[];
+  weaponOscillator?: number;
+  podCount?: number;
+  podWeaponMode?: 'Auto Pulse' | 'Homing Missile';
+  podIndex?: number;
   damage?: number;
-  projectileKind?: 'standard' | 'missile';
+  projectileKind?: 'standard' | 'missile' | 'laser';
   projectileSpeed?: number;
   homingTargetId?: number;
   homingTurnRate?: number;
-  pickupKind?: 'score' | 'health' | 'energy';
+  pickupKind?: 'score' | 'health' | 'energy' | 'weapon';
+  pickupWeaponMode?: PlayerWeaponMode;
   pickupValue?: number;
   particleType?: string;
 }

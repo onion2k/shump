@@ -69,6 +69,15 @@ export function App() {
       }
 
       if (event.key !== 'Escape') {
+        if (!debugPanelOpen) {
+          if (/^[1-4]$/.test(event.key)) {
+            game.selectWeaponBySlot(Number(event.key));
+          } else if (event.key === '5') {
+            game.cyclePods();
+          } else if (event.key === '6') {
+            game.togglePodWeaponMode();
+          }
+        }
         return;
       }
 

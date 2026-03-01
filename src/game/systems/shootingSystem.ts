@@ -8,6 +8,10 @@ export function shootingSystem(entityManager: EntityManager, deltaSeconds: numbe
   const entities = entityManager.all();
 
   for (const entity of entities) {
+    if (entity.type !== EntityType.Enemy) {
+      continue;
+    }
+
     if (typeof entity.fireCooldownMs !== 'number') {
       continue;
     }
@@ -17,16 +21,14 @@ export function shootingSystem(entityManager: EntityManager, deltaSeconds: numbe
       continue;
     }
 
-    if (entity.type === EntityType.Enemy) {
-      entityManager.create(
-        createBullet(
-          entity.position.x,
-          entity.position.y - 0.7,
-          -BULLET_SPEED * gameSettings.combat.enemyBulletSpeedMultiplier,
-          Faction.Enemy
-        )
-      );
-      entity.fireCooldownMs = gameSettings.enemy.fireIntervalMs;
-    }
+    entityManager.create(
+      createBullet(
+        entity.position.x,
+        entity.position.y - 0.7,
+        -BULLET_SPEED * gameSettings.combat.enemyBulletSpeedMultiplier,
+        Faction.Enemy
+      )
+    );
+    entity.fireCooldownMs = gameSettings.enemy.fireIntervalMs;
   }
 }
