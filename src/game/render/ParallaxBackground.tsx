@@ -135,13 +135,13 @@ export function ParallaxBackground({ width, height, playerX, scrollDistance }: P
   return (
     <group>
       <mesh position={[0, terrainWrappedY + terrainSpan, -4.65]} geometry={terrainGeometry}>
-        <meshBasicMaterial vertexColors toneMapped={false} />
+        <meshStandardMaterial vertexColors roughness={0.95} metalness={0.02} />
       </mesh>
       <mesh position={[0, terrainWrappedY, -4.65]} geometry={terrainGeometry}>
-        <meshBasicMaterial vertexColors toneMapped={false} />
+        <meshStandardMaterial vertexColors roughness={0.95} metalness={0.02} />
       </mesh>
       <mesh position={[0, terrainWrappedY - terrainSpan, -4.65]} geometry={terrainGeometry}>
-        <meshBasicMaterial vertexColors toneMapped={false} />
+        <meshStandardMaterial vertexColors roughness={0.95} metalness={0.02} />
       </mesh>
 
       {CLOUD_LAYERS.map((layer, index) => (
