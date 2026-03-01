@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { Color, Float32BufferAttribute, PlaneGeometry } from 'three';
+import { clamp } from '../util/math';
 
 interface ParallaxBackgroundProps {
   width: number;
@@ -294,10 +295,6 @@ function grad(hash: number, x: number, y: number): number {
 
 function lerp(a: number, b: number, t: number): number {
   return a + t * (b - a);
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
 }
 
 function smoothstep(edge0: number, edge1: number, x: number): number {

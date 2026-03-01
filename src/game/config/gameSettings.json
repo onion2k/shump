@@ -139,5 +139,59 @@
         "inheritVelocityFactor": 0.15
       }
     }
+  },
+  "tuning": {
+    "player": {
+      "boundsPadding": 0.5
+    },
+    "enemyDrops": {
+      "healthDropModulo": 5,
+      "healthPickupValue": 2,
+      "weaponDropModulo": 7,
+      "weaponPickupValue": 1,
+      "weaponPickupLifetimeMs": 8000
+    },
+    "pods": {
+      "maxCount": 3,
+      "orbitAngularSpeed": 2.3,
+      "orbitRadius": 1.15,
+      "orbitYOffset": 0.2,
+      "orbitVerticalScale": 0.55,
+      "homingMissileSpeed": 19,
+      "homingMissileCooldownMs": 580,
+      "pulseSpeedMultiplier": 0.95,
+      "pulseLifetimeMs": 1800,
+      "pulseDamage": 1,
+      "pulseRadius": 0.16,
+      "pulseCooldownMs": 240
+    },
+    "particles": {
+      "laserFocus": {
+        "directionRadians": 1.5707963267948966,
+        "spreadRadians": 0.22,
+        "directionRandomness": 0.12,
+        "lifetimeMs": 95,
+        "emissionRatePerSecond": 260,
+        "particleLifetimeMs": 120,
+        "particleSpeed": 1.5,
+        "lifetimeRandomness": 0.25,
+        "velocityRandomness": 0.3,
+        "particleRadius": 0.045,
+        "inheritedVelocityFactor": 0.08
+      },
+      "missileThruster": {
+        "spawnRatePerSecond": 85,
+        "spreadMin": -0.16,
+        "spreadMax": 0.16,
+        "spreadVerticalScale": 0.35,
+        "spawnOffset": 0.3,
+        "particleSpeed": 4,
+        "inheritedVelocityFactor": 0.08,
+        "lifetimeMinMs": 110,
+        "lifetimeMaxMs": 180,
+        "radiusMin": 0.025,
+        "radiusMax": 0.045
+      }
+    }
   }
 }

@@ -33,6 +33,8 @@ import type { ParticleEmitterConfig } from '../particles/particleSystem';
 import { randomRange } from '../util/random';
 import { gameSettings } from '../config/gameSettings';
 import { getPlayerWeaponMaxLevel, PLAYER_WEAPON_ORDER, type PlayerWeaponMode } from '../weapons/playerWeapons';
+import { enemyDropTuning, particleTuning, playerTuning, podTuning } from './gameTuning';
+import { findNearestEnemy, normalizeDirection } from './gameEntityHelpers';
 
 export interface GameSnapshot {
   state: GameState;
@@ -262,11 +264,22 @@ export class Game {
     for (const { entity, reason } of despawned) {
       if (reason === 'health' && entity.type === EntityType.Enemy) {
         this.spawnEnemyExplosion(entity.position.x, entity.position.y);
-        if (entity.id % 5 === 0) {
-          this.entities.create(createPickup(entity.position.x, entity.position.y, 'health', 2));
+        if (entity.id % enemyDropTuning.healthDropModulo === 0) {
+          this.entities.create(
+            createPickup(entity.position.x, entity.position.y, 'health', enemyDropTuning.healthPickupValue)
+          );
         }
-        if (entity.id % 7 === 0) {
-          this.entities.create(createPickup(entity.position.x, entity.position.y, 'weapon', 1, 8000, this.pickWeaponPickupMode(entity.id)));
+        if (entity.id % enemyDropTuning.weaponDropModulo === 0) {
+          this.entities.create(
+            createPickup(
+              entity.position.x,
+              entity.position.y,
+              'weapon',
+              enemyDropTuning.weaponPickupValue,
+              enemyDropTuning.weaponPickupLifetimeMs,
+              this.pickWeaponPickupMode(entity.id)
+            )
+          );
         }
       }
 
@@ -433,7 +446,7 @@ export class Game {
       return 0;
     }
 
-    player.podCount = ((player.podCount ?? 0) + 1) % 4;
+    player.podCount = ((player.podCount ?? 0) + 1) % (podTuning.maxCount + 1);
     this.syncPodsWithPlayer(0);
     this.notify();
     return player.podCount;
@@ -472,14 +485,7 @@ export class Game {
         this.spawnLaserFocusEmitter(player.position.x, player.position.y + 0.95, player.velocity.x, player.velocity.y);
       }
 
-      this.events.emit({
-        type: 'WeaponFired',
-        atMs: this.elapsedMs,
-        shooterId: player.id,
-        shooterFaction: player.faction,
-        weaponMode: shot.weaponMode,
-        projectileEntityId: shot.projectileEntityId
-      });
+      this.emitWeaponFiredEvent(player, shot.weaponMode, shot.projectileEntityId);
     }
   }
 
@@ -489,9 +495,9 @@ export class Game {
       return;
     }
 
-    const desiredCount = clamp(player.podCount ?? 0, 0, 3);
+    const desiredCount = clamp(player.podCount ?? 0, 0, podTuning.maxCount);
     player.podCount = desiredCount;
-    const existingPods = this.entities.all().filter((entity) => entity.type === EntityType.Pod);
+    const existingPods = this.getEntitiesByType(EntityType.Pod);
 
     for (const pod of existingPods) {
       if ((pod.podIndex ?? -1) >= desiredCount) {
@@ -499,10 +505,7 @@ export class Game {
       }
     }
 
-    const activePods = this.entities
-      .all()
-      .filter((entity) => entity.type === EntityType.Pod)
-      .sort((a, b) => (a.podIndex ?? 0) - (b.podIndex ?? 0));
+    const activePods = this.getPodsSortedByIndex();
 
     for (let index = 0; index < desiredCount; index += 1) {
       if (activePods.some((pod) => pod.podIndex === index)) {
@@ -515,19 +518,16 @@ export class Game {
       return;
     }
 
-    const pods = this.entities
-      .all()
-      .filter((entity) => entity.type === EntityType.Pod)
-      .sort((a, b) => (a.podIndex ?? 0) - (b.podIndex ?? 0));
+    const pods = this.getPodsSortedByIndex();
     const orbitSeconds = this.elapsedMs * 0.001;
-    const orbitAngularSpeed = 2.3;
-    const orbitRadius = 1.15;
+    const orbitAngularSpeed = podTuning.orbitAngularSpeed;
+    const orbitRadius = podTuning.orbitRadius;
 
     for (const pod of pods) {
       const index = pod.podIndex ?? 0;
       const angle = orbitSeconds * orbitAngularSpeed + (index / desiredCount) * Math.PI * 2;
       pod.position.x = player.position.x + Math.cos(angle) * orbitRadius;
-      pod.position.y = player.position.y + 0.2 + Math.sin(angle) * orbitRadius * 0.55;
+      pod.position.y = player.position.y + podTuning.orbitYOffset + Math.sin(angle) * orbitRadius * podTuning.orbitVerticalScale;
       pod.velocity.x = 0;
       pod.velocity.y = 0;
       pod.fireCooldownMs = (pod.fireCooldownMs ?? 0) - deltaSeconds * 1000;
@@ -545,7 +545,7 @@ export class Game {
     }
 
     const podWeaponMode = player.podWeaponMode ?? 'Auto Pulse';
-    const pods = this.entities.all().filter((entity) => entity.type === EntityType.Pod);
+    const pods = this.getEntitiesByType(EntityType.Pod);
     if (pods.length === 0) {
       return;
     }
@@ -555,14 +555,14 @@ export class Game {
         continue;
       }
 
-      const target = this.findNearestEnemy(pod.position.x, pod.position.y);
-      const direction = this.normalizeDirection(
+      const target = findNearestEnemy(this.entities.all(), pod.position.x, pod.position.y);
+      const direction = normalizeDirection(
         target ? target.position.x - pod.position.x : 0,
         target ? target.position.y - pod.position.y : 1
       );
 
       if (podWeaponMode === 'Homing Missile') {
-        const missileSpeed = 19;
+        const missileSpeed = podTuning.homingMissileSpeed;
         const missile = this.entities.create(
           createMissile(
             pod.position.x,
@@ -573,40 +573,26 @@ export class Game {
             target?.id
           )
         );
-        pod.fireCooldownMs = 580;
-        this.events.emit({
-          type: 'WeaponFired',
-          atMs: this.elapsedMs,
-          shooterId: player.id,
-          shooterFaction: player.faction,
-          weaponMode: 'Pod Homing Missile',
-          projectileEntityId: missile.id
-        });
+        pod.fireCooldownMs = podTuning.homingMissileCooldownMs;
+        this.emitWeaponFiredEvent(player, 'Pod Homing Missile', missile.id);
         continue;
       }
 
-      const pulseSpeed = BULLET_SPEED * 0.95;
+      const pulseSpeed = BULLET_SPEED * podTuning.pulseSpeedMultiplier;
       const bullet = this.entities.create(
         createBullet(
           pod.position.x,
           pod.position.y,
           direction.y * pulseSpeed,
           Faction.Player,
-          1800,
-          1,
-          0.16,
+          podTuning.pulseLifetimeMs,
+          podTuning.pulseDamage,
+          podTuning.pulseRadius,
           direction.x * pulseSpeed
         )
       );
-      pod.fireCooldownMs = 240;
-      this.events.emit({
-        type: 'WeaponFired',
-        atMs: this.elapsedMs,
-        shooterId: player.id,
-        shooterFaction: player.faction,
-        weaponMode: 'Pod Auto Pulse',
-        projectileEntityId: bullet.id
-      });
+      pod.fireCooldownMs = podTuning.pulseCooldownMs;
+      this.emitWeaponFiredEvent(player, 'Pod Auto Pulse', bullet.id);
     }
   }
 
@@ -616,8 +602,16 @@ export class Game {
       return;
     }
 
-    player.position.x = clamp(player.position.x, this.playableBounds.left + 0.5, this.playableBounds.right - 0.5);
-    player.position.y = clamp(player.position.y, this.playableBounds.bottom + 0.5, this.playableBounds.top - 0.5);
+    player.position.x = clamp(
+      player.position.x,
+      this.playableBounds.left + playerTuning.boundsPadding,
+      this.playableBounds.right - playerTuning.boundsPadding
+    );
+    player.position.y = clamp(
+      player.position.y,
+      this.playableBounds.bottom + playerTuning.boundsPadding,
+      this.playableBounds.top - playerTuning.boundsPadding
+    );
   }
 
   private pickWeaponPickupMode(seed: number): PlayerWeaponMode {
@@ -625,34 +619,12 @@ export class Game {
     return nonDefaultModes[seed % nonDefaultModes.length];
   }
 
-  private findNearestEnemy(x: number, y: number) {
-    let nearest: ReturnType<EntityManager['all']>[number] | undefined;
-    let nearestDistance = Number.POSITIVE_INFINITY;
-
-    for (const entity of this.entities.all()) {
-      if (entity.type !== EntityType.Enemy || entity.health <= 0) {
-        continue;
-      }
-
-      const dx = entity.position.x - x;
-      const dy = entity.position.y - y;
-      const distance = dx * dx + dy * dy;
-      if (distance < nearestDistance) {
-        nearestDistance = distance;
-        nearest = entity;
-      }
-    }
-
-    return nearest;
+  private getPodsSortedByIndex() {
+    return this.getEntitiesByType(EntityType.Pod).sort((a, b) => (a.podIndex ?? 0) - (b.podIndex ?? 0));
   }
 
-  private normalizeDirection(x: number, y: number) {
-    const magnitude = Math.hypot(x, y);
-    if (magnitude === 0) {
-      return { x: 0, y: 1 };
-    }
-
-    return { x: x / magnitude, y: y / magnitude };
+  private getEntitiesByType(type: EntityType) {
+    return this.entities.all().filter((entity) => entity.type === type);
   }
 
   private syncDebugEmitter() {
@@ -792,25 +764,27 @@ export class Game {
   }
 
   private spawnLaserFocusEmitter(x: number, y: number, vx: number, vy: number) {
+    const laserFocus = particleTuning.laserFocus;
     this.particles.addEmitter({
       position: { x, y },
-      direction: Math.PI / 2,
-      spread: 0.22,
-      directionRandomness: 0.12,
-      lifetimeMs: 95,
+      direction: laserFocus.directionRadians,
+      spread: laserFocus.spreadRadians,
+      directionRandomness: laserFocus.directionRandomness,
+      lifetimeMs: laserFocus.lifetimeMs,
       particleType: 'laser-focus',
-      emissionRatePerSecond: 260,
-      particleLifetimeMs: 120,
-      particleSpeed: 1.5,
-      lifetimeRandomness: 0.25,
-      velocityRandomness: 0.3,
-      particleRadius: 0.045,
-      velocityProvider: () => ({ x: vx * 0.08, y: vy * 0.08 })
+      emissionRatePerSecond: laserFocus.emissionRatePerSecond,
+      particleLifetimeMs: laserFocus.particleLifetimeMs,
+      particleSpeed: laserFocus.particleSpeed,
+      lifetimeRandomness: laserFocus.lifetimeRandomness,
+      velocityRandomness: laserFocus.velocityRandomness,
+      particleRadius: laserFocus.particleRadius,
+      velocityProvider: () => ({ x: vx * laserFocus.inheritedVelocityFactor, y: vy * laserFocus.inheritedVelocityFactor })
     });
   }
 
   private emitMissileThrusterParticles(deltaSeconds: number) {
-    this.missileThrusterAccumulator += deltaSeconds * 85;
+    const missileThruster = particleTuning.missileThruster;
+    this.missileThrusterAccumulator += deltaSeconds * missileThruster.spawnRatePerSecond;
     const spawnSteps = Math.floor(this.missileThrusterAccumulator);
     if (spawnSteps <= 0) {
       return;
@@ -822,23 +796,23 @@ export class Game {
       .filter((entity) => entity.type === EntityType.Bullet && entity.projectileKind === 'missile' && entity.faction === Faction.Player);
 
     for (const missile of missiles) {
-      const velocity = this.normalizeDirection(missile.velocity.x, missile.velocity.y);
+      const velocity = normalizeDirection(missile.velocity.x, missile.velocity.y);
       for (let i = 0; i < spawnSteps; i += 1) {
-        const spread = randomRange(-0.16, 0.16);
+        const spread = randomRange(missileThruster.spreadMin, missileThruster.spreadMax);
         const backwardX = -velocity.x + spread;
-        const backwardY = -velocity.y + spread * 0.35;
-        const trailDirection = this.normalizeDirection(backwardX, backwardY);
-        const spawnX = missile.position.x - velocity.x * 0.3;
-        const spawnY = missile.position.y - velocity.y * 0.3;
+        const backwardY = -velocity.y + spread * missileThruster.spreadVerticalScale;
+        const trailDirection = normalizeDirection(backwardX, backwardY);
+        const spawnX = missile.position.x - velocity.x * missileThruster.spawnOffset;
+        const spawnY = missile.position.y - velocity.y * missileThruster.spawnOffset;
         this.emitOneShotParticle(
           createParticle(
             spawnX,
             spawnY,
-            trailDirection.x * 4 + missile.velocity.x * 0.08,
-            trailDirection.y * 4 + missile.velocity.y * 0.08,
+            trailDirection.x * missileThruster.particleSpeed + missile.velocity.x * missileThruster.inheritedVelocityFactor,
+            trailDirection.y * missileThruster.particleSpeed + missile.velocity.y * missileThruster.inheritedVelocityFactor,
             'missile-thruster',
-            randomRange(110, 180),
-            randomRange(0.025, 0.045)
+            randomRange(missileThruster.lifetimeMinMs, missileThruster.lifetimeMaxMs),
+            randomRange(missileThruster.radiusMin, missileThruster.radiusMax)
           )
         );
       }
@@ -899,6 +873,21 @@ export class Game {
       this.useGpuParticles ? this.handleParticleSpawn : undefined,
       (id) => id === debugEmitterId
     );
+  }
+
+  private emitWeaponFiredEvent(
+    shooter: Pick<Entity, 'id' | 'faction'>,
+    weaponMode: string,
+    projectileEntityId?: number
+  ) {
+    this.events.emit({
+      type: 'WeaponFired',
+      atMs: this.elapsedMs,
+      shooterId: shooter.id,
+      shooterFaction: shooter.faction,
+      weaponMode,
+      projectileEntityId
+    });
   }
 
   subscribe(listener: SnapshotListener): () => void {

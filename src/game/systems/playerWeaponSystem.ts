@@ -21,6 +21,12 @@ export interface PlayerWeaponResult {
   scoreDelta: number;
 }
 
+interface FireOutcome {
+  fired: boolean;
+  energyCost: number;
+  intervalMs: number;
+}
+
 const AUTO_PULSE_BASE_INTERVAL_MS = PLAYER_MACHINE_GUN_INTERVAL_MS;
 const AUTO_PULSE_BASE_COST = 4;
 
@@ -64,10 +70,7 @@ export function playerWeaponSystem(entityManager: EntityManager, playerId: numbe
       return { fired, scoreDelta };
     }
 
-    player.weaponEnergy = (player.weaponEnergy ?? 0) - laserResult.energyCost;
-    player.weaponFireIntervalMs = laserResult.intervalMs;
-    player.weaponEnergyCost = laserResult.energyCost;
-    player.fireCooldownMs = laserResult.intervalMs;
+    applyFireOutcome(player, laserResult);
     entityManager.create(
       createLaserBeam(
         player.position.x,
@@ -88,10 +91,7 @@ export function playerWeaponSystem(entityManager: EntityManager, playerId: numbe
       return { fired, scoreDelta };
     }
 
-    player.weaponEnergy = (player.weaponEnergy ?? 0) - cannonResult.energyCost;
-    player.weaponFireIntervalMs = cannonResult.intervalMs;
-    player.weaponEnergyCost = cannonResult.energyCost;
-    player.fireCooldownMs = cannonResult.intervalMs;
+    applyFireOutcome(player, cannonResult);
     fired.push(...cannonResult.firedRecords);
     return { fired, scoreDelta };
   }
@@ -102,10 +102,7 @@ export function playerWeaponSystem(entityManager: EntityManager, playerId: numbe
       return { fired, scoreDelta };
     }
 
-    player.weaponEnergy = (player.weaponEnergy ?? 0) - smgResult.energyCost;
-    player.weaponFireIntervalMs = smgResult.intervalMs;
-    player.weaponEnergyCost = smgResult.energyCost;
-    player.fireCooldownMs = smgResult.intervalMs;
+    applyFireOutcome(player, smgResult);
     fired.push(...smgResult.firedRecords);
     return { fired, scoreDelta };
   }
@@ -115,12 +112,16 @@ export function playerWeaponSystem(entityManager: EntityManager, playerId: numbe
     return { fired, scoreDelta };
   }
 
-  player.weaponEnergy = (player.weaponEnergy ?? 0) - pulseResult.energyCost;
-  player.weaponFireIntervalMs = pulseResult.intervalMs;
-  player.weaponEnergyCost = pulseResult.energyCost;
-  player.fireCooldownMs = pulseResult.intervalMs;
+  applyFireOutcome(player, pulseResult);
   fired.push(...pulseResult.firedRecords);
   return { fired, scoreDelta };
+}
+
+function applyFireOutcome(player: NonNullable<ReturnType<EntityManager['get']>>, outcome: FireOutcome) {
+  player.weaponEnergy = (player.weaponEnergy ?? 0) - outcome.energyCost;
+  player.weaponFireIntervalMs = outcome.intervalMs;
+  player.weaponEnergyCost = outcome.energyCost;
+  player.fireCooldownMs = outcome.intervalMs;
 }
 
 function ensurePlayerWeaponState(player: NonNullable<ReturnType<EntityManager['get']>>): PlayerWeaponMode {
