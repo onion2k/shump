@@ -4,9 +4,11 @@ import type { DebugEmitterSettings } from '../core/Game';
 interface DebugPanelProps {
   open: boolean;
   emitterEnabled: boolean;
+  enemyPatternsEnabled: boolean;
   settings: DebugEmitterSettings;
   onToggleOpen: () => void;
   onSetEmitterEnabled: (enabled: boolean) => void;
+  onSetEnemyPatternsEnabled: (enabled: boolean) => void;
   onPatchSettings: (settings: Partial<DebugEmitterSettings>) => void;
 }
 
@@ -17,9 +19,11 @@ function numberInputValue(event: ChangeEvent<HTMLInputElement>): number {
 export function DebugPanel({
   open,
   emitterEnabled,
+  enemyPatternsEnabled,
   settings,
   onToggleOpen,
   onSetEmitterEnabled,
+  onSetEnemyPatternsEnabled,
   onPatchSettings
 }: DebugPanelProps) {
   return (
@@ -36,6 +40,14 @@ export function DebugPanel({
               type="checkbox"
               checked={emitterEnabled}
               onChange={(event) => onSetEmitterEnabled(event.target.checked)}
+            />
+          </label>
+          <label>
+            <span>Show Enemy Patterns</span>
+            <input
+              type="checkbox"
+              checked={enemyPatternsEnabled}
+              onChange={(event) => onSetEnemyPatternsEnabled(event.target.checked)}
             />
           </label>
           <label>

@@ -1,5 +1,5 @@
 import { useFrame, useThree } from '@react-three/fiber';
-import { Stats } from '@react-three/drei';
+import { Line, Stats } from '@react-three/drei';
 import { EntityType, Faction } from '../ecs/entityTypes';
 import { GameLoop } from '../core/GameLoop';
 import { useEffect, useMemo } from 'react';
@@ -19,19 +19,22 @@ import { Hud3D } from './Hud3D';
 import { centeredBoundsFromSize } from '../core/playfieldBounds';
 import { Bloom, EffectComposer } from '@react-three/postprocessing';
 import type { PlayerWeaponMode } from '../weapons/playerWeapons';
+import { movementControllerRegistry } from '../movement/controllers';
+import { resolveEnemyArchetype } from '../content/enemyArchetypes';
 
 interface SceneRootProps {
   game: Game;
   pointer: PointerController;
   snapshot: GameSnapshot;
   debugMode: boolean;
+  showEnemyPatterns: boolean;
 }
 
 const USE_GPU_PARTICLES = true;
 const MOBILE_BREAKPOINT_PX = 768;
 const MOBILE_PARTICLE_SCALE = 0.8;
 
-export function SceneRoot({ game, pointer, snapshot, debugMode }: SceneRootProps) {
+export function SceneRoot({ game, pointer, snapshot, debugMode, showEnemyPatterns }: SceneRootProps) {
   const loop = useMemo(() => new GameLoop(), []);
   const camera = useThree((state) => state.camera);
   const viewport = useThree((state) => state.viewport);
@@ -81,6 +84,9 @@ export function SceneRoot({ game, pointer, snapshot, debugMode }: SceneRootProps
   const playerEntity = renderEntities.find((entity) => entity.type === EntityType.Player);
   const playerX = playerEntity?.x ?? 0;
   const particleScale = size.width <= MOBILE_BREAKPOINT_PX ? MOBILE_PARTICLE_SCALE : 1;
+  const patternCandidates = showEnemyPatterns
+    ? nonParticleEntities.filter((entity) => entity.type === EntityType.Enemy).slice(0, 120)
+    : [];
 
   return (
     <>
@@ -120,7 +126,7 @@ export function SceneRoot({ game, pointer, snapshot, debugMode }: SceneRootProps
               const healthRatio = entity.maxHealth > 0 ? entity.health / entity.maxHealth : 1;
               return (
                 <group key={entity.id} position={position}>
-                  <EnemyMesh archetype={entity.enemyArchetype} healthRatio={healthRatio} />
+                  <EnemyMesh archetype={entity.enemyArchetype} healthRatio={healthRatio} ageMs={entity.ageMs} />
                 </group>
               );
             }
@@ -154,6 +160,26 @@ export function SceneRoot({ game, pointer, snapshot, debugMode }: SceneRootProps
               </group>
             );
           })}
+          {showEnemyPatterns
+            && patternCandidates.map((enemy) => {
+              const points = buildEnemyPatternPreviewPoints(enemy);
+              if (points.length < 2) {
+                return null;
+              }
+              const archetype = resolveEnemyArchetype(enemy.enemyArchetype);
+              return (
+                <Line
+                  key={`pattern-${enemy.id}`}
+                  points={points}
+                  color={archetype.accentColor}
+                  lineWidth={1}
+                  transparent
+                  opacity={0.6}
+                  depthWrite={false}
+                  toneMapped={false}
+                />
+              );
+            })}
           {USE_GPU_PARTICLES ? (
             <GpuParticleSystem game={game} particleScale={particleScale} />
           ) : (
@@ -168,4 +194,44 @@ export function SceneRoot({ game, pointer, snapshot, debugMode }: SceneRootProps
       )}
     </>
   );
+}
+
+function buildEnemyPatternPreviewPoints(enemy: ReturnType<Game['entitiesForRender']>[number]): [number, number, number][] {
+  if (enemy.type !== EntityType.Enemy) {
+    return [];
+  }
+
+  const pattern = enemy.movementPattern;
+  const controller = movementControllerRegistry.resolve(pattern);
+  const ageSeconds = Math.max(0, (enemy.ageMs ?? 0) / 1000);
+  const baseX = enemy.spawnX ?? enemy.x;
+  const baseY = enemy.spawnY ?? enemy.y;
+  const amplitude = enemy.patternAmplitude ?? 0;
+  const frequency = enemy.patternFrequency ?? 1;
+  const vx = enemy.vx ?? 0;
+  const vy = enemy.vy ?? 0;
+  const sampleCount = 28;
+  const horizonSeconds = 4.5;
+  const step = horizonSeconds / sampleCount;
+  const points: [number, number, number][] = [];
+
+  for (let index = 0; index <= sampleCount; index += 1) {
+    const t = ageSeconds + index * step;
+    const driftX = baseX + vx * t;
+    const driftY = baseY + vy * t;
+    const controlled = controller({
+      ageSeconds: t,
+      baseX,
+      baseY,
+      driftX,
+      driftY,
+      amplitude,
+      frequency,
+      params: enemy.movementParams
+    });
+    const point = controlled ?? { x: driftX, y: driftY };
+    points.push([point.x, point.y, 0.02]);
+  }
+
+  return points;
 }

@@ -36,6 +36,7 @@ import { getPlayerWeaponMaxLevel, PLAYER_WEAPON_ORDER, type PlayerWeaponMode } f
 import { enemyDropTuning, particleTuning, playerTuning, podTuning } from './gameTuning';
 import { findNearestEnemy, normalizeDirection } from './gameEntityHelpers';
 import type { EnemyArchetypeId } from '../content/enemyArchetypes';
+import type { MovementPatternId } from '../movement/patterns';
 
 export interface GameSnapshot {
   state: GameState;
@@ -351,6 +352,12 @@ export class Game {
       health: entity.health,
       maxHealth: entity.maxHealth,
       enemyArchetype: entity.enemyArchetype as EnemyArchetypeId | undefined,
+      movementPattern: entity.movementPattern as MovementPatternId | undefined,
+      patternAmplitude: entity.patternAmplitude,
+      patternFrequency: entity.patternFrequency,
+      movementParams: entity.movementParams,
+      spawnX: entity.spawnX,
+      spawnY: entity.spawnY,
       pickupKind: entity.pickupKind,
       pickupWeaponMode: entity.pickupWeaponMode,
       projectileKind: entity.projectileKind,

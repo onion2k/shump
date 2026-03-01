@@ -5,6 +5,7 @@ import type { MovementPatternId } from '../movement/patterns';
 export interface WaveSpawnDef {
   offsetMs: number;
   x: number;
+  spawnFrom?: 'top' | 'bottom';
   movementPattern: MovementPatternId;
   patternAmplitude?: number;
   patternFrequency?: number;
@@ -22,6 +23,7 @@ export interface ScheduledSpawn {
   atMs: number;
   x: number;
   y: number;
+  spawnFrom: 'top' | 'bottom';
   movementPattern: MovementPatternId;
   patternAmplitude: number;
   patternFrequency: number;
@@ -52,6 +54,7 @@ export function buildWaveSpawns(spawns: WaveSpawnDef[], startMs: number): Schedu
     atMs: startMs + spawn.offsetMs,
     x: spawn.x,
     y: TOP_SPAWN_Y,
+    spawnFrom: spawn.spawnFrom ?? 'top',
     movementPattern: spawn.movementPattern,
     patternAmplitude: spawn.patternAmplitude ?? 2,
     patternFrequency: spawn.patternFrequency ?? 1.8,
@@ -66,7 +69,8 @@ export function progressionLevel(distanceTraveled: number, elapsedMs: number): n
   return Math.min(8, distanceLevel + timeLevel);
 }
 
-export function spawnIntervalMsForLevel(_level: number): number {
+export function spawnIntervalMsForLevel(level: number): number {
+  void level;
   return 40;
 }
 
@@ -180,6 +184,144 @@ export const progressionWaveTemplates: WaveTemplate[] = [
     ]
   },
   {
+    id: 'giant-sine-ribbon',
+    spawns: [
+      {
+        offsetMs: 0,
+        x: -4.5,
+        movementPattern: 'sine',
+        patternAmplitude: 4.8,
+        patternFrequency: 1.05,
+        enemyArchetype: 'striker',
+        unlockLevel: 3
+      },
+      {
+        offsetMs: 220,
+        x: -1.5,
+        movementPattern: 'sine',
+        patternAmplitude: 4.8,
+        patternFrequency: 1.05,
+        enemyArchetype: 'striker',
+        unlockLevel: 3
+      },
+      {
+        offsetMs: 440,
+        x: 1.5,
+        movementPattern: 'sine',
+        patternAmplitude: 4.8,
+        patternFrequency: 1.05,
+        enemyArchetype: 'striker',
+        unlockLevel: 3
+      },
+      {
+        offsetMs: 660,
+        x: 4.5,
+        movementPattern: 'sine',
+        patternAmplitude: 4.8,
+        patternFrequency: 1.05,
+        enemyArchetype: 'striker',
+        unlockLevel: 3
+      }
+    ]
+  },
+  {
+    id: 'sweeping-crescent',
+    spawns: [
+      {
+        offsetMs: 0,
+        x: 5.4,
+        movementPattern: 'sweep',
+        patternAmplitude: 5.2,
+        patternFrequency: 0.18,
+        movementParams: { sweepStartX: 5.4, sweepEndX: -5.4, sweepDepth: 24, periodSeconds: 5.8 },
+        enemyArchetype: 'tank',
+        unlockLevel: 4
+      },
+      {
+        offsetMs: 520,
+        x: 5.2,
+        movementPattern: 'sweep',
+        patternAmplitude: 5,
+        patternFrequency: 0.2,
+        movementParams: { sweepStartX: 5.2, sweepEndX: -5.2, sweepDepth: 22, periodSeconds: 5.2 },
+        enemyArchetype: 'striker',
+        unlockLevel: 5
+      }
+    ]
+  },
+  {
+    id: 'shallow-zig-rain',
+    spawns: [
+      {
+        offsetMs: 0,
+        x: -4.8,
+        movementPattern: 'shallow-zigzag',
+        patternAmplitude: 1.6,
+        patternFrequency: 1.35,
+        movementParams: { xScale: 0.55, yAmplitude: 0.18, yFrequency: 0.9 },
+        enemyArchetype: 'scout',
+        unlockLevel: 2
+      },
+      {
+        offsetMs: 180,
+        x: -1.8,
+        movementPattern: 'shallow-zigzag',
+        patternAmplitude: 1.5,
+        patternFrequency: 1.4,
+        movementParams: { xScale: 0.55, yAmplitude: 0.16, yFrequency: 1 },
+        enemyArchetype: 'scout',
+        unlockLevel: 2
+      },
+      {
+        offsetMs: 360,
+        x: 1.8,
+        movementPattern: 'shallow-zigzag',
+        patternAmplitude: 1.5,
+        patternFrequency: 1.4,
+        movementParams: { xScale: 0.55, yAmplitude: 0.16, yFrequency: 1 },
+        enemyArchetype: 'striker',
+        unlockLevel: 3
+      },
+      {
+        offsetMs: 540,
+        x: 4.8,
+        movementPattern: 'shallow-zigzag',
+        patternAmplitude: 1.6,
+        patternFrequency: 1.35,
+        movementParams: { xScale: 0.55, yAmplitude: 0.18, yFrequency: 0.9 },
+        enemyArchetype: 'striker',
+        unlockLevel: 3
+      }
+    ]
+  },
+  {
+    id: 'horseshoe-climb',
+    spawns: [
+      {
+        offsetMs: 0,
+        x: 4.8,
+        spawnFrom: 'bottom',
+        movementPattern: 'horseshoe',
+        patternAmplitude: 4.2,
+        patternFrequency: 0.23,
+        movementParams: { radiusX: 4.8, riseHeight: 26, periodSeconds: 5.1 },
+        enemyArchetype: 'striker',
+        unlockLevel: 5
+      },
+      {
+        offsetMs: 420,
+        x: -4.8,
+        spawnFrom: 'bottom',
+        movementPattern: 'horseshoe',
+        patternAmplitude: 4.2,
+        patternFrequency: 0.23,
+        movementParams: { radiusX: -4.8, riseHeight: 26, periodSeconds: 5.1 },
+        enemyArchetype: 'bruiser',
+        unlockLevel: 6
+      }
+    ]
+  },
+  {
     id: 'bezier-arc',
     spawns: [
       {
@@ -251,8 +393,40 @@ export const progressionWaveTemplates: WaveTemplate[] = [
         patternAmplitude: 2.2,
         patternFrequency: 1.15,
         movementParams: { curveDirection: -1 },
-        enemyArchetype: 'tank',
+        enemyArchetype: 'bruiser',
         unlockLevel: 5
+      }
+    ]
+  },
+  {
+    id: 'heavy-crusher',
+    spawns: [
+      {
+        offsetMs: 0,
+        x: -2,
+        movementPattern: 'straight',
+        enemyArchetype: 'bruiser',
+        unlockLevel: 5
+      },
+      {
+        offsetMs: 220,
+        x: 2,
+        movementPattern: 'spiral',
+        patternAmplitude: 2.3,
+        patternFrequency: 1.1,
+        movementParams: { spiralTurns: 1.4, spiralDecay: 0.32 },
+        enemyArchetype: 'bruiser',
+        unlockLevel: 6
+      },
+      {
+        offsetMs: 520,
+        x: 0,
+        movementPattern: 'curve',
+        patternAmplitude: 1.9,
+        patternFrequency: 1.05,
+        movementParams: { curveDirection: 1 },
+        enemyArchetype: 'juggernaut',
+        unlockLevel: 7
       }
     ]
   }

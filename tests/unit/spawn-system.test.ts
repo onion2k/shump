@@ -54,6 +54,23 @@ describe('SpawnSystem wave scripting', () => {
     expect(newRunEntities.count()).toBe(1);
   });
 
+  it('can spawn scripted enemies from the bottom edge', () => {
+    const waves: WaveDef[] = [
+      {
+        startMs: 0,
+        spawns: [{ offsetMs: 0, x: 4, spawnFrom: 'bottom', movementPattern: 'horseshoe' }]
+      }
+    ];
+    const entityManager = new EntityManager();
+    const spawnSystem = new SpawnSystem(waves);
+
+    spawnSystem.tick(entityManager, 0.05, WORLD_BOUNDS);
+
+    const [enemy] = entityManager.all();
+    expect(enemy).toBeTruthy();
+    expect(enemy.position.y).toBeCloseTo(WORLD_BOUNDS.bottom - 1.2);
+  });
+
   it('spawns progression waves regularly and mixes archetypes at higher progress', () => {
     const entityManager = new EntityManager();
     const spawnSystem = new SpawnSystem();

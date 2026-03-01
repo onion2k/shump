@@ -9,9 +9,10 @@ interface GameCanvasProps {
   game: Game;
   snapshot: GameSnapshot;
   debugMode: boolean;
+  showEnemyPatterns: boolean;
 }
 
-export function GameCanvas({ game, snapshot, debugMode }: GameCanvasProps) {
+export function GameCanvas({ game, snapshot, debugMode, showEnemyPatterns }: GameCanvasProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const pointer = useMemo(() => new PointerController(), []);
 
@@ -26,7 +27,13 @@ export function GameCanvas({ game, snapshot, debugMode }: GameCanvasProps) {
   return (
     <div ref={wrapperRef} style={{ width: '100%', height: '100%', touchAction: 'none' }}>
       <Canvas>
-        <SceneRoot game={game} pointer={pointer} snapshot={snapshot} debugMode={debugMode} />
+        <SceneRoot
+          game={game}
+          pointer={pointer}
+          snapshot={snapshot}
+          debugMode={debugMode}
+          showEnemyPatterns={showEnemyPatterns}
+        />
       </Canvas>
     </div>
   );

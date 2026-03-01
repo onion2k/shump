@@ -30,6 +30,7 @@ export function App() {
   const [snapshot, setSnapshot] = useState(() => game.snapshot());
   const [debugPanelOpen, setDebugPanelOpen] = useState(false);
   const [debugEmitterEnabled, setDebugEmitterEnabled] = useState(false);
+  const [debugEnemyPatternsEnabled, setDebugEnemyPatternsEnabled] = useState(false);
   const [debugEmitterSettings, setDebugEmitterSettings] = useState<DebugEmitterSettings>(INITIAL_DEBUG_EMITTER_SETTINGS);
   const debugForcedPauseRef = useRef(false);
 
@@ -97,14 +98,21 @@ export function App() {
   return (
     <main className={`app-shell ${debugPanelOpen ? 'debug-open' : ''}`} data-game-state={snapshot.state}>
       <div className="game-stage">
-        <GameCanvas game={game} snapshot={snapshot} debugMode={debugPanelOpen} />
+        <GameCanvas
+          game={game}
+          snapshot={snapshot}
+          debugMode={debugPanelOpen}
+          showEnemyPatterns={debugEnemyPatternsEnabled}
+        />
       </div>
       <DebugPanel
         open={debugPanelOpen}
         emitterEnabled={debugEmitterEnabled}
+        enemyPatternsEnabled={debugEnemyPatternsEnabled}
         settings={debugEmitterSettings}
         onToggleOpen={() => setDebugPanelOpen((open) => !open)}
         onSetEmitterEnabled={setDebugEmitterEnabled}
+        onSetEnemyPatternsEnabled={setDebugEnemyPatternsEnabled}
         onPatchSettings={(patch) => setDebugEmitterSettings((current) => ({ ...current, ...patch }))}
       />
       {!debugPanelOpen && snapshot.state === GameState.Boot && <StartScreen onStart={() => game.start()} />}

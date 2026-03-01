@@ -1,4 +1,4 @@
-export type EnemyArchetypeId = 'scout' | 'striker' | 'tank';
+export type EnemyArchetypeId = 'scout' | 'striker' | 'tank' | 'bruiser' | 'juggernaut';
 
 export interface EnemyArchetypeDef {
   id: EnemyArchetypeId;
@@ -45,6 +45,28 @@ const ENEMY_ARCHETYPES: Record<EnemyArchetypeId, EnemyArchetypeDef> = {
     color: '#b447ff',
     accentColor: '#6df0ff',
     meshScale: 1.2
+  },
+  bruiser: {
+    id: 'bruiser',
+    health: 6,
+    radius: 1.02,
+    speedYMultiplier: 0.62,
+    scoreValue: 260,
+    fireIntervalMultiplier: 0.72,
+    color: '#4f7dff',
+    accentColor: '#9bd2ff',
+    meshScale: 1.3
+  },
+  juggernaut: {
+    id: 'juggernaut',
+    health: 10,
+    radius: 1.16,
+    speedYMultiplier: 0.52,
+    scoreValue: 420,
+    fireIntervalMultiplier: 0.66,
+    color: '#2edb88',
+    accentColor: '#d4ffd8',
+    meshScale: 1.46
   }
 };
 

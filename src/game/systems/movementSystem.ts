@@ -8,23 +8,35 @@ export function movementSystem(entities: Entity[], deltaSeconds: number) {
 
     if (entity.type === EntityType.Enemy) {
       const ageSeconds = entity.ageMs / 1000;
-      const baseX = entity.spawnX ?? entity.position.x;
-      const baseY = entity.spawnY ?? entity.position.y;
+      entity.spawnX ??= entity.position.x;
+      entity.spawnY ??= entity.position.y;
+      const baseX = entity.spawnX;
+      const baseY = entity.spawnY;
       const amp = entity.patternAmplitude ?? 0;
       const frequency = entity.patternFrequency ?? 1;
+      const driftX = baseX + entity.velocity.x * ageSeconds;
+      const driftY = baseY + entity.velocity.y * ageSeconds;
       const controller = movementControllerRegistry.resolve(entity.movementPattern);
-      const controlledX = controller({
+      const controlled = controller({
         ageSeconds,
         baseX,
         baseY,
+        driftX,
+        driftY,
         amplitude: amp,
         frequency,
         params: entity.movementParams
       });
 
-      if (typeof controlledX === 'number') {
-        entity.position.x = controlledX;
+      if (controlled) {
+        entity.position.x = controlled.x;
+        entity.position.y = controlled.y;
+      } else {
+        entity.position.x = driftX;
+        entity.position.y = driftY;
       }
+
+      continue;
     }
 
     entity.position.x += entity.velocity.x * deltaSeconds;

@@ -50,7 +50,7 @@ export class SpawnSystem {
 
       const spawn = this.queue[this.cursor];
       const scaledX = scaleXAcrossBounds(spawn.x, BASE_PLAYFIELD_BOUNDS, bounds);
-      const spawnY = bounds.top + 1.2;
+      const spawnY = spawn.spawnFrom === 'bottom' ? bounds.bottom - 1.2 : bounds.top + 1.2;
       entityManager.create(
         createEnemy(
           scaledX,
