@@ -1,3 +1,5 @@
+import { gameSettings } from '../config/gameSettings';
+
 export interface WorldBounds {
   left: number;
   right: number;
@@ -6,19 +8,16 @@ export interface WorldBounds {
 }
 
 export const WORLD_BOUNDS: WorldBounds = {
-  left: -8,
-  right: 8,
-  top: 14,
-  bottom: -14
+  ...gameSettings.world.bounds
 };
 
 export const FIXED_TIMESTEP_MS = 1000 / 60;
-export const PLAYER_MAX_SPEED = 24;
-export const PLAYER_FOLLOW_GAIN = 6;
+export const PLAYER_MAX_SPEED = gameSettings.player.maxSpeed;
+export const PLAYER_FOLLOW_GAIN = gameSettings.player.followGain;
 export const PLAYER_FIRE_INTERVAL_MS = 140;
-export const PLAYER_MACHINE_GUN_INTERVAL_MS = 90;
+export const PLAYER_MACHINE_GUN_INTERVAL_MS = gameSettings.player.weapon.fireIntervalMs;
 export const PLAYER_CHARGE_RATE = 60;
 export const PLAYER_CHARGE_MIN_TO_FIRE = 8;
-export const ENEMY_SPAWN_INTERVAL_MS = 900;
-export const BULLET_SPEED = 26;
-export const WORLD_SCROLL_SPEED = 6;
+export const ENEMY_SPAWN_INTERVAL_MS = gameSettings.enemy.fireIntervalMs;
+export const BULLET_SPEED = gameSettings.combat.bulletSpeed;
+export const WORLD_SCROLL_SPEED = gameSettings.world.scrollSpeed;

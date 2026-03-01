@@ -2,6 +2,7 @@ import type { EntityManager } from '../ecs/EntityManager';
 import type { Vec2 } from '../ecs/components';
 import { createParticle } from '../factories/createParticle';
 import { randomRange } from '../util/random';
+import type { Entity } from '../ecs/components';
 
 export interface ParticleEmitterConfig {
   position: Vec2;
@@ -24,6 +25,8 @@ interface ParticleEmitterRuntime {
   spawnCarry: number;
 }
 
+export type ParticleSpawnHandler = (particle: Omit<Entity, 'id'>) => void;
+
 export class ParticleSystem {
   private nextEmitterId = 1;
   private emitters = new Map<number, ParticleEmitterRuntime>();
@@ -43,11 +46,29 @@ export class ParticleSystem {
     this.emitters.delete(id);
   }
 
+  hasEmitter(id: number): boolean {
+    return this.emitters.has(id);
+  }
+
+  updateEmitter(id: number, config: ParticleEmitterConfig): boolean {
+    const emitter = this.emitters.get(id);
+    if (!emitter) {
+      return false;
+    }
+
+    emitter.config = config;
+    return true;
+  }
+
   clearEmitters() {
     this.emitters.clear();
   }
 
-  tick(entityManager: EntityManager, deltaSeconds: number) {
+  countEmitters(): number {
+    return this.emitters.size;
+  }
+
+  tick(entityManager: EntityManager, deltaSeconds: number, onSpawn?: ParticleSpawnHandler) {
     const deltaMs = deltaSeconds * 1000;
 
     for (const emitter of [...this.emitters.values()]) {
@@ -56,25 +77,28 @@ export class ParticleSystem {
       const spawnExact = activeMs * (emitter.config.emissionRatePerSecond / 1000) + emitter.spawnCarry;
       const spawnCount = Math.floor(spawnExact);
       emitter.spawnCarry = spawnExact - spawnCount;
+      const inheritedVelocity = emitter.config.velocityProvider?.() ?? { x: 0, y: 0 };
+      const position = emitter.config.positionProvider?.() ?? emitter.config.position;
+      const speed = emitter.config.particleSpeed;
+      const spreadHalf = emitter.config.spread / 2;
 
       for (let i = 0; i < spawnCount; i += 1) {
-        const angle =
-          emitter.config.direction + randomRange(-emitter.config.spread / 2, emitter.config.spread / 2);
-        const speed = emitter.config.particleSpeed;
-        const inheritedVelocity = emitter.config.velocityProvider?.() ?? { x: 0, y: 0 };
-        const position = emitter.config.positionProvider?.() ?? emitter.config.position;
+        const angle = emitter.config.direction + randomRange(-spreadHalf, spreadHalf);
 
-        entityManager.create(
-          createParticle(
-            position.x,
-            position.y,
-            Math.cos(angle) * speed + inheritedVelocity.x,
-            Math.sin(angle) * speed + inheritedVelocity.y,
-            emitter.config.particleType,
-            emitter.config.particleLifetimeMs,
-            emitter.config.particleRadius
-          )
+        const particle = createParticle(
+          position.x,
+          position.y,
+          Math.cos(angle) * speed + inheritedVelocity.x,
+          Math.sin(angle) * speed + inheritedVelocity.y,
+          emitter.config.particleType,
+          emitter.config.particleLifetimeMs,
+          emitter.config.particleRadius
         );
+        if (onSpawn) {
+          onSpawn(particle);
+        } else {
+          entityManager.create(particle);
+        }
       }
 
       emitter.ageMs += deltaMs;

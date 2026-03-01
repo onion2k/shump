@@ -40,3 +40,63 @@ body,
   padding: 0.5rem 1rem;
   cursor: pointer;
 }
+
+.debug-panel {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+  pointer-events: none;
+}
+
+.debug-toggle {
+  pointer-events: auto;
+  border: 1px solid #96fcff;
+  background: rgba(7, 17, 40, 0.8);
+  color: #d9fcff;
+  padding: 0.5rem 0.85rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.debug-content {
+  pointer-events: auto;
+  width: min(21rem, calc(100vw - 2rem));
+  max-height: min(80vh, 42rem);
+  overflow-y: auto;
+  background: rgba(7, 17, 40, 0.88);
+  border: 1px solid #96fcff;
+  border-radius: 10px;
+  padding: 0.8rem;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.debug-content h3 {
+  margin: 0 0 0.25rem;
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+}
+
+.debug-content label {
+  display: grid;
+  gap: 0.22rem;
+  font-size: 0.8rem;
+}
+
+.debug-content input[type='text'],
+.debug-content input[type='number'] {
+  background: rgba(10, 24, 52, 0.95);
+  border: 1px solid rgba(150, 252, 255, 0.6);
+  color: #eaffff;
+  border-radius: 4px;
+  padding: 0.35rem 0.45rem;
+}
+
+.debug-content input[type='range'] {
+  width: 100%;
+}

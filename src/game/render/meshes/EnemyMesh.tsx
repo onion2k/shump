@@ -1,8 +1,10 @@
+import { gameSettings } from '../../config/gameSettings';
+
 export function EnemyMesh() {
   return (
     <mesh>
       <octahedronGeometry args={[0.7, 0]} />
-      <meshStandardMaterial color="#ff5a4f" flatShading />
+      <meshStandardMaterial color={gameSettings.enemy.color} flatShading />
     </mesh>
   );
 }

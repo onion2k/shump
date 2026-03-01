@@ -1,7 +1,6 @@
 import { useFrame } from '@react-three/fiber';
 import { useRef } from 'react';
 import { AdditiveBlending, type Mesh, type MeshBasicMaterial } from 'three';
-import { Select } from '@react-three/postprocessing';
 
 interface ParallaxBackgroundProps {
   width: number;
@@ -108,32 +107,30 @@ function TwinklingStar({ x, y, z, color, star }: TwinklingStarProps) {
 
   return (
     <group position={[x, y, z]}>
-      <Select enabled>
-        <mesh ref={starRef}>
-          <circleGeometry args={[star.size, 8]} />
-          <meshBasicMaterial
-            ref={starMaterialRef}
-            color={color}
-            transparent
-            opacity={star.alpha}
-            depthWrite={false}
-            toneMapped={false}
-            blending={AdditiveBlending}
-          />
-        </mesh>
-        <mesh>
-          <circleGeometry args={[star.size * 2.8, 10]} />
-          <meshBasicMaterial
-            ref={haloMaterialRef}
-            color={color}
-            transparent
-            opacity={star.alpha * 0.2}
-            depthWrite={false}
-            toneMapped={false}
-            blending={AdditiveBlending}
-          />
-        </mesh>
-      </Select>
+      <mesh ref={starRef}>
+        <circleGeometry args={[star.size, 8]} />
+        <meshBasicMaterial
+          ref={starMaterialRef}
+          color={color}
+          transparent
+          opacity={star.alpha}
+          depthWrite={false}
+          toneMapped={false}
+          blending={AdditiveBlending}
+        />
+      </mesh>
+      <mesh>
+        <circleGeometry args={[star.size * 2.8, 10]} />
+        <meshBasicMaterial
+          ref={haloMaterialRef}
+          color={color}
+          transparent
+          opacity={star.alpha * 0.2}
+          depthWrite={false}
+          toneMapped={false}
+          blending={AdditiveBlending}
+        />
+      </mesh>
     </group>
   );
 }

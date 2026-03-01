@@ -1,0 +1,126 @@
+{
+  "world": {
+    "bounds": {
+      "left": -8,
+      "right": 8,
+      "top": 14,
+      "bottom": -14
+    },
+    "scrollSpeed": 6
+  },
+  "player": {
+    "spawn": {
+      "x": 0,
+      "y": -10
+    },
+    "radius": 0.6,
+    "health": 10,
+    "maxSpeed": 24,
+    "followGain": 6,
+    "weapon": {
+      "mode": "Auto Pulse",
+      "level": 1,
+      "energyStart": 100,
+      "energyMax": 100,
+      "energyRegenPerSecond": 40,
+      "energyCost": 4,
+      "fireIntervalMs": 90
+    },
+    "color": "#54f1ff"
+  },
+  "enemy": {
+    "radius": 0.7,
+    "health": 2,
+    "speedY": -3.5,
+    "fireCooldownStartMs": 800,
+    "fireIntervalMs": 900,
+    "scoreValue": 100,
+    "color": "#ff5a4f"
+  },
+  "combat": {
+    "bulletSpeed": 26,
+    "enemyBulletSpeedMultiplier": 0.65
+  },
+  "visuals": {
+    "bullets": {
+      "playerColor": "#9eff7a",
+      "enemyColor": "#ffcc4f"
+    },
+    "pickups": {
+      "scoreColor": "#ffe074",
+      "healthColor": "#7dff7a",
+      "energyColor": "#72ddff"
+    },
+    "particles": {
+      "defaultColor": "#ffffff",
+      "colors": {
+        "thruster": "#7be5ff",
+        "debug": "#ff8f66",
+        "fire": "#ff9d3a",
+        "smoke": "#7f8794",
+        "enemy-shard": "#ff5a4f"
+      }
+    }
+  },
+  "particles": {
+    "debugEmitterDefaults": {
+      "positionX": 0,
+      "positionY": 0,
+      "directionDegrees": 90,
+      "spreadDegrees": 35,
+      "emitterLifetimeMs": 60000,
+      "particleType": "debug",
+      "emissionRatePerSecond": 50,
+      "particleLifetimeMs": 500,
+      "particleSpeed": 3.5,
+      "particleRadius": 0.12,
+      "velocityX": 0,
+      "velocityY": 0
+    },
+    "thrusterEmitter": {
+      "directionRadians": -1.5707963267948966,
+      "spreadRadians": 0.7853981633974483,
+      "lifetimeMs": 60000,
+      "particleType": "thruster",
+      "emissionRatePerSecond": 40,
+      "particleLifetimeMs": 320,
+      "particleSpeed": 4,
+      "particleRadius": 0.09,
+      "offsetY": -0.45
+    },
+    "explosion": {
+      "fireBurst": {
+        "emitterLifetimeMs": 120,
+        "emissionRatePerSecond": 520,
+        "particleLifetimeMs": 260,
+        "particleSpeed": 8.8,
+        "particleRadius": 0.13
+      },
+      "smokeBurst": {
+        "delayMs": 110,
+        "emitterLifetimeMs": 280,
+        "emissionRatePerSecond": 180,
+        "particleLifetimeMs": 720,
+        "particleSpeed": 2.2,
+        "particleRadius": 0.2
+      },
+      "shards": {
+        "count": 4,
+        "speedMin": 6.8,
+        "speedMax": 10.2,
+        "lifetimeMinMs": 360,
+        "lifetimeMaxMs": 520,
+        "radiusMin": 0.21,
+        "radiusMax": 0.28
+      },
+      "trail": {
+        "spreadRadians": 0.6283185307179586,
+        "emissionRatePerSecond": 130,
+        "particleLifetimeMs": 220,
+        "particleSpeed": 2.6,
+        "particleRadius": 0.09,
+        "inheritVelocityFactor": 0.15
+      }
+    }
+  }
+}

@@ -1,5 +1,12 @@
+import { gameSettings } from '../../config/gameSettings';
+
 export function PickupMesh({ kind }: { kind: 'score' | 'health' | 'energy' }) {
-  const color = kind === 'health' ? '#7dff7a' : kind === 'energy' ? '#72ddff' : '#ffe074';
+  const color =
+    kind === 'health'
+      ? gameSettings.visuals.pickups.healthColor
+      : kind === 'energy'
+        ? gameSettings.visuals.pickups.energyColor
+        : gameSettings.visuals.pickups.scoreColor;
 
   return (
     <mesh>

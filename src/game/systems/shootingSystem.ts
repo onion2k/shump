@@ -2,6 +2,7 @@ import type { EntityManager } from '../ecs/EntityManager';
 import { EntityType, Faction } from '../ecs/entityTypes';
 import { BULLET_SPEED } from '../core/constants';
 import { createBullet } from '../factories/createBullet';
+import { gameSettings } from '../config/gameSettings';
 
 export function shootingSystem(entityManager: EntityManager, deltaSeconds: number) {
   const entities = entityManager.all();
@@ -17,8 +18,15 @@ export function shootingSystem(entityManager: EntityManager, deltaSeconds: numbe
     }
 
     if (entity.type === EntityType.Enemy) {
-      entityManager.create(createBullet(entity.position.x, entity.position.y - 0.7, -BULLET_SPEED * 0.65, Faction.Enemy));
-      entity.fireCooldownMs = 900;
+      entityManager.create(
+        createBullet(
+          entity.position.x,
+          entity.position.y - 0.7,
+          -BULLET_SPEED * gameSettings.combat.enemyBulletSpeedMultiplier,
+          Faction.Enemy
+        )
+      );
+      entity.fireCooldownMs = gameSettings.enemy.fireIntervalMs;
     }
   }
 }

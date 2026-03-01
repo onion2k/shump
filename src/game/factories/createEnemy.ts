@@ -1,6 +1,7 @@
 import type { Entity } from '../ecs/components';
 import { EntityType, Faction } from '../ecs/entityTypes';
 import type { MovementPatternId } from '../movement/patterns';
+import { gameSettings } from '../config/gameSettings';
 
 export function createEnemy(
   x: number,
@@ -14,12 +15,12 @@ export function createEnemy(
     type: EntityType.Enemy,
     faction: Faction.Enemy,
     position: { x, y },
-    velocity: { x: 0, y: -3.5 },
-    radius: 0.7,
-    health: 2,
-    maxHealth: 2,
-    fireCooldownMs: 800,
-    scoreValue: 100,
+    velocity: { x: 0, y: gameSettings.enemy.speedY },
+    radius: gameSettings.enemy.radius,
+    health: gameSettings.enemy.health,
+    maxHealth: gameSettings.enemy.health,
+    fireCooldownMs: gameSettings.enemy.fireCooldownStartMs,
+    scoreValue: gameSettings.enemy.scoreValue,
     movementPattern,
     patternAmplitude,
     patternFrequency,
