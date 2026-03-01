@@ -15,6 +15,7 @@ import { particleColor } from '../../config/gameSettings';
 interface GpuParticleSystemProps {
   game: Game;
   maxParticles?: number;
+  particleScale?: number;
 }
 
 function particleBaseColor(kind: string): ColorRepresentation {
@@ -56,7 +57,7 @@ void main() {
 }
 `;
 
-export function GpuParticleSystem({ game, maxParticles = 24000 }: GpuParticleSystemProps) {
+export function GpuParticleSystem({ game, maxParticles = 24000, particleScale = 1 }: GpuParticleSystemProps) {
   const pointsRef = useRef<Points>(null);
   const { gl } = useThree();
   const nextIndexRef = useRef(0);
@@ -136,7 +137,7 @@ export function GpuParticleSystem({ game, maxParticles = 24000 }: GpuParticleSys
 
       attributes.spawnTimeAttr.array[idx] = clock.elapsedTime;
       attributes.lifetimeAttr.array[idx] = Math.max(0.001, spawn.lifetimeMs / 1000);
-      attributes.sizeAttr.array[idx] = Math.max(1, spawn.radius * 180);
+      attributes.sizeAttr.array[idx] = Math.max(1, spawn.radius * 180 * particleScale);
 
       tempColor.set(particleBaseColor(spawn.particleType));
       attributes.colorAttr.array[p3] = tempColor.r;

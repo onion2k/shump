@@ -26,11 +26,14 @@ interface SceneRootProps {
 }
 
 const USE_GPU_PARTICLES = true;
+const MOBILE_BREAKPOINT_PX = 768;
+const MOBILE_PARTICLE_SCALE = 0.8;
 
 export function SceneRoot({ game, pointer, snapshot, debugMode }: SceneRootProps) {
   const loop = useMemo(() => new GameLoop(), []);
   const camera = useThree((state) => state.camera);
   const viewport = useThree((state) => state.viewport);
+  const size = useThree((state) => state.size);
   const gl = useThree((state) => state.gl);
   const backgroundViewport = viewport.getCurrentViewport(camera, [0, 0, -2]);
   const canUsePostProcessing = Boolean(gl.getContext()?.getContextAttributes());
@@ -75,6 +78,7 @@ export function SceneRoot({ game, pointer, snapshot, debugMode }: SceneRootProps
   const particles = renderEntities.filter((entity) => entity.type === EntityType.Particle);
   const playerEntity = renderEntities.find((entity) => entity.type === EntityType.Player);
   const playerX = playerEntity?.x ?? 0;
+  const particleScale = size.width <= MOBILE_BREAKPOINT_PX ? MOBILE_PARTICLE_SCALE : 1;
 
   return (
     <>
@@ -84,7 +88,7 @@ export function SceneRoot({ game, pointer, snapshot, debugMode }: SceneRootProps
           <ambientLight intensity={0.65} />
           <directionalLight intensity={0.9} position={[2.5, 4, 6]} />
           <gridHelper args={[24, 24, '#2b4d7a', '#13233d']} position={[0, 0, -0.02]} />
-          <GpuParticleSystem game={game} maxParticles={8000} />
+          <GpuParticleSystem game={game} maxParticles={8000} particleScale={particleScale} />
         </>
       ) : (
         <>
@@ -132,7 +136,11 @@ export function SceneRoot({ game, pointer, snapshot, debugMode }: SceneRootProps
               </group>
             );
           })}
-          {USE_GPU_PARTICLES ? <GpuParticleSystem game={game} /> : <ParticleInstances particles={particles} />}
+          {USE_GPU_PARTICLES ? (
+            <GpuParticleSystem game={game} particleScale={particleScale} />
+          ) : (
+            <ParticleInstances particles={particles} particleScale={particleScale} />
+          )}
           {canUsePostProcessing && (
             <EffectComposer multisampling={4}>
               <Bloom intensity={0.7} luminanceThreshold={0.15} luminanceSmoothing={0.4} />

@@ -13,6 +13,7 @@ export interface RenderParticle {
 
 interface ParticleInstancesProps {
   particles: RenderParticle[];
+  particleScale?: number;
 }
 
 const MAX_PARTICLE_INSTANCES = 12000;
@@ -25,7 +26,7 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
-export function ParticleInstances({ particles }: ParticleInstancesProps) {
+export function ParticleInstances({ particles, particleScale = 1 }: ParticleInstancesProps) {
   const meshRef = useRef<InstancedMesh>(null);
   const dummy = useMemo(() => new Object3D(), []);
   const tempColor = useMemo(() => new Color(), []);
@@ -45,7 +46,7 @@ export function ParticleInstances({ particles }: ParticleInstancesProps) {
       const totalLifetime = Math.max(1, ageMs + remainingMs);
       const lifeProgress = clamp(ageMs / totalLifetime, 0, 1);
       const lifeRemaining = 1 - lifeProgress;
-      const scale = 1 - lifeProgress * 0.8;
+      const scale = (1 - lifeProgress * 0.8) * particleScale;
 
       dummy.position.set(particle.x, particle.y, 0);
       dummy.scale.setScalar(scale);
@@ -62,7 +63,7 @@ export function ParticleInstances({ particles }: ParticleInstancesProps) {
     if (mesh.instanceColor) {
       mesh.instanceColor.needsUpdate = true;
     }
-  }, [baseColor, dummy, instanceCount, particles, tempColor]);
+  }, [baseColor, dummy, instanceCount, particleScale, particles, tempColor]);
 
   return (
     <instancedMesh ref={meshRef} args={[undefined, undefined, MAX_PARTICLE_INSTANCES]} frustumCulled={false}>
