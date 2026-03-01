@@ -47,8 +47,9 @@ export interface Entity {
   projectileSpeed?: number;
   homingTargetId?: number;
   homingTurnRate?: number;
-  pickupKind?: 'score' | 'health' | 'energy' | 'weapon';
+  pickupKind?: 'score' | 'health' | 'energy' | 'weapon' | 'money' | 'card';
   pickupWeaponMode?: PlayerWeaponMode;
+  pickupCardId?: string;
   pickupValue?: number;
   particleType?: string;
 }

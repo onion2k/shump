@@ -25,14 +25,15 @@ export interface SpawnTickOptions {
 export class SpawnSystem {
   private elapsedMs = 0;
   private cursor = 0;
-  private readonly queue: ScheduledSpawn[];
-  private readonly scriptedMode: boolean;
+  private queue: ScheduledSpawn[] = [];
+  private mode: 'progression' | 'scripted' = 'progression';
   private waveCursor = 0;
   private nextWaveAtMs = 500;
 
   constructor(waves?: WaveDef[]) {
-    this.scriptedMode = Array.isArray(waves);
-    this.queue = waves ? buildSpawnQueue(waves) : [];
+    if (waves) {
+      this.setScriptedWaves(waves);
+    }
   }
 
   tick(
@@ -44,7 +45,7 @@ export class SpawnSystem {
   ) {
     this.elapsedMs += deltaSeconds * 1000;
 
-    if (!this.scriptedMode) {
+    if (this.mode === 'progression') {
       this.scheduleProgressionWaves(distanceTraveled);
     }
 
@@ -90,6 +91,22 @@ export class SpawnSystem {
     this.cursor = 0;
     this.waveCursor = 0;
     this.nextWaveAtMs = 500;
+  }
+
+  setScriptedWaves(waves: WaveDef[]) {
+    this.mode = 'scripted';
+    this.queue = buildSpawnQueue(waves);
+    this.reset();
+  }
+
+  setProgressionMode() {
+    this.mode = 'progression';
+    this.queue = [];
+    this.reset();
+  }
+
+  hasPendingSpawns(): boolean {
+    return this.cursor < this.queue.length;
   }
 
   private scheduleProgressionWaves(distanceTraveled: number) {

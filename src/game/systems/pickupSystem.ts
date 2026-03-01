@@ -8,6 +8,7 @@ export interface PickupCollection {
   pickupKind: string;
   pickupValue: number;
   pickupWeaponMode?: string;
+  pickupCardId?: string;
 }
 
 export interface PickupResult {
@@ -61,6 +62,8 @@ export function pickupSystem(entityManager: EntityManager, playerId: number): Pi
         player.weaponLevel = levels[pickupWeaponMode] ?? 1;
         player.fireCooldownMs = 0;
       }
+    } else if (kind === 'money' || kind === 'card') {
+      // Run-level progression systems consume these payloads in Game.update.
     } else {
       scoreDelta += value;
     }
@@ -69,7 +72,8 @@ export function pickupSystem(entityManager: EntityManager, playerId: number): Pi
       pickupId: entity.id,
       pickupKind: kind,
       pickupValue: value,
-      pickupWeaponMode: entity.pickupWeaponMode
+      pickupWeaponMode: entity.pickupWeaponMode,
+      pickupCardId: entity.pickupCardId
     });
 
     entityManager.remove(entity.id);

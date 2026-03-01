@@ -38,10 +38,34 @@ import { enemyDropTuning, particleTuning, playerTuning, podTuning } from './game
 import { findNearestEnemy, normalizeDirection } from './gameEntityHelpers';
 import type { EnemyArchetypeId } from '../content/enemyArchetypes';
 import type { MovementPatternId } from '../movement/patterns';
+import {
+  cloneRunProgress,
+  createDefaultRunProgress,
+  createRunPlayerStateFromPlayerEntity,
+  type RunPlayerState,
+  type RunProgress
+} from './RunProgress';
+import {
+  ACTIVE_CARD_LIMIT,
+  canAcquireCard,
+  drawDropCard,
+  drawShopOffers,
+  resolveCard,
+  type CardDefinition
+} from '../content/cards';
+import { LevelDirector } from './LevelDirector';
+import { applyCardsToPlayer, captureBaseStateFromPlayer, computeCardBonuses } from '../systems/cardEffectSystem';
 
 export interface GameSnapshot {
   state: GameState;
   score: number;
+  levelId: string;
+  roundIndex: number;
+  totalRounds: number;
+  activeCardLimit: number;
+  inRunMoney: number;
+  foundCards: string[];
+  activeCards: string[];
   playerHealth: number;
   playerMaxHealth: number;
   weaponMode: string;
@@ -106,6 +130,8 @@ const ADAPTIVE_MIN_DENSITY_SCALE = 0.4;
 const ADAPTIVE_LOW_FPS_HOLD_MS = 800;
 const ADAPTIVE_RECOVERY_HOLD_MS = 1800;
 const BASE_ACTIVE_PICKUP_CAP = 18;
+const ENEMY_MONEY_REWARD = 2;
+const POD_CARD_IDS = ['satellite-bay', 'pulse-relay', 'missile-command'] as const;
 
 export class Game {
   readonly entities = new EntityManager();
@@ -136,12 +162,72 @@ export class Game {
   private lowFpsAccumulatedMs = 0;
   private recoveryAccumulatedMs = 0;
   private enemyDensityScale = 1;
+  private runProgress?: RunProgress;
+  private levelDirector = new LevelDirector();
 
   constructor() {
     this.bootstrap();
   }
 
   bootstrap() {
+    this.runProgress = undefined;
+    this.resetWorld();
+    this.state = GameState.Boot;
+    this.notify();
+  }
+
+  startNewRun(seed?: number) {
+    this.resetWorld();
+    const player = this.entities.get(this.playerId);
+    this.runProgress = createDefaultRunProgress(seed, createRunPlayerStateFromPlayerEntity(player));
+    this.levelDirector.configure(this.runProgress.levelId, this.runProgress.roundIndex);
+    this.runProgress.levelId = this.levelDirector.currentLevelId();
+    this.runProgress.roundIndex = this.levelDirector.currentRoundIndex();
+    this.spawner.setScriptedWaves(this.levelDirector.currentRound().waves);
+    this.syncPlayerWithRunProgressCards();
+    this.state = GameState.Playing;
+    this.notify();
+  }
+
+  startFromRunProgress(runProgress: RunProgress) {
+    this.runProgress = cloneRunProgress(runProgress);
+    this.levelDirector.configure(this.runProgress.levelId, this.runProgress.roundIndex);
+    this.runProgress.levelId = this.levelDirector.currentLevelId();
+    this.runProgress.roundIndex = this.levelDirector.currentRoundIndex();
+    this.resetWorld(this.runProgress.playerState);
+    this.spawner.setScriptedWaves(this.levelDirector.currentRound().waves);
+    this.syncPlayerWithRunProgressCards();
+    this.elapsedMs = this.runProgress.elapsedMs;
+    this.distanceTraveled = this.runProgress.distanceTraveled;
+    this.score = this.runProgress.score;
+    this.state = GameState.Playing;
+    this.notify();
+  }
+
+  exportRunProgress(): RunProgress | undefined {
+    if (!this.runProgress) {
+      return undefined;
+    }
+
+    this.captureRunProgress();
+    return cloneRunProgress(this.runProgress);
+  }
+
+  clearRunProgress() {
+    this.runProgress = undefined;
+  }
+
+  start() {
+    if (this.state === GameState.Boot && !this.runProgress) {
+      this.startNewRun();
+      return;
+    }
+
+    this.state = GameState.Playing;
+    this.notify();
+  }
+
+  private resetWorld(playerState?: RunPlayerState) {
     this.entities.clear();
     this.particles.clearEmitters();
     this.gpuParticleSpawns = [];
@@ -154,6 +240,9 @@ export class Game {
     this.missileThrusterAccumulator = 0;
     const player = this.entities.create(createPlayer());
     this.playerId = player.id;
+    if (playerState) {
+      this.applyRunPlayerState(player, playerState);
+    }
     const thrusterSettings = gameSettings.particles.thrusterEmitter;
     this.particles.addEmitter({
       position: { x: player.position.x, y: player.position.y },
@@ -181,15 +270,8 @@ export class Game {
         return currentPlayer?.velocity ?? { x: 0, y: 0 };
       }
     });
-    this.state = GameState.Boot;
     this.spawner.reset();
     this.playableBounds = { ...WORLD_BOUNDS };
-    this.notify();
-  }
-
-  start() {
-    this.state = GameState.Playing;
-    this.notify();
   }
 
   pause() {
@@ -218,9 +300,146 @@ export class Game {
     }
   }
 
+  openShop() {
+    if (this.state !== GameState.BetweenRounds) {
+      return;
+    }
+
+    this.state = GameState.Shop;
+    this.notify();
+  }
+
+  closeShop() {
+    if (this.state !== GameState.Shop) {
+      return;
+    }
+
+    this.state = GameState.BetweenRounds;
+    this.notify();
+  }
+
+  startNextRound() {
+    if (this.state !== GameState.BetweenRounds && this.state !== GameState.Shop) {
+      return;
+    }
+
+    if (this.runProgress) {
+      const nextRoundIndex = this.levelDirector.advanceRound();
+      this.runProgress.levelId = this.levelDirector.currentLevelId();
+      this.runProgress.roundIndex = nextRoundIndex;
+      this.spawner.setScriptedWaves(this.levelDirector.currentRound().waves);
+    }
+
+    this.state = GameState.Playing;
+    this.notify();
+  }
+
+  buyCard(cardId: string): boolean {
+    if (!this.runProgress) {
+      return false;
+    }
+
+    const card = resolveCard(cardId);
+    if (!card) {
+      return false;
+    }
+
+    if (!canAcquireCard(cardId, this.runProgress.foundCards, this.runProgress.activeCards)) {
+      return false;
+    }
+
+    if (this.runProgress.inRunMoney < card.cost) {
+      return false;
+    }
+
+    this.runProgress.inRunMoney -= card.cost;
+    this.runProgress.foundCards = [...this.runProgress.foundCards, cardId];
+    this.captureRunProgress();
+    this.notify();
+    return true;
+  }
+
+  activateFoundCard(cardId: string, replaceCardId?: string): boolean {
+    if (!this.runProgress) {
+      return false;
+    }
+
+    if (!this.runProgress.foundCards.includes(cardId)) {
+      return false;
+    }
+
+    if (!resolveCard(cardId)) {
+      return false;
+    }
+
+    if (this.runProgress.activeCards.length >= ACTIVE_CARD_LIMIT) {
+      if (!replaceCardId) {
+        return false;
+      }
+      const replaceIndex = this.runProgress.activeCards.indexOf(replaceCardId);
+      if (replaceIndex < 0) {
+        return false;
+      }
+      this.runProgress.activeCards.splice(replaceIndex, 1);
+    }
+
+    const foundIndex = this.runProgress.foundCards.indexOf(cardId);
+    if (foundIndex < 0) {
+      return false;
+    }
+
+    this.runProgress.foundCards.splice(foundIndex, 1);
+    this.runProgress.activeCards = [...this.runProgress.activeCards, cardId];
+    this.syncPlayerWithRunProgressCards();
+    this.captureRunProgress();
+    this.notify();
+    return true;
+  }
+
+  shopOffers(): CardDefinition[] {
+    if (!this.runProgress) {
+      return [];
+    }
+
+    const offers = drawShopOffers(
+      {
+        seed: this.runProgress.seed,
+        roundIndex: this.runProgress.roundIndex,
+        foundCards: this.runProgress.foundCards,
+        activeCards: this.runProgress.activeCards
+      },
+      3
+    );
+
+    const ownsPodCard = [...this.runProgress.foundCards, ...this.runProgress.activeCards].some((cardId) =>
+      resolveCard(cardId)?.tags.includes('pod')
+    );
+    const hasPodOffer = offers.some((card) => card.tags.includes('pod'));
+
+    if (!ownsPodCard && !hasPodOffer) {
+      const guaranteedPod = POD_CARD_IDS.map((cardId) => resolveCard(cardId))
+        .find(
+          (card) =>
+            card
+            && this.runProgress
+            && this.runProgress.roundIndex >= card.unlockRound
+            && canAcquireCard(card.id, this.runProgress.foundCards, this.runProgress.activeCards)
+        );
+
+      if (guaranteedPod) {
+        if (offers.length >= 3) {
+          offers[offers.length - 1] = guaranteedPod;
+        } else {
+          offers.push(guaranteedPod);
+        }
+      }
+    }
+
+    return offers;
+  }
+
   restart() {
-    this.bootstrap();
-    this.start();
+    this.startNewRun();
   }
 
   reportFrameDelta(deltaSeconds: number) {
@@ -298,13 +517,15 @@ export class Game {
     const pickupResult = pickupSystem(this.entities, this.playerId);
     this.score += pickupResult.scoreDelta;
     for (const collection of pickupResult.collections) {
+      this.handleProgressCollection(collection.pickupKind, collection.pickupValue, collection.pickupCardId);
       this.events.emit({
         type: 'PickupCollected',
         atMs: this.elapsedMs,
         collectorId: this.playerId,
         pickupId: collection.pickupId,
         pickupKind: collection.pickupKind,
-        pickupWeaponMode: collection.pickupWeaponMode
+        pickupWeaponMode: collection.pickupWeaponMode,
+        pickupCardId: collection.pickupCardId
       });
     }
     const despawned = despawnSystem(this.entities, deltaSeconds, this.playableBounds);
@@ -312,6 +533,7 @@ export class Game {
     let activePickups = this.countActivePickups();
     for (const { entity, reason } of despawned) {
       if (reason === 'health' && entity.type === EntityType.Enemy) {
+        this.addRunMoney(ENEMY_MONEY_REWARD, 'kill');
         this.spawnEnemyExplosion(entity.position.x, entity.position.y);
         if (this.shouldSpawnDropPickup(entity.id, enemyDropTuning.healthDropModulo, activePickups, 17)) {
           this.entities.create(
@@ -329,6 +551,16 @@ export class Game {
               enemyDropTuning.weaponPickupLifetimeMs,
               this.pickWeaponPickupMode(entity.id)
             )
+          );
+          activePickups += 1;
+        }
+        if (this.shouldSpawnDropPickup(entity.id, 3, activePickups, 91)) {
+          this.entities.create(createPickup(entity.position.x, entity.position.y, 'money', 6, 6000));
+          activePickups += 1;
+        }
+        if (this.shouldSpawnDropPickup(entity.id, 11, activePickups, 113)) {
+          this.entities.create(
+            createPickup(entity.position.x, entity.position.y, 'card', 1, 7000, undefined, this.pickCardDropId(entity.id))
           );
           activePickups += 1;
         }
@@ -350,14 +582,27 @@ export class Game {
       this.state = GameState.GameOver;
     }
 
+    if (this.state === GameState.Playing && !this.spawner.hasPendingSpawns() && this.countLiveEnemies() === 0) {
+      this.enterBetweenRounds();
+    }
+
+    this.captureRunProgress();
     this.notify();
   }
 
   snapshot(): GameSnapshot {
     const player = this.entities.get(this.playerId);
+    const runProgress = this.runProgress;
     return {
       state: this.state,
       score: this.score,
+      levelId: runProgress?.levelId ?? 'level-1',
+      roundIndex: runProgress?.roundIndex ?? 0,
+      totalRounds: this.levelDirector.totalRounds(),
+      activeCardLimit: ACTIVE_CARD_LIMIT,
+      inRunMoney: runProgress?.inRunMoney ?? 0,
+      foundCards: runProgress ? [...runProgress.foundCards] : [],
+      activeCards: runProgress ? [...runProgress.activeCards] : [],
       playerHealth: player?.health ?? 0,
       playerMaxHealth: player?.maxHealth ?? 0,
       weaponMode: player?.weaponMode ?? 'Unknown',
@@ -368,6 +613,62 @@ export class Game {
       weaponFireIntervalMs: player?.weaponFireIntervalMs ?? 0,
       distanceTraveled: this.distanceTraveled
     };
+  }
+
+  private applyRunPlayerState(player: Entity, playerState: RunPlayerState) {
+    const nextMaxHealth = Math.max(1, playerState.maxHealth);
+    player.maxHealth = nextMaxHealth;
+    player.health = clamp(playerState.health, 0, nextMaxHealth);
+
+    const mergedWeaponLevels = {
+      ...(player.weaponLevels ?? {}),
+      ...playerState.weaponLevels
+    };
+    player.weaponLevels = mergedWeaponLevels;
+    if (player.weaponMode) {
+      player.weaponLevel = mergedWeaponLevels[player.weaponMode as PlayerWeaponMode] ?? player.weaponLevel ?? 1;
+    }
+
+    player.podCount = Math.max(0, playerState.podCount);
+    player.podWeaponMode = playerState.podWeaponMode;
+  }
+
+  private syncPlayerWithRunProgressCards() {
+    if (!this.runProgress) {
+      return;
+    }
+
+    const player = this.entities.get(this.playerId);
+    if (!player) {
+      return;
+    }
+
+    applyCardsToPlayer(player, this.runProgress.playerState, this.runProgress.activeCards);
+  }
+
+  private captureRunProgress() {
+    if (!this.runProgress) {
+      return;
+    }
+
+    this.runProgress.elapsedMs = this.elapsedMs;
+    this.runProgress.distanceTraveled = this.distanceTraveled;
+    this.runProgress.score = this.score;
+
+    const player = this.entities.get(this.playerId);
+    if (!player) {
+      this.runProgress.playerState = {
+        ...this.runProgress.playerState,
+        health: 0
+      };
+      return;
+    }
+
+    this.runProgress.playerState = captureBaseStateFromPlayer(
+      player,
+      this.runProgress.activeCards,
+      this.runProgress.playerState
+    );
   }
 
   private applyPlayerInput(pointer: PointerState, deltaSeconds: number) {
@@ -409,6 +710,7 @@ export class Game {
       spawnY: entity.spawnY,
       pickupKind: entity.pickupKind,
       pickupWeaponMode: entity.pickupWeaponMode,
+      pickupCardId: entity.pickupCardId,
       projectileKind: entity.projectileKind,
       projectileSpeed: entity.projectileSpeed,
       radius: entity.radius,
@@ -563,6 +865,47 @@ export class Game {
     return this.adaptiveDensityEnabled ? this.enemyDensityScale : 1;
   }
 
+  private countLiveEnemies(): number {
+    return this.entities
+      .all()
+      .filter((entity) => entity.type === EntityType.Enemy && entity.health > 0).length;
+  }
+
+  enterBetweenRounds(): boolean {
+    if (!this.runProgress || this.state !== GameState.Playing) {
+      return false;
+    }
+
+    this.state = GameState.BetweenRounds;
+    return true;
+  }
+
+  private addRunMoney(amount: number, source: 'kill' | 'pickup' = 'pickup') {
+    if (!this.runProgress || amount <= 0) {
+      return;
+    }
+
+    const bonuses = computeCardBonuses(this.runProgress.activeCards);
+    const scaled = Math.round(amount * (1 + bonuses.moneyMultiplierPercent / 100));
+    const killBonus = source === 'kill' ? bonuses.killMoneyFlatBonus : 0;
+    this.runProgress.inRunMoney += Math.max(1, scaled + killBonus);
+  }
+
+  private handleProgressCollection(kind: string, value: number, pickupCardId?: string) {
+    if (!this.runProgress) {
+      return;
+    }
+
+    if (kind === 'money') {
+      this.addRunMoney(Math.max(0, value), 'pickup');
+      return;
+    }
+
+    if (kind === 'card' && pickupCardId && canAcquireCard(pickupCardId, this.runProgress.foundCards, this.runProgress.activeCards)) {
+      this.runProgress.foundCards = [...this.runProgress.foundCards, pickupCardId];
+    }
+  }
+
   private countActivePickups(): number {
     return this.entities.all().filter((entity) => entity.type === EntityType.Pickup).length;
   }
@@ -713,6 +1056,20 @@ export class Game {
   private pickWeaponPickupMode(seed: number): PlayerWeaponMode {
     const nonDefaultModes = PLAYER_WEAPON_ORDER.slice(1);
     return nonDefaultModes[seed % nonDefaultModes.length];
+  }
+
+  private pickCardDropId(seed: number): string {
+    if (!this.runProgress) {
+      return 'reinforced-hull';
+    }
+
+    const card = drawDropCard({
+      seed: this.runProgress.seed + seed * 31,
+      roundIndex: this.runProgress.roundIndex,
+      foundCards: this.runProgress.foundCards,
+      activeCards: this.runProgress.activeCards
+    });
+    return card?.id ?? 'reinforced-hull';
   }
 
   private getPodsSortedByIndex() {

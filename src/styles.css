@@ -50,6 +50,42 @@ body,
   cursor: pointer;
 }
 
+.overlay-grid {
+  display: grid;
+  gap: 0.7rem;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  width: min(42rem, 90vw);
+}
+
+.overlay-card {
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(12, 20, 40, 0.8);
+  padding: 0.65rem;
+  text-align: left;
+}
+
+.overlay-card h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+}
+
+.overlay-card p {
+  margin: 0 0 0.45rem;
+  font-size: 0.82rem;
+}
+
+.overlay-actions {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: center;
+}
+
+.overlay-inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
 .debug-panel {
   position: absolute;
   top: 1rem;

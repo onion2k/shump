@@ -54,6 +54,35 @@ describe('SpawnSystem wave scripting', () => {
     expect(newRunEntities.count()).toBe(1);
   });
 
+  it('reports pending spawns and supports dynamic scripted wave replacement', () => {
+    const firstPlan: WaveDef[] = [
+      {
+        startMs: 0,
+        spawns: [{ offsetMs: 0, x: -2, movementPattern: 'straight' }]
+      }
+    ];
+    const secondPlan: WaveDef[] = [
+      {
+        startMs: 300,
+        spawns: [{ offsetMs: 0, x: 2, movementPattern: 'straight' }]
+      }
+    ];
+
+    const entityManager = new EntityManager();
+    const spawnSystem = new SpawnSystem(firstPlan);
+
+    expect(spawnSystem.hasPendingSpawns()).toBe(true);
+    spawnSystem.tick(entityManager, 0.05);
+    expect(spawnSystem.hasPendingSpawns()).toBe(false);
+
+    spawnSystem.setScriptedWaves(secondPlan);
+    expect(spawnSystem.hasPendingSpawns()).toBe(true);
+    spawnSystem.tick(entityManager, 0.1);
+    expect(spawnSystem.hasPendingSpawns()).toBe(true);
+    spawnSystem.tick(entityManager, 0.3);
+    expect(spawnSystem.hasPendingSpawns()).toBe(false);
+  });
+
   it('can spawn scripted enemies from the bottom edge', () => {
     const waves: WaveDef[] = [
       {

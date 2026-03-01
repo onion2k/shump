@@ -116,4 +116,37 @@ describe('pickupSystem', () => {
     expect(player.weaponLevels?.['Continuous Laser']).toBe(2);
     expect(player.weaponLevel).toBe(2);
   });
+
+  it('reports money and card pickups for progression without changing score directly', () => {
+    const entityManager = new EntityManager();
+    const player = createPlayer(entityManager);
+
+    entityManager.create({
+      type: EntityType.Pickup,
+      position: { x: 0, y: 0 },
+      velocity: { x: 0, y: 0 },
+      radius: 0.45,
+      health: 1,
+      maxHealth: 1,
+      pickupKind: 'money',
+      pickupValue: 9
+    });
+
+    entityManager.create({
+      type: EntityType.Pickup,
+      position: { x: 0.1, y: 0.1 },
+      velocity: { x: 0, y: 0 },
+      radius: 0.45,
+      health: 1,
+      maxHealth: 1,
+      pickupKind: 'card',
+      pickupCardId: 'pulse-overclock',
+      pickupValue: 1
+    });
+
+    const result = pickupSystem(entityManager, player.id);
+    expect(result.scoreDelta).toBe(0);
+    expect(result.collections.map((item) => item.pickupKind)).toEqual(['money', 'card']);
+    expect(result.collections[1]?.pickupCardId).toBe('pulse-overclock');
+  });
 });

@@ -8,7 +8,8 @@ export function createPickup(
   kind: NonNullable<Entity['pickupKind']>,
   value: number,
   lifetimeMs = 8000,
-  pickupWeaponMode?: PlayerWeaponMode
+  pickupWeaponMode?: PlayerWeaponMode,
+  pickupCardId?: string
 ): Omit<Entity, 'id'> {
   return {
     type: EntityType.Pickup,
@@ -20,6 +21,7 @@ export function createPickup(
     lifetimeMs,
     pickupKind: kind,
     pickupWeaponMode,
+    pickupCardId,
     pickupValue: value
   };
 }

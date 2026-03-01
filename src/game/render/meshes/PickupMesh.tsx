@@ -8,7 +8,13 @@ const weaponPickupColors: Record<PlayerWeaponMode, string> = {
   'Sine SMG': '#ffd66a'
 };
 
-export function PickupMesh({ kind, weaponMode }: { kind: 'score' | 'health' | 'energy' | 'weapon'; weaponMode?: PlayerWeaponMode }) {
+export function PickupMesh({
+  kind,
+  weaponMode
+}: {
+  kind: 'score' | 'health' | 'energy' | 'weapon' | 'money' | 'card';
+  weaponMode?: PlayerWeaponMode;
+}) {
   const color =
     kind === 'health'
       ? gameSettings.visuals.pickups.healthColor
@@ -16,6 +22,10 @@ export function PickupMesh({ kind, weaponMode }: { kind: 'score' | 'health' | 'e
         ? gameSettings.visuals.pickups.energyColor
         : kind === 'weapon'
           ? weaponPickupColors[weaponMode ?? 'Auto Pulse']
+          : kind === 'money'
+            ? '#ffd166'
+            : kind === 'card'
+              ? '#ff7aa2'
           : gameSettings.visuals.pickups.scoreColor;
 
   return (

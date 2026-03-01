@@ -82,6 +82,17 @@ export function Hud3D({ snapshot }: Hud3DProps) {
       </Text>
 
       <Text
+        position={[leftX, topY - 0.58 * hudScale, 1.9]}
+        fontSize={0.3 * hudScale}
+        anchorX="left"
+        anchorY="top"
+        color="#ffe18d"
+        material-depthTest={false}
+      >
+        {`MONEY ${snapshot.inRunMoney} • R${snapshot.roundIndex}/${snapshot.totalRounds}`}
+      </Text>
+
+      <Text
         position={[rightX, topY, 1.9]}
         fontSize={0.42 * hudScale}
         anchorX="right"
