@@ -1,3 +1,6 @@
+import { useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
+import type { Mesh } from 'three';
 import { gameSettings } from '../../config/gameSettings';
 import type { PlayerWeaponMode } from '../../weapons/playerWeapons';
 
@@ -15,6 +18,8 @@ export function PickupMesh({
   kind: 'score' | 'health' | 'energy' | 'weapon' | 'money' | 'card';
   weaponMode?: PlayerWeaponMode;
 }) {
+  const meshRef = useRef<Mesh>(null);
+
   const color =
     kind === 'health'
       ? gameSettings.visuals.pickups.healthColor
@@ -30,9 +35,20 @@ export function PickupMesh({
 
   const isCard = kind === 'card';
   const isMoney = kind === 'money';
+  const shouldDualAxisSpin = isCard || isMoney;
+
+  useFrame(({ clock }) => {
+    if (!meshRef.current || !shouldDualAxisSpin) {
+      return;
+    }
+
+    const elapsed = clock.getElapsedTime();
+    meshRef.current.rotation.x = (isMoney ? Math.PI / 2 : 0) + elapsed * 1.7;
+    meshRef.current.rotation.y = elapsed * 1.3;
+  });
 
   return (
-    <mesh rotation={isMoney ? [Math.PI / 2, 0, 0] : undefined}>
+    <mesh ref={meshRef} rotation={isMoney ? [Math.PI / 2, 0, 0] : undefined}>
       {isCard ? (
         <boxGeometry args={[0.28, 0.42, 0.04]} />
       ) : isMoney ? (
