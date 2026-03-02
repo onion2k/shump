@@ -59,6 +59,7 @@ describe('SaveService', () => {
       inRunMoney: 175,
       foundCards: ['card-a'],
       activeCards: ['card-b'],
+      consumedCards: ['card-c'],
       playerState: {
         health: 6,
         maxHealth: 10,
@@ -84,6 +85,7 @@ describe('SaveService', () => {
     expect(loaded.save.activeRun?.playerState.podCount).toBe(1);
     expect(loaded.save.activeRun?.playerState.podWeaponMode).toBe('Homing Missile');
     expect(loaded.save.activeRun?.playerState.weaponLevels['Auto Pulse']).toBe(2);
+    expect(loaded.save.activeRun?.consumedCards).toEqual(['card-c']);
   });
 
   it('migrates legacy v0 shape into v1', () => {

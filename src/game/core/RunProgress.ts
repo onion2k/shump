@@ -15,6 +15,7 @@ export interface RunProgress {
   inRunMoney: number;
   foundCards: string[];
   activeCards: string[];
+  consumedCards?: string[];
   playerState: RunPlayerState;
   elapsedMs: number;
   distanceTraveled: number;
@@ -43,6 +44,7 @@ export function createDefaultRunProgress(seed = randomSeed(), playerState?: RunP
     inRunMoney: 0,
     foundCards: [],
     activeCards: [],
+    consumedCards: [],
     playerState: playerState ?? {
       health: 0,
       maxHealth: 0,
@@ -61,6 +63,7 @@ export function cloneRunProgress(runProgress: RunProgress): RunProgress {
     ...runProgress,
     foundCards: [...runProgress.foundCards],
     activeCards: [...runProgress.activeCards],
+    consumedCards: [...(runProgress.consumedCards ?? [])],
     playerState: {
       health: runProgress.playerState.health,
       maxHealth: runProgress.playerState.maxHealth,

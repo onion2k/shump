@@ -4,7 +4,7 @@ import { GameState } from '../../src/game/core/GameState';
 import { EntityType } from '../../src/game/ecs/entityTypes';
 
 describe('Game between-round flow', () => {
-  it('supports between-round shop and card activation with replacement when slots are full', () => {
+  it('consumes health upgrade cards and applies permanent hull upgrades', () => {
     const game = new Game();
     game.startFromRunProgress({
       seed: 5,
@@ -13,6 +13,7 @@ describe('Game between-round flow', () => {
       inRunMoney: 80,
       foundCards: ['reinforced-hull'],
       activeCards: ['pulse-overclock', 'laser-calibrator', 'cannon-breach', 'harmonic-tuner'],
+      consumedCards: [],
       playerState: {
         health: 10,
         maxHealth: 10,
@@ -40,9 +41,9 @@ describe('Game between-round flow', () => {
     game.closeShop();
     expect(game.snapshot().state).toBe(GameState.BetweenRounds);
 
-    expect(game.activateFoundCard('reinforced-hull')).toBe(false);
-    expect(game.activateFoundCard('reinforced-hull', 'harmonic-tuner')).toBe(true);
-    expect(game.snapshot().activeCards).toContain('reinforced-hull');
+    expect(game.activateFoundCard('reinforced-hull')).toBe(true);
+    expect(game.snapshot().activeCards).not.toContain('reinforced-hull');
+    expect(game.snapshot().foundCards.filter((card) => card === 'reinforced-hull')).toHaveLength(1);
     expect(game.snapshot().playerMaxHealth).toBe(13);
 
     game.startNextRound();
@@ -59,6 +60,7 @@ describe('Game between-round flow', () => {
       inRunMoney: 100,
       foundCards: ['missile-command'],
       activeCards: ['pulse-relay'],
+      consumedCards: [],
       playerState: {
         health: 10,
         maxHealth: 10,
@@ -91,6 +93,7 @@ describe('Game between-round flow', () => {
       inRunMoney: 120,
       foundCards: [],
       activeCards: ['reinforced-hull'],
+      consumedCards: [],
       playerState: {
         health: 10,
         maxHealth: 10,

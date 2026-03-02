@@ -25,12 +25,21 @@ export function PickupMesh({
           : kind === 'money'
             ? '#ffd166'
             : kind === 'card'
-              ? '#ff7aa2'
+              ? '#ffd84d'
           : gameSettings.visuals.pickups.scoreColor;
 
+  const isCard = kind === 'card';
+  const isMoney = kind === 'money';
+
   return (
-    <mesh>
-      <icosahedronGeometry args={[0.35, 0]} />
+    <mesh rotation={isMoney ? [Math.PI / 2, 0, 0] : undefined}>
+      {isCard ? (
+        <boxGeometry args={[0.28, 0.42, 0.04]} />
+      ) : isMoney ? (
+        <cylinderGeometry args={[0.22, 0.22, 0.06, 24]} />
+      ) : (
+        <icosahedronGeometry args={[0.35, 0]} />
+      )}
       <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.25} flatShading />
     </mesh>
   );

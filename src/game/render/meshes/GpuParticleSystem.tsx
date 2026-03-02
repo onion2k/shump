@@ -60,7 +60,6 @@ void main() {
 export function GpuParticleSystem({ game, maxParticles = 24000, particleScale = 1 }: GpuParticleSystemProps) {
   const pointsRef = useRef<Points>(null);
   const { gl } = useThree();
-  const nextIndexRef = useRef(0);
   const liveCountRef = useRef(0);
   const tempColor = useMemo(() => new Color(), []);
 
@@ -114,17 +113,59 @@ export function GpuParticleSystem({ game, maxParticles = 24000, particleScale = 
     };
   }, [gl, maxParticles]);
 
+  function copyParticle(fromIdx: number, toIdx: number) {
+    const from3 = fromIdx * 3;
+    const to3 = toIdx * 3;
+    const from2 = fromIdx * 2;
+    const to2 = toIdx * 2;
+
+    attributes.positionAttr.array[to3] = attributes.positionAttr.array[from3];
+    attributes.positionAttr.array[to3 + 1] = attributes.positionAttr.array[from3 + 1];
+    attributes.positionAttr.array[to3 + 2] = attributes.positionAttr.array[from3 + 2];
+
+    attributes.velocityAttr.array[to2] = attributes.velocityAttr.array[from2];
+    attributes.velocityAttr.array[to2 + 1] = attributes.velocityAttr.array[from2 + 1];
+
+    attributes.spawnTimeAttr.array[toIdx] = attributes.spawnTimeAttr.array[fromIdx];
+    attributes.lifetimeAttr.array[toIdx] = attributes.lifetimeAttr.array[fromIdx];
+    attributes.sizeAttr.array[toIdx] = attributes.sizeAttr.array[fromIdx];
+
+    attributes.colorAttr.array[to3] = attributes.colorAttr.array[from3];
+    attributes.colorAttr.array[to3 + 1] = attributes.colorAttr.array[from3 + 1];
+    attributes.colorAttr.array[to3 + 2] = attributes.colorAttr.array[from3 + 2];
+  }
+
   useFrame(({ clock }) => {
     material.uniforms.uTime.value = clock.elapsedTime;
     material.uniforms.uSizeScale.value = 140 * gl.getPixelRatio();
 
-    const spawns = game.consumeGpuParticleSpawns();
-    if (spawns.length === 0) {
-      return;
-    }
+    // Keep particle data densely packed so draw calls only process currently alive particles.
+    let activeCount = liveCountRef.current;
+    let writeIndex = 0;
+    let compacted = false;
+    for (let readIndex = 0; readIndex < activeCount; readIndex += 1) {
+      const spawnTime = attributes.spawnTimeAttr.array[readIndex];
+      const lifetime = attributes.lifetimeAttr.array[readIndex];
+      if (clock.elapsedTime - spawnTime > lifetime) {
+        compacted = true;
+        continue;
+      }
 
+      if (writeIndex !== readIndex) {
+        copyParticle(readIndex, writeIndex);
+        compacted = true;
+      }
+      writeIndex += 1;
+    }
+    activeCount = writeIndex;
+
+    const spawns = game.consumeGpuParticleSpawns();
+    let spawned = false;
     for (const spawn of spawns) {
-      const idx = nextIndexRef.current;
+      if (activeCount >= maxParticles) {
+        break;
+      }
+      const idx = activeCount;
       const p3 = idx * 3;
       const p2 = idx * 2;
 
@@ -144,17 +185,22 @@ export function GpuParticleSystem({ game, maxParticles = 24000, particleScale = 
       attributes.colorAttr.array[p3 + 1] = tempColor.g;
       attributes.colorAttr.array[p3 + 2] = tempColor.b;
 
-      nextIndexRef.current = (nextIndexRef.current + 1) % maxParticles;
-      liveCountRef.current = Math.min(maxParticles, liveCountRef.current + 1);
+      activeCount += 1;
+      spawned = true;
     }
 
-    geometry.setDrawRange(0, liveCountRef.current);
-    attributes.positionAttr.needsUpdate = true;
-    attributes.velocityAttr.needsUpdate = true;
-    attributes.spawnTimeAttr.needsUpdate = true;
-    attributes.lifetimeAttr.needsUpdate = true;
-    attributes.sizeAttr.needsUpdate = true;
-    attributes.colorAttr.needsUpdate = true;
+    if (!compacted && !spawned && activeCount === liveCountRef.current) {
+      return;
+    }
+
+    liveCountRef.current = activeCount;
+    geometry.setDrawRange(0, activeCount);
+    attributes.positionAttr.needsUpdate = compacted || spawned;
+    attributes.velocityAttr.needsUpdate = compacted || spawned;
+    attributes.spawnTimeAttr.needsUpdate = compacted || spawned;
+    attributes.lifetimeAttr.needsUpdate = compacted || spawned;
+    attributes.sizeAttr.needsUpdate = compacted || spawned;
+    attributes.colorAttr.needsUpdate = compacted || spawned;
   });
 
   return <points ref={pointsRef} geometry={geometry} material={material} frustumCulled={false} />;

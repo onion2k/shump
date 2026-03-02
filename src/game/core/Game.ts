@@ -50,6 +50,7 @@ import {
   canAcquireCard,
   drawDropCard,
   drawShopOffers,
+  isConsumableUpgradeCard,
   resolveCard,
   type CardDefinition
 } from '../content/cards';
@@ -344,7 +345,7 @@ export class Game {
       return false;
     }
 
-    if (!canAcquireCard(cardId, this.runProgress.foundCards, this.runProgress.activeCards)) {
+    if (!canAcquireCard(cardId, this.runProgress.foundCards, this.runProgress.activeCards, this.runProgress.consumedCards ?? [])) {
       return false;
     }
 
@@ -368,11 +369,14 @@ export class Game {
       return false;
     }
 
-    if (!resolveCard(cardId)) {
+    const card = resolveCard(cardId);
+    if (!card) {
       return false;
     }
 
-    if (this.runProgress.activeCards.length >= ACTIVE_CARD_LIMIT) {
+    const isConsumableUpgrade = isConsumableUpgradeCard(card);
+
+    if (!isConsumableUpgrade && this.runProgress.activeCards.length >= ACTIVE_CARD_LIMIT) {
       if (!replaceCardId) {
         return false;
       }
@@ -389,7 +393,12 @@ export class Game {
     }
 
     this.runProgress.foundCards.splice(foundIndex, 1);
-    this.runProgress.activeCards = [...this.runProgress.activeCards, cardId];
+    if (isConsumableUpgrade) {
+      this.applyConsumableCardUpgrade(card);
+      this.runProgress.consumedCards = [...(this.runProgress.consumedCards ?? []), card.id];
+    } else {
+      this.runProgress.activeCards = [...this.runProgress.activeCards, cardId];
+    }
     this.syncPlayerWithRunProgressCards();
     this.captureRunProgress();
     this.notify();
@@ -406,7 +415,8 @@ export class Game {
         seed: this.runProgress.seed,
         roundIndex: this.runProgress.roundIndex,
         foundCards: this.runProgress.foundCards,
-        activeCards: this.runProgress.activeCards
+        activeCards: this.runProgress.activeCards,
+        consumedCards: this.runProgress.consumedCards ?? []
       },
       3
     );
@@ -423,7 +433,7 @@ export class Game {
             card
             && this.runProgress
             && this.runProgress.roundIndex >= card.unlockRound
-            && canAcquireCard(card.id, this.runProgress.foundCards, this.runProgress.activeCards)
+            && canAcquireCard(card.id, this.runProgress.foundCards, this.runProgress.activeCards, this.runProgress.consumedCards ?? [])
         );
 
       if (guaranteedPod) {
@@ -901,9 +911,42 @@ export class Game {
       return;
     }
 
-    if (kind === 'card' && pickupCardId && canAcquireCard(pickupCardId, this.runProgress.foundCards, this.runProgress.activeCards)) {
+    if (
+      kind === 'card'
+      && pickupCardId
+      && canAcquireCard(pickupCardId, this.runProgress.foundCards, this.runProgress.activeCards, this.runProgress.consumedCards ?? [])
+    ) {
       this.runProgress.foundCards = [...this.runProgress.foundCards, pickupCardId];
     }
+  }
+
+  private applyConsumableCardUpgrade(card: CardDefinition) {
+    if (!this.runProgress) {
+      return;
+    }
+
+    const nextPlayerState: RunPlayerState = {
+      ...this.runProgress.playerState,
+      weaponLevels: { ...this.runProgress.playerState.weaponLevels }
+    };
+
+    for (const effect of card.effects) {
+      if (effect.kind === 'maxHealth') {
+        const nextMaxHealth = Math.max(1, nextPlayerState.maxHealth + effect.amount);
+        nextPlayerState.maxHealth = nextMaxHealth;
+        nextPlayerState.health = Math.min(nextMaxHealth, nextPlayerState.health + effect.amount);
+      }
+
+      if (effect.kind === 'weaponLevel') {
+        const currentLevel = nextPlayerState.weaponLevels[effect.weaponMode] ?? 1;
+        nextPlayerState.weaponLevels[effect.weaponMode] = Math.min(
+          getPlayerWeaponMaxLevel(effect.weaponMode),
+          Math.max(1, currentLevel + effect.amount)
+        );
+      }
+    }
+
+    this.runProgress.playerState = nextPlayerState;
   }
 
   private countActivePickups(): number {
@@ -1067,7 +1110,8 @@ export class Game {
       seed: this.runProgress.seed + seed * 31,
       roundIndex: this.runProgress.roundIndex,
       foundCards: this.runProgress.foundCards,
-      activeCards: this.runProgress.activeCards
+      activeCards: this.runProgress.activeCards,
+      consumedCards: this.runProgress.consumedCards ?? []
     });
     return card?.id ?? 'reinforced-hull';
   }

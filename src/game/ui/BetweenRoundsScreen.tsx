@@ -1,4 +1,4 @@
-import type { CardDefinition } from '../content/cards';
+import { isConsumableUpgradeCard, type CardDefinition } from '../content/cards';
 
 interface BetweenRoundsScreenProps {
   levelId: string;
@@ -69,7 +69,11 @@ export function BetweenRoundsScreen({
                   <h3>{card.name}</h3>
                   <p>{card.description}</p>
                   <p>{`Rarity: ${card.rarity}`}</p>
-                  {activeCards.length < activeCardLimit ? (
+                  {isConsumableUpgradeCard(card) ? (
+                    <button type="button" onClick={() => onActivateCard(card.id)}>
+                      Use Upgrade
+                    </button>
+                  ) : activeCards.length < activeCardLimit ? (
                     <button type="button" onClick={() => onActivateCard(card.id)}>
                       Activate
                     </button>

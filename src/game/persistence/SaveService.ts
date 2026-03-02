@@ -95,6 +95,7 @@ function sanitizeActiveRun(value: unknown): SaveActiveRun | undefined {
     inRunMoney: typeof value.inRunMoney === 'number' && Number.isFinite(value.inRunMoney) ? value.inRunMoney : 0,
     foundCards: asStringArray(value.foundCards),
     activeCards: asStringArray(value.activeCards),
+    consumedCards: asStringArray(value.consumedCards),
     elapsedMs: typeof value.elapsedMs === 'number' && Number.isFinite(value.elapsedMs) ? value.elapsedMs : 0,
     distanceTraveled:
       typeof value.distanceTraveled === 'number' && Number.isFinite(value.distanceTraveled) ? value.distanceTraveled : 0,

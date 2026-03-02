@@ -29,6 +29,7 @@ export interface CardRollContext {
   roundIndex: number;
   foundCards: string[];
   activeCards: string[];
+  consumedCards?: string[];
 }
 
 export const ACTIVE_CARD_LIMIT = 4;
@@ -216,7 +217,7 @@ export function resolveCard(cardId: string): CardDefinition | undefined {
   return cardCatalogById[cardId];
 }
 
-export function countCardCopies(cardId: string, foundCards: string[], activeCards: string[]): number {
+export function countCardCopies(cardId: string, foundCards: string[], activeCards: string[], consumedCards: string[] = []): number {
   let count = 0;
   for (const id of foundCards) {
     if (id === cardId) {
@@ -228,15 +229,24 @@ export function countCardCopies(cardId: string, foundCards: string[], activeCard
       count += 1;
     }
   }
+  for (const id of consumedCards) {
+    if (id === cardId) {
+      count += 1;
+    }
+  }
   return count;
 }
 
-export function canAcquireCard(cardId: string, foundCards: string[], activeCards: string[]): boolean {
+export function canAcquireCard(cardId: string, foundCards: string[], activeCards: string[], consumedCards: string[] = []): boolean {
   const card = resolveCard(cardId);
   if (!card) {
     return false;
   }
-  return countCardCopies(cardId, foundCards, activeCards) < card.maxStacks;
+  return countCardCopies(cardId, foundCards, activeCards, consumedCards) < card.maxStacks;
+}
+
+export function isConsumableUpgradeCard(card: CardDefinition): boolean {
+  return card.effects.length > 0 && card.effects.every((effect) => effect.kind === 'maxHealth' || effect.kind === 'weaponLevel');
 }
 
 export function drawShopOffers(context: CardRollContext, count = 3): CardDefinition[] {
@@ -256,7 +266,7 @@ function drawWeightedCards(
 ): CardDefinition[] {
   const pool = cardCatalog
     .filter((card) => context.roundIndex >= card.unlockRound)
-    .filter((card) => canAcquireCard(card.id, context.foundCards, context.activeCards));
+    .filter((card) => canAcquireCard(card.id, context.foundCards, context.activeCards, context.consumedCards ?? []));
 
   if (pool.length === 0 || count <= 0) {
     return [];
