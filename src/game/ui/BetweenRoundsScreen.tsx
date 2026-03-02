@@ -10,6 +10,7 @@ interface BetweenRoundsScreenProps {
   activeCards: CardDefinition[];
   shopCards: CardDefinition[];
   onActivateCard: (cardId: string, replaceCardId?: string) => void;
+  onDiscardCard: (cardId: string) => void;
   onOpenShop: () => void;
   onCloseShop: () => void;
   onBuyCard: (cardId: string) => void;
@@ -27,6 +28,7 @@ export function BetweenRoundsScreen({
   activeCards,
   shopCards,
   onActivateCard,
+  onDiscardCard,
   onOpenShop,
   onCloseShop,
   onBuyCard,
@@ -90,6 +92,9 @@ export function BetweenRoundsScreen({
                       ))}
                     </div>
                   )}
+                  <button type="button" onClick={() => onDiscardCard(card.id)}>
+                    Discard
+                  </button>
                 </div>
               ))}
             </div>

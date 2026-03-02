@@ -113,4 +113,35 @@ describe('Game between-round flow', () => {
     const offers = game.shopOffers();
     expect(offers.some((card) => card.tags.includes('pod'))).toBe(true);
   });
+
+  it('discards found cards without activating them', () => {
+    const game = new Game();
+    game.startFromRunProgress({
+      seed: 23,
+      levelId: 'level-1',
+      roundIndex: 2,
+      inRunMoney: 50,
+      foundCards: ['satellite-bay'],
+      activeCards: ['pulse-relay'],
+      consumedCards: [],
+      playerState: {
+        health: 10,
+        maxHealth: 10,
+        weaponLevels: {
+          'Auto Pulse': 1
+        },
+        podCount: 0,
+        podWeaponMode: 'Auto Pulse'
+      },
+      elapsedMs: 0,
+      distanceTraveled: 0,
+      score: 0
+    });
+
+    expect(game.enterBetweenRounds()).toBe(true);
+    expect(game.discardFoundCard('satellite-bay')).toBe(true);
+    expect(game.snapshot().foundCards).toEqual([]);
+    expect(game.snapshot().activeCards).toEqual(['pulse-relay']);
+    expect(game.discardFoundCard('satellite-bay')).toBe(false);
+  });
 });

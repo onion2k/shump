@@ -405,6 +405,22 @@ export class Game {
     return true;
   }
 
+  discardFoundCard(cardId: string): boolean {
+    if (!this.runProgress) {
+      return false;
+    }
+
+    const foundIndex = this.runProgress.foundCards.indexOf(cardId);
+    if (foundIndex < 0) {
+      return false;
+    }
+
+    this.runProgress.foundCards.splice(foundIndex, 1);
+    this.captureRunProgress();
+    this.notify();
+    return true;
+  }
+
   shopOffers(): CardDefinition[] {
     if (!this.runProgress) {
       return [];

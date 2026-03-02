@@ -156,6 +156,14 @@ export function App() {
     persistCurrentRun();
   }
 
+  function discardCard(cardId: string) {
+    if (!game.discardFoundCard(cardId)) {
+      return;
+    }
+
+    persistCurrentRun();
+  }
+
   function buyCard(cardId: string) {
     if (!game.buyCard(cardId)) {
       return;
@@ -220,6 +228,7 @@ export function App() {
           activeCards={activeCards}
           shopCards={shopCards}
           onActivateCard={activateCard}
+          onDiscardCard={discardCard}
           onOpenShop={openShop}
           onCloseShop={closeShop}
           onBuyCard={buyCard}
