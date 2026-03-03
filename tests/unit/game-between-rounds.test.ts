@@ -144,4 +144,113 @@ describe('Game between-round flow', () => {
     expect(game.snapshot().activeCards).toEqual(['pulse-relay']);
     expect(game.discardFoundCard('satellite-bay')).toBe(false);
   });
+
+  it('requires a free active slot before activating non-consumable found cards', () => {
+    const game = new Game();
+    game.startFromRunProgress({
+      seed: 31,
+      levelId: 'level-1',
+      roundIndex: 2,
+      inRunMoney: 50,
+      foundCards: ['satellite-bay'],
+      activeCards: ['pulse-relay', 'laser-calibrator', 'cannon-breach', 'harmonic-tuner'],
+      consumedCards: [],
+      playerState: {
+        health: 10,
+        maxHealth: 10,
+        weaponLevels: {
+          'Auto Pulse': 1
+        },
+        podCount: 0,
+        podWeaponMode: 'Auto Pulse'
+      },
+      elapsedMs: 0,
+      distanceTraveled: 0,
+      score: 0
+    });
+
+    expect(game.enterBetweenRounds()).toBe(true);
+    expect(game.activateFoundCard('satellite-bay')).toBe(false);
+    expect(game.snapshot().foundCards).toEqual(['satellite-bay']);
+    expect(game.snapshot().activeCards).toEqual(['pulse-relay', 'laser-calibrator', 'cannon-breach', 'harmonic-tuner']);
+  });
+
+  it('allows discarding active cards to free a slot, then activating found cards', () => {
+    const game = new Game();
+    game.startFromRunProgress({
+      seed: 37,
+      levelId: 'level-1',
+      roundIndex: 2,
+      inRunMoney: 50,
+      foundCards: ['satellite-bay'],
+      activeCards: ['pulse-relay', 'laser-calibrator', 'cannon-breach', 'harmonic-tuner'],
+      consumedCards: [],
+      playerState: {
+        health: 10,
+        maxHealth: 10,
+        weaponLevels: {
+          'Auto Pulse': 1
+        },
+        podCount: 1,
+        podWeaponMode: 'Auto Pulse'
+      },
+      elapsedMs: 0,
+      distanceTraveled: 0,
+      score: 0
+    });
+
+    expect(game.enterBetweenRounds()).toBe(true);
+    expect(game.discardActiveCard('pulse-relay')).toBe(true);
+    expect(game.snapshot().activeCards).toEqual(['laser-calibrator', 'cannon-breach', 'harmonic-tuner']);
+    expect(game.activateFoundCard('satellite-bay')).toBe(true);
+    expect(game.snapshot().foundCards).toEqual([]);
+    expect(game.snapshot().activeCards).toEqual(['laser-calibrator', 'cannon-breach', 'harmonic-tuner', 'satellite-bay']);
+  });
+
+  it('disables shop access and buying when found deck is full (12 cards)', () => {
+    const game = new Game();
+    game.startFromRunProgress({
+      seed: 41,
+      levelId: 'level-1',
+      roundIndex: 2,
+      inRunMoney: 999,
+      foundCards: [
+        'reinforced-hull',
+        'pulse-overclock',
+        'shield-capacitor',
+        'salvage-contract',
+        'laser-calibrator',
+        'cannon-breach',
+        'drone-salvager',
+        'satellite-bay',
+        'pulse-relay',
+        'missile-command',
+        'harmonic-tuner',
+        'bastion-core'
+      ],
+      activeCards: [],
+      consumedCards: [],
+      playerState: {
+        health: 10,
+        maxHealth: 10,
+        weaponLevels: {
+          'Auto Pulse': 1
+        },
+        podCount: 0,
+        podWeaponMode: 'Auto Pulse'
+      },
+      elapsedMs: 0,
+      distanceTraveled: 0,
+      score: 0
+    });
+
+    expect(game.enterBetweenRounds()).toBe(true);
+    expect(game.snapshot().state).toBe(GameState.BetweenRounds);
+
+    game.openShop();
+    expect(game.snapshot().state).toBe(GameState.BetweenRounds);
+
+    expect(game.buyCard('reinforced-hull')).toBe(false);
+    expect(game.snapshot().foundCards).toHaveLength(12);
+  });
 });

@@ -21,6 +21,8 @@ import { Bloom, EffectComposer } from '@react-three/postprocessing';
 import type { PlayerWeaponMode } from '../weapons/playerWeapons';
 import { movementControllerRegistry } from '../movement/controllers';
 import { resolveEnemyArchetype } from '../content/enemyArchetypes';
+import type { CardDefinition } from '../content/cards';
+import { BetweenRoundsUi3D } from './ui/BetweenRoundsUi3D';
 
 interface SceneRootProps {
   game: Game;
@@ -28,13 +30,39 @@ interface SceneRootProps {
   snapshot: GameSnapshot;
   debugMode: boolean;
   showEnemyPatterns: boolean;
+  foundCards: CardDefinition[];
+  activeCards: CardDefinition[];
+  shopCards: CardDefinition[];
+  onActivateCard: (cardId: string) => void;
+  onDiscardCard: (cardId: string) => void;
+  onDiscardActiveCard: (cardId: string) => void;
+  onOpenShop: () => void;
+  onCloseShop: () => void;
+  onBuyCard: (cardId: string) => void;
+  onContinue: () => void;
 }
 
 const USE_GPU_PARTICLES = true;
 const PARTICLE_MOBILE_BREAKPOINT_PX = 768;
 const MOBILE_PARTICLE_SCALE = 0.8;
 
-export function SceneRoot({ game, pointer, snapshot, debugMode, showEnemyPatterns }: SceneRootProps) {
+export function SceneRoot({
+  game,
+  pointer,
+  snapshot,
+  debugMode,
+  showEnemyPatterns,
+  foundCards,
+  activeCards,
+  shopCards,
+  onActivateCard,
+  onDiscardCard,
+  onDiscardActiveCard,
+  onOpenShop,
+  onCloseShop,
+  onBuyCard,
+  onContinue
+}: SceneRootProps) {
   const loop = useMemo(() => new GameLoop(), []);
   const camera = useThree((state) => state.camera);
   const viewport = useThree((state) => state.viewport);
@@ -114,6 +142,28 @@ export function SceneRoot({ game, pointer, snapshot, debugMode, showEnemyPattern
           <directionalLight intensity={1.1} position={[3, 8, 8]} />
           <Stats showPanel={0} className="fps-stats" />
           <Hud3D snapshot={snapshot} />
+          <BetweenRoundsUi3D
+            state={snapshot.state}
+            levelId={snapshot.levelId}
+            roundIndex={snapshot.roundIndex}
+            totalRounds={snapshot.totalRounds}
+            activeCardLimit={snapshot.activeCardLimit}
+            money={snapshot.inRunMoney}
+            weaponLevels={snapshot.weaponLevels}
+            weaponEnergyMax={snapshot.weaponEnergyMax}
+            podCount={snapshot.podCount}
+            podWeaponMode={snapshot.podWeaponMode}
+            foundCards={foundCards}
+            activeCards={activeCards}
+            shopCards={shopCards}
+            onActivateCard={onActivateCard}
+            onDiscardCard={onDiscardCard}
+            onDiscardActiveCard={onDiscardActiveCard}
+            onOpenShop={onOpenShop}
+            onCloseShop={onCloseShop}
+            onBuyCard={onBuyCard}
+            onContinue={onContinue}
+          />
           <ParallaxBackground
             width={backgroundViewport.width}
             height={backgroundViewport.height}

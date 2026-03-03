@@ -4,15 +4,41 @@ import { SceneRoot } from './SceneRoot';
 import { PointerController } from '../input/PointerController';
 import { Game } from '../core/Game';
 import type { GameSnapshot } from '../core/Game';
+import type { CardDefinition } from '../content/cards';
 
 interface GameCanvasProps {
   game: Game;
   snapshot: GameSnapshot;
   debugMode: boolean;
   showEnemyPatterns: boolean;
+  foundCards: CardDefinition[];
+  activeCards: CardDefinition[];
+  shopCards: CardDefinition[];
+  onActivateCard: (cardId: string) => void;
+  onDiscardCard: (cardId: string) => void;
+  onDiscardActiveCard: (cardId: string) => void;
+  onOpenShop: () => void;
+  onCloseShop: () => void;
+  onBuyCard: (cardId: string) => void;
+  onContinue: () => void;
 }
 
-export function GameCanvas({ game, snapshot, debugMode, showEnemyPatterns }: GameCanvasProps) {
+export function GameCanvas({
+  game,
+  snapshot,
+  debugMode,
+  showEnemyPatterns,
+  foundCards,
+  activeCards,
+  shopCards,
+  onActivateCard,
+  onDiscardCard,
+  onDiscardActiveCard,
+  onOpenShop,
+  onCloseShop,
+  onBuyCard,
+  onContinue
+}: GameCanvasProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const pointer = useMemo(() => new PointerController(), []);
 
@@ -33,6 +59,16 @@ export function GameCanvas({ game, snapshot, debugMode, showEnemyPatterns }: Gam
           snapshot={snapshot}
           debugMode={debugMode}
           showEnemyPatterns={showEnemyPatterns}
+          foundCards={foundCards}
+          activeCards={activeCards}
+          shopCards={shopCards}
+          onActivateCard={onActivateCard}
+          onDiscardCard={onDiscardCard}
+          onDiscardActiveCard={onDiscardActiveCard}
+          onOpenShop={onOpenShop}
+          onCloseShop={onCloseShop}
+          onBuyCard={onBuyCard}
+          onContinue={onContinue}
         />
       </Canvas>
     </div>

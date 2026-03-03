@@ -8,7 +8,6 @@ import { PauseScreen } from './game/ui/PauseScreen';
 import { DebugPanel } from './game/ui/DebugPanel';
 import { createLocalSaveService } from './game/persistence/SaveService';
 import type { SaveFile } from './game/persistence/saveSchema';
-import { BetweenRoundsScreen } from './game/ui/BetweenRoundsScreen';
 import { resolveCard } from './game/content/cards';
 
 const INITIAL_DEBUG_EMITTER_SETTINGS: DebugEmitterSettings = {
@@ -148,8 +147,8 @@ export function App() {
     persistCurrentRun();
   }
 
-  function activateCard(cardId: string, replaceCardId?: string) {
-    if (!game.activateFoundCard(cardId, replaceCardId)) {
+  function activateCard(cardId: string) {
+    if (!game.activateFoundCard(cardId)) {
       return;
     }
 
@@ -158,6 +157,14 @@ export function App() {
 
   function discardCard(cardId: string) {
     if (!game.discardFoundCard(cardId)) {
+      return;
+    }
+
+    persistCurrentRun();
+  }
+
+  function discardActiveCard(cardId: string) {
+    if (!game.discardActiveCard(cardId)) {
       return;
     }
 
@@ -201,6 +208,16 @@ export function App() {
           snapshot={snapshot}
           debugMode={debugPanelOpen}
           showEnemyPatterns={debugEnemyPatternsEnabled}
+          foundCards={foundCards}
+          activeCards={activeCards}
+          shopCards={shopCards}
+          onActivateCard={activateCard}
+          onDiscardCard={discardCard}
+          onDiscardActiveCard={discardActiveCard}
+          onOpenShop={openShop}
+          onCloseShop={closeShop}
+          onBuyCard={buyCard}
+          onContinue={startNextRound}
         />
       </div>
       <DebugPanel
@@ -217,25 +234,6 @@ export function App() {
         <StartScreen onStart={saveFile.activeRun ? resumeSavedRun : startRun} hasSavedRun={Boolean(saveFile.activeRun)} onStartFresh={startFreshRun} />
       )}
       {!debugPanelOpen && snapshot.state === GameState.Paused && <PauseScreen onResume={() => game.resume()} />}
-      {!debugPanelOpen && (snapshot.state === GameState.BetweenRounds || snapshot.state === GameState.Shop) && (
-        <BetweenRoundsScreen
-          levelId={snapshot.levelId}
-          roundIndex={snapshot.roundIndex}
-          totalRounds={snapshot.totalRounds}
-          activeCardLimit={snapshot.activeCardLimit}
-          money={snapshot.inRunMoney}
-          foundCards={foundCards}
-          activeCards={activeCards}
-          shopCards={shopCards}
-          onActivateCard={activateCard}
-          onDiscardCard={discardCard}
-          onOpenShop={openShop}
-          onCloseShop={closeShop}
-          onBuyCard={buyCard}
-          onContinue={startNextRound}
-          shopOpen={snapshot.state === GameState.Shop}
-        />
-      )}
       {!debugPanelOpen && snapshot.state === GameState.GameOver && <GameOverScreen onRestart={restartRun} />}
     </main>
   );

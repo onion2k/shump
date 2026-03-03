@@ -71,10 +71,13 @@ export interface GameSnapshot {
   playerMaxHealth: number;
   weaponMode: string;
   weaponLevel: number;
+  weaponLevels: Record<PlayerWeaponMode, number>;
   weaponEnergyCurrent: number;
   weaponEnergyMax: number;
   weaponEnergyCost: number;
   weaponFireIntervalMs: number;
+  podCount: number;
+  podWeaponMode: 'Auto Pulse' | 'Homing Missile';
   distanceTraveled: number;
 }
 
@@ -133,6 +136,7 @@ const ADAPTIVE_RECOVERY_HOLD_MS = 1800;
 const BASE_ACTIVE_PICKUP_CAP = 18;
 const ENEMY_MONEY_REWARD = 2;
 const POD_CARD_IDS = ['satellite-bay', 'pulse-relay', 'missile-command'] as const;
+const FOUND_CARD_LIMIT = 12;
 
 export class Game {
   readonly entities = new EntityManager();
@@ -305,6 +309,9 @@ export class Game {
     if (this.state !== GameState.BetweenRounds) {
       return;
     }
+    if (this.foundCardsFull()) {
+      return;
+    }
 
     this.state = GameState.Shop;
     this.notify();
@@ -339,6 +346,9 @@ export class Game {
     if (!this.runProgress) {
       return false;
     }
+    if (this.foundCardsFull()) {
+      return false;
+    }
 
     const card = resolveCard(cardId);
     if (!card) {
@@ -360,7 +370,7 @@ export class Game {
     return true;
   }
 
-  activateFoundCard(cardId: string, replaceCardId?: string): boolean {
+  activateFoundCard(cardId: string): boolean {
     if (!this.runProgress) {
       return false;
     }
@@ -377,14 +387,7 @@ export class Game {
     const isConsumableUpgrade = isConsumableUpgradeCard(card);
 
     if (!isConsumableUpgrade && this.runProgress.activeCards.length >= ACTIVE_CARD_LIMIT) {
-      if (!replaceCardId) {
-        return false;
-      }
-      const replaceIndex = this.runProgress.activeCards.indexOf(replaceCardId);
-      if (replaceIndex < 0) {
-        return false;
-      }
-      this.runProgress.activeCards.splice(replaceIndex, 1);
+      return false;
     }
 
     const foundIndex = this.runProgress.foundCards.indexOf(cardId);
@@ -416,6 +419,23 @@ export class Game {
     }
 
     this.runProgress.foundCards.splice(foundIndex, 1);
+    this.captureRunProgress();
+    this.notify();
+    return true;
+  }
+
+  discardActiveCard(cardId: string): boolean {
+    if (!this.runProgress) {
+      return false;
+    }
+
+    const activeIndex = this.runProgress.activeCards.indexOf(cardId);
+    if (activeIndex < 0) {
+      return false;
+    }
+
+    this.runProgress.activeCards.splice(activeIndex, 1);
+    this.syncPlayerWithRunProgressCards();
     this.captureRunProgress();
     this.notify();
     return true;
@@ -619,6 +639,10 @@ export class Game {
   snapshot(): GameSnapshot {
     const player = this.entities.get(this.playerId);
     const runProgress = this.runProgress;
+    const playerWeaponLevels = player?.weaponLevels ?? {};
+    const snapshotWeaponLevels = Object.fromEntries(
+      PLAYER_WEAPON_ORDER.map((mode) => [mode, Math.max(1, playerWeaponLevels[mode] ?? 1)])
+    ) as Record<PlayerWeaponMode, number>;
     return {
       state: this.state,
       score: this.score,
@@ -633,10 +657,13 @@ export class Game {
       playerMaxHealth: player?.maxHealth ?? 0,
       weaponMode: player?.weaponMode ?? 'Unknown',
       weaponLevel: player?.weaponLevel ?? 0,
+      weaponLevels: snapshotWeaponLevels,
       weaponEnergyCurrent: player?.weaponEnergy ?? 0,
       weaponEnergyMax: player?.weaponEnergyMax ?? 0,
       weaponEnergyCost: player?.weaponEnergyCost ?? 0,
       weaponFireIntervalMs: player?.weaponFireIntervalMs ?? 0,
+      podCount: Math.max(0, player?.podCount ?? 0),
+      podWeaponMode: player?.podWeaponMode === 'Homing Missile' ? 'Homing Missile' : 'Auto Pulse',
       distanceTraveled: this.distanceTraveled
     };
   }
@@ -930,10 +957,18 @@ export class Game {
     if (
       kind === 'card'
       && pickupCardId
+      && !this.foundCardsFull()
       && canAcquireCard(pickupCardId, this.runProgress.foundCards, this.runProgress.activeCards, this.runProgress.consumedCards ?? [])
     ) {
       this.runProgress.foundCards = [...this.runProgress.foundCards, pickupCardId];
     }
+  }
+
+  private foundCardsFull(): boolean {
+    if (!this.runProgress) {
+      return false;
+    }
+    return this.runProgress.foundCards.length >= FOUND_CARD_LIMIT;
   }
 
   private applyConsumableCardUpgrade(card: CardDefinition) {
