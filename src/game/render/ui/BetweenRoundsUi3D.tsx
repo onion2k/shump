@@ -1,6 +1,7 @@
 import { Text } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
+import { Box, Flex } from 'react-three-flex';
 import type { Group, Mesh } from 'three';
 import { isConsumableUpgradeCard, type CardDefinition } from '../../content/cards';
 import { GameState } from '../../core/GameState';
@@ -85,6 +86,18 @@ interface PageControlsProps {
   onNext: () => void;
 }
 
+interface TabsRowProps {
+  tabs: BetweenRoundsTab[];
+  contentWidth: number;
+  tabArrowWidth: number;
+  tabButtonWidth: number;
+  tabGap: number;
+  activeTabId: string;
+  textScale: number;
+  onCycleTab: (direction: -1 | 1) => void;
+  onSelectTab: (tabId: string) => void;
+}
+
 type CardRenderModel = Pick<CardDefinition, 'id' | 'name' | 'description' | 'rarity' | 'tags'>;
 
 interface BetweenRoundsTab {
@@ -106,6 +119,14 @@ const MIN_MOBILE_TEXT_PX = 16;
 const MOBILE_TEXT_BREAKPOINT_PX = 900;
 const CARD_ASPECT_RATIO = 1.45;
 const ACTIVE_CARD_ASPECT_RATIO = 1.35;
+const DESKTOP_CARD_COLUMNS = 4;
+const BETWEEN_ROUNDS_SECTION_RATIO = {
+  title: 0.1,
+  tabs: 0.1,
+  content: 0.5,
+  active: 0.2,
+  action: 0.1
+} as const;
 
 const TAG_ICON_BY_NAME: Record<string, string> = {
   weapon: '[W]',
@@ -194,28 +215,50 @@ export function BetweenRoundsUi3D({
   const contentColumns = isMobile ? 2 : 4;
   const contentRows = isMobile ? 2 : 1;
   const cardsPerPage = contentColumns * contentRows;
+  const deckCardsPerPage = isMobile ? 1 : cardsPerPage;
+  const shopCardsPerPage = isMobile ? 1 : cardsPerPage;
 
-  const contentAreaHeight = panelHeight * (isMobile ? 0.34 : 0.24);
+  const tabArrowWidth = clamp(panelWidth * 0.07, 0.62, 0.92);
+  const tabGap = clamp(contentWidth * 0.016, 0.1, 0.18);
+  const tabTrackWidth = contentWidth - tabArrowWidth * 2 - tabGap * 2;
+  const tabButtonWidth = Math.max(0.7, (tabTrackWidth - tabGap * Math.max(0, BETWEEN_ROUND_TABS.length - 1)) / Math.max(1, BETWEEN_ROUND_TABS.length));
+  const startButtonWidth = Math.min(contentWidth * 0.52, 3.6);
+  const titleSectionHeight = panelHeight * BETWEEN_ROUNDS_SECTION_RATIO.title;
+  const tabSectionHeight = panelHeight * BETWEEN_ROUNDS_SECTION_RATIO.tabs;
+  const contentSectionHeight = panelHeight * BETWEEN_ROUNDS_SECTION_RATIO.content;
+  const activeSectionHeight = panelHeight * BETWEEN_ROUNDS_SECTION_RATIO.active;
+  const startSectionHeight = panelHeight * BETWEEN_ROUNDS_SECTION_RATIO.action;
+
+  const contentAreaHeight = contentSectionHeight * (isMobile ? 0.8 : 0.78);
   const contentGapX = contentColumns > 1 ? contentWidth * (isMobile ? 0.045 : 0.028) : 0;
   const contentGapY = contentRows > 1 ? contentAreaHeight * 0.075 : 0;
   const contentCardWidthFromWidth = (contentWidth - contentGapX * (contentColumns - 1)) / contentColumns;
   const contentCardHeightFromHeight = (contentAreaHeight - contentGapY * (contentRows - 1)) / contentRows;
   const contentCardHeight = Math.min(contentCardWidthFromWidth * CARD_ASPECT_RATIO, contentCardHeightFromHeight);
   const contentCardWidth = contentCardHeight / CARD_ASPECT_RATIO;
+  const desktopReferenceGapX = contentWidth * 0.028;
+  const desktopReferenceWidthFromWidth = (contentWidth - desktopReferenceGapX * (DESKTOP_CARD_COLUMNS - 1)) / DESKTOP_CARD_COLUMNS;
+  const desktopReferenceHeightFromHeight = panelHeight * 0.24;
+  const desktopReferenceCardHeight = Math.min(desktopReferenceWidthFromWidth * CARD_ASPECT_RATIO, desktopReferenceHeightFromHeight);
+  const desktopReferenceCardWidth = desktopReferenceCardHeight / CARD_ASPECT_RATIO;
 
-  const activeAreaHeight = panelHeight * (isMobile ? 0.24 : 0.17);
+  const activeAreaHeight = activeSectionHeight * (isMobile ? 0.8 : 0.78);
   const activeGapX = contentColumns > 1 ? contentWidth * (isMobile ? 0.05 : 0.03) : 0;
   const activeGapY = contentRows > 1 ? activeAreaHeight * 0.1 : 0;
   const activeCardWidthFromWidth = (contentWidth - activeGapX * (contentColumns - 1)) / contentColumns;
   const activeCardHeightFromHeight = (activeAreaHeight - activeGapY * (contentRows - 1)) / contentRows;
   const activeCardHeight = Math.min(activeCardWidthFromWidth * ACTIVE_CARD_ASPECT_RATIO, activeCardHeightFromHeight);
   const activeCardWidth = activeCardHeight / ACTIVE_CARD_ASPECT_RATIO;
+  const activeCarouselCardHeight = isMobile ? desktopReferenceCardHeight : activeCardHeight;
+  const activeCarouselCardWidth = isMobile ? desktopReferenceCardWidth : activeCardWidth;
 
   const foundDeckFull = foundCards.length >= FOUND_DECK_LIMIT;
 
   const [activeTabId, setActiveTabId] = useState(() => (state === GameState.Shop ? SHOP_TAB_ID : DECK_TAB_ID));
   const [deckPage, setDeckPage] = useState(0);
   const [shopPage, setShopPage] = useState(0);
+  const [activePage, setActivePage] = useState(0);
+  const [shipPage, setShipPage] = useState(0);
 
   useEffect(() => {
     if (state === GameState.Shop) {
@@ -251,8 +294,21 @@ export function BetweenRoundsUi3D({
     }
   }, [activeTab, foundDeckFull, onCloseShop, onOpenShop, state]);
 
-  const deckPageCount = Math.max(1, Math.ceil(foundCards.length / cardsPerPage));
-  const shopPageCount = Math.max(1, Math.ceil(shopCards.length / cardsPerPage));
+  const deckPageCount = Math.max(1, Math.ceil(foundCards.length / deckCardsPerPage));
+  const shopPageCount = Math.max(1, Math.ceil(shopCards.length / shopCardsPerPage));
+  const activePageCount = Math.max(1, activeCards.length);
+  const shipCards: CardRenderModel[] = useMemo(
+    () =>
+      PLAYER_WEAPON_ORDER.map((mode) => ({
+        id: `ship-${mode}`,
+        name: weaponShortLabel(mode),
+        description: `Level ${weaponLevels[mode] ?? 1}/${getPlayerWeaponMaxLevel(mode)}`,
+        rarity: 'common',
+        tags: [weaponModeTag(mode), 'weapon']
+      })),
+    [weaponLevels]
+  );
+  const shipPageCount = Math.max(1, shipCards.length);
 
   useEffect(() => {
     setDeckPage((value) => Math.min(value, deckPageCount - 1));
@@ -261,9 +317,17 @@ export function BetweenRoundsUi3D({
   useEffect(() => {
     setShopPage((value) => Math.min(value, shopPageCount - 1));
   }, [shopPageCount]);
+  useEffect(() => {
+    setActivePage((value) => Math.min(value, activePageCount - 1));
+  }, [activePageCount]);
+  useEffect(() => {
+    setShipPage((value) => Math.min(value, shipPageCount - 1));
+  }, [shipPageCount]);
 
-  const visibleDeckCards = foundCards.slice(deckPage * cardsPerPage, deckPage * cardsPerPage + cardsPerPage);
-  const visibleShopCards = shopCards.slice(shopPage * cardsPerPage, shopPage * cardsPerPage + cardsPerPage);
+  const visibleDeckCards = foundCards.slice(deckPage * deckCardsPerPage, deckPage * deckCardsPerPage + deckCardsPerPage);
+  const visibleShopCards = shopCards.slice(shopPage * shopCardsPerPage, shopPage * shopCardsPerPage + shopCardsPerPage);
+  const activeCarouselCard = activeCards[activePage];
+  const shipCarouselCard = shipCards[shipPage];
 
   const nextRoundInfo = resolveNextRoundDisplay(levelId, roundIndex, totalRounds);
 
@@ -280,197 +344,274 @@ export function BetweenRoundsUi3D({
     return null;
   }
 
-  const tabArrowWidth = clamp(panelWidth * 0.07, 0.62, 0.92);
-  const tabGap = clamp(contentWidth * 0.016, 0.1, 0.18);
-  const tabTrackWidth = contentWidth - tabArrowWidth * 2 - tabGap * 2;
-  const tabButtonWidth = Math.max(0.7, (tabTrackWidth - tabGap * Math.max(0, BETWEEN_ROUND_TABS.length - 1)) / Math.max(1, BETWEEN_ROUND_TABS.length));
-  const tabStartX = -((tabButtonWidth * BETWEEN_ROUND_TABS.length + tabGap * Math.max(0, BETWEEN_ROUND_TABS.length - 1)) / 2) + tabButtonWidth / 2;
-
   return (
     <group position={[0, 0, uiZ]}>
       <Backdrop width={viewport.width * 1.2} height={viewport.height * 1.2} />
       <PanelFrame width={panelWidth} height={panelHeight} />
-
-      <UiText position={[0, panelHeight * 0.44, 0.03]} fontSize={0.36 * scale * textScaleBoost} color="#eaf5ff" anchorX="center" anchorY="middle">
-        {`Next: Level ${nextRoundInfo.level} • Round ${nextRoundInfo.round}`}
-      </UiText>
-      <UiText
-        position={[panelWidth * 0.46 - sidePadding, panelHeight * 0.44, 0.03]}
-        fontSize={0.22 * scale * textScaleBoost}
-        color="#ffe18d"
-        anchorX="right"
-        anchorY="middle"
-      >
-        {`$${money}`}
-      </UiText>
-
-      <group position={[0, panelHeight * 0.31, 0.03]}>
-        <ActionButton label="<" width={tabArrowWidth} x={-contentWidth / 2 + tabArrowWidth / 2} onClick={() => cycleTab(-1)} color="#2d587f" />
-        <ActionButton label=">" width={tabArrowWidth} x={contentWidth / 2 - tabArrowWidth / 2} onClick={() => cycleTab(1)} color="#2d587f" />
-        {BETWEEN_ROUND_TABS.map((tab, index) => {
-          const x = tabStartX + index * (tabButtonWidth + tabGap);
-          const active = tab.id === activeTab.id;
-          return (
-            <ActionButton
-              key={tab.id}
-              label={tab.label}
-              width={tabButtonWidth}
-              x={x}
-              onClick={() => setActiveTabId(tab.id)}
-              color={active ? '#3b8fcb' : '#1f3e5a'}
-              textScale={textScaleBoost}
-            />
-          );
-        })}
-      </group>
-
-      <group position={[0, panelHeight * 0.06, 0.03]}>
-        {activeTab.screen === 'shop' && (
-          <>
-            <UiText position={[0, contentAreaHeight * 0.61, 0.04]} fontSize={0.18 * textScaleBoost} color="#b8d9ff" anchorX="center" anchorY="middle">
-              Buy cards for the next round
+      <Flex size={[panelWidth, panelHeight, 0]} position={[-panelWidth / 2, panelHeight / 2, 0.03]} flexDirection="column">
+        <Box width={panelWidth} height={titleSectionHeight} centerAnchor>
+          <group>
+            <UiText position={[0, 0, 0.03]} fontSize={0.36 * scale * textScaleBoost} color="#eaf5ff" anchorX="center" anchorY="middle">
+              {`Next: Level ${nextRoundInfo.level} • Round ${nextRoundInfo.round}`}
             </UiText>
-            {foundDeckFull && (
-              <UiText position={[0, contentAreaHeight * 0.5, 0.04]} fontSize={0.15 * textScaleBoost} color="#ffbe9a" anchorX="center" anchorY="middle">
-                Deck is full. Discard cards before buying.
-              </UiText>
-            )}
-            {visibleShopCards.length === 0 ? (
-              <UiText position={[0, 0, 0.04]} fontSize={0.24 * textScaleBoost} color="#d8ebff" anchorX="center" anchorY="middle">
-                No shop offers.
-              </UiText>
-            ) : (
-              <CardGrid
-                cards={visibleShopCards}
-                columns={contentColumns}
-                rows={contentRows}
-                cardWidth={contentCardWidth}
-                cardHeight={contentCardHeight}
-                gapX={contentGapX}
-                gapY={contentGapY}
-                money={money}
-                activeCards={activeCards}
-                activeCardLimit={activeCardLimit}
-                shopMode
-                shopBlocked={foundDeckFull}
-                textScale={textScaleBoost}
-                onActivateCard={onActivateCard}
-                onDiscardCard={onDiscardCard}
-                onBuyCard={onBuyCard}
-              />
-            )}
-            {shopPageCount > 1 && (
-              <PageControls
-                page={shopPage}
-                pageCount={shopPageCount}
-                width={Math.min(contentWidth * 0.46, 3.2)}
-                y={-contentAreaHeight * 0.66}
-                textScale={textScaleBoost}
-                onPrev={() => setShopPage((value) => (value - 1 + shopPageCount) % shopPageCount)}
-                onNext={() => setShopPage((value) => (value + 1) % shopPageCount)}
-              />
-            )}
-          </>
-        )}
-
-        {activeTab.screen === 'deck' && (
-          <>
-            <UiText position={[0, contentAreaHeight * 0.61, 0.04]} fontSize={0.18 * textScaleBoost} color="#b8d9ff" anchorX="center" anchorY="middle">
-              Manage found cards: activate, use, or discard
-            </UiText>
-            {visibleDeckCards.length === 0 ? (
-              <UiText position={[0, 0, 0.04]} fontSize={0.24 * textScaleBoost} color="#d8ebff" anchorX="center" anchorY="middle">
-                No cards found this round.
-              </UiText>
-            ) : (
-              <CardGrid
-                cards={visibleDeckCards}
-                columns={contentColumns}
-                rows={contentRows}
-                cardWidth={contentCardWidth}
-                cardHeight={contentCardHeight}
-                gapX={contentGapX}
-                gapY={contentGapY}
-                money={money}
-                activeCards={activeCards}
-                activeCardLimit={activeCardLimit}
-                shopMode={false}
-                textScale={textScaleBoost}
-                onActivateCard={onActivateCard}
-                onDiscardCard={onDiscardCard}
-                onBuyCard={onBuyCard}
-              />
-            )}
-            {deckPageCount > 1 && (
-              <PageControls
-                page={deckPage}
-                pageCount={deckPageCount}
-                width={Math.min(contentWidth * 0.46, 3.2)}
-                y={-contentAreaHeight * 0.66}
-                textScale={textScaleBoost}
-                onPrev={() => setDeckPage((value) => (value - 1 + deckPageCount) % deckPageCount)}
-                onNext={() => setDeckPage((value) => (value + 1) % deckPageCount)}
-              />
-            )}
             <UiText
-              position={[0, -contentAreaHeight * 0.52, 0.04]}
-              fontSize={0.14 * textScaleBoost}
-              lineHeight={1.25}
+              position={[panelWidth / 2 - sidePadding, 0, 0.03]}
+              fontSize={0.22 * scale * textScaleBoost}
+              color="#ffe18d"
+              anchorX="right"
+              anchorY="middle"
+            >
+              {`$${money}`}
+            </UiText>
+          </group>
+        </Box>
+
+        <Box width={panelWidth} height={tabSectionHeight} centerAnchor>
+          <TabsRow
+            tabs={BETWEEN_ROUND_TABS}
+            contentWidth={contentWidth}
+            tabArrowWidth={tabArrowWidth}
+            tabButtonWidth={tabButtonWidth}
+            tabGap={tabGap}
+            activeTabId={activeTab.id}
+            textScale={textScaleBoost}
+            onCycleTab={cycleTab}
+            onSelectTab={setActiveTabId}
+          />
+        </Box>
+
+        <Box width={panelWidth} height={contentSectionHeight} centerAnchor>
+          <group>
+            {activeTab.screen === 'shop' && (
+              <>
+                <UiText position={[0, contentAreaHeight * 0.43, 0.04]} fontSize={0.18 * textScaleBoost} color="#b8d9ff" anchorX="center" anchorY="middle">
+                  Buy cards for the next round
+                </UiText>
+                {foundDeckFull && (
+                  <UiText position={[0, contentAreaHeight * 0.34, 0.04]} fontSize={0.15 * textScaleBoost} color="#ffbe9a" anchorX="center" anchorY="middle">
+                    Deck is full. Discard cards before buying.
+                  </UiText>
+                )}
+                {visibleShopCards.length === 0 ? (
+                  <UiText position={[0, 0, 0.04]} fontSize={0.24 * textScaleBoost} color="#d8ebff" anchorX="center" anchorY="middle">
+                    No shop offers.
+                  </UiText>
+                ) : (
+                  <group position={[0, isMobile ? contentAreaHeight * 0.08 : 0, 0]}>
+                    <CardGrid
+                      cards={visibleShopCards}
+                      columns={isMobile ? 1 : contentColumns}
+                      rows={isMobile ? 1 : contentRows}
+                      cardWidth={isMobile ? desktopReferenceCardWidth : contentCardWidth}
+                      cardHeight={isMobile ? desktopReferenceCardHeight : contentCardHeight}
+                      gapX={contentGapX}
+                      gapY={contentGapY}
+                      money={money}
+                      activeCards={activeCards}
+                      activeCardLimit={activeCardLimit}
+                      shopMode
+                      shopBlocked={foundDeckFull}
+                      textScale={textScaleBoost}
+                      onActivateCard={onActivateCard}
+                      onDiscardCard={onDiscardCard}
+                      onBuyCard={onBuyCard}
+                    />
+                  </group>
+                )}
+                {(isMobile || shopPageCount > 1) && (
+                  <PageControls
+                    page={shopPage}
+                    pageCount={shopPageCount}
+                    width={Math.min(contentWidth * 0.46, 3.2)}
+                    y={isMobile ? -contentAreaHeight * 0.46 : -contentAreaHeight * 0.66}
+                    textScale={textScaleBoost}
+                    onPrev={() => setShopPage((value) => (value - 1 + shopPageCount) % shopPageCount)}
+                    onNext={() => setShopPage((value) => (value + 1) % shopPageCount)}
+                  />
+                )}
+              </>
+            )}
+
+            {activeTab.screen === 'deck' && (
+              <>
+                <UiText position={[0, contentAreaHeight * 0.43, 0.04]} fontSize={0.18 * textScaleBoost} color="#b8d9ff" anchorX="center" anchorY="middle">
+                  Manage found cards: activate, use, or discard
+                </UiText>
+                {visibleDeckCards.length === 0 ? (
+                  <UiText position={[0, 0, 0.04]} fontSize={0.24 * textScaleBoost} color="#d8ebff" anchorX="center" anchorY="middle">
+                    No cards found this round.
+                  </UiText>
+                ) : (
+                  <group position={[0, isMobile ? contentAreaHeight * 0.16 : 0, 0]}>
+                    <CardGrid
+                      cards={visibleDeckCards}
+                      columns={isMobile ? 1 : contentColumns}
+                      rows={isMobile ? 1 : contentRows}
+                      cardWidth={isMobile ? desktopReferenceCardWidth : contentCardWidth}
+                      cardHeight={isMobile ? desktopReferenceCardHeight : contentCardHeight}
+                      gapX={contentGapX}
+                      gapY={contentGapY}
+                      money={money}
+                      activeCards={activeCards}
+                      activeCardLimit={activeCardLimit}
+                      shopMode={false}
+                      textScale={textScaleBoost}
+                      onActivateCard={onActivateCard}
+                      onDiscardCard={onDiscardCard}
+                      onBuyCard={onBuyCard}
+                    />
+                  </group>
+                )}
+                {(isMobile || deckPageCount > 1) && (
+                  <PageControls
+                    page={deckPage}
+                    pageCount={deckPageCount}
+                    width={Math.min(contentWidth * 0.46, 3.2)}
+                    y={isMobile ? -contentAreaHeight * 0.46 : -contentAreaHeight * 0.66}
+                    textScale={textScaleBoost}
+                    onPrev={() => setDeckPage((value) => (value - 1 + deckPageCount) % deckPageCount)}
+                    onNext={() => setDeckPage((value) => (value + 1) % deckPageCount)}
+                  />
+                )}
+                {!isMobile && (
+                  <UiText
+                    position={[0, -contentAreaHeight * 0.52, 0.04]}
+                    fontSize={0.14 * textScaleBoost}
+                    lineHeight={1.25}
+                    color="#9ec9ff"
+                    anchorX="center"
+                    anchorY="middle"
+                    maxWidth={contentWidth}
+                  >
+                    {`Synergies: ${renderTagSummary(activeCards)}`}
+                  </UiText>
+                )}
+              </>
+            )}
+
+            {activeTab.screen === 'ship' && (
+              isMobile ? (
+                <>
+                  <UiText position={[0, contentAreaHeight * 0.43, 0.04]} fontSize={0.18 * textScaleBoost} color="#b8d9ff" anchorX="center" anchorY="middle">
+                    Ship and weapon systems
+                  </UiText>
+                  {shipCarouselCard && (
+                    <group position={[0, contentAreaHeight * 0.18, 0.03]}>
+                      <CardFrame card={shipCarouselCard} width={desktopReferenceCardWidth} height={desktopReferenceCardHeight} textScale={textScaleBoost} />
+                    </group>
+                  )}
+                  <UiText
+                    position={[0, -contentAreaHeight * 0.38, 0.04]}
+                    fontSize={0.14 * textScaleBoost}
+                    lineHeight={1.24}
+                    color="#9ec9ff"
+                    anchorX="center"
+                    anchorY="middle"
+                    maxWidth={contentWidth}
+                  >
+                    {`Max Energy ${Math.round(weaponEnergyMax)}  •  Pods ${podCount}  •  Pod Weapon ${podWeaponMode}`}
+                  </UiText>
+                  {(isMobile || shipPageCount > 1) && (
+                    <PageControls
+                      page={shipPage}
+                      pageCount={shipPageCount}
+                      width={Math.min(contentWidth * 0.46, 3.2)}
+                      y={-contentAreaHeight * 0.52}
+                      textScale={textScaleBoost}
+                      onPrev={() => setShipPage((value) => (value - 1 + shipPageCount) % shipPageCount)}
+                      onNext={() => setShipPage((value) => (value + 1) % shipPageCount)}
+                    />
+                  )}
+                </>
+              ) : (
+                <ShipStatsPanel
+                  cardWidth={contentCardWidth}
+                  cardHeight={contentCardHeight}
+                  columns={contentColumns}
+                  rows={contentRows}
+                  gapX={contentGapX}
+                  gapY={contentGapY}
+                  weaponLevels={weaponLevels}
+                  weaponEnergyMax={weaponEnergyMax}
+                  podCount={podCount}
+                  podWeaponMode={podWeaponMode}
+                  textScale={textScaleBoost}
+                  contentWidth={contentWidth}
+                  contentAreaHeight={contentAreaHeight}
+                />
+              )
+            )}
+            {activeTab.screen !== 'shop' && activeTab.screen !== 'deck' && activeTab.screen !== 'ship' && (
+              <UiText position={[0, 0, 0.04]} fontSize={0.22 * textScaleBoost} color="#d8ebff" anchorX="center" anchorY="middle">
+                {`${activeTab.label} screen is not configured yet.`}
+              </UiText>
+            )}
+          </group>
+        </Box>
+
+        <Box width={panelWidth} height={activeSectionHeight} centerAnchor>
+          <group>
+            <UiText
+              position={[0, isMobile ? activeAreaHeight * 0.42 : activeAreaHeight * 0.66, 0.03]}
+              fontSize={0.18 * textScaleBoost}
               color="#9ec9ff"
               anchorX="center"
               anchorY="middle"
-              maxWidth={contentWidth}
             >
-              {`Synergies: ${renderTagSummary(activeCards)}`}
+              {`Active Cards ${activeCards.length}/${activeCardLimit}`}
             </UiText>
-          </>
-        )}
+            {isMobile ? (
+              <>
+                {activeCarouselCard ? (
+                  <group position={[0, activeAreaHeight * 0.08, 0.03]}>
+                    <CardFrame card={activeCarouselCard} width={activeCarouselCardWidth} height={activeCarouselCardHeight} textScale={textScaleBoost} />
+                    <ActionButton
+                      label="Discard"
+                      width={activeCarouselCardWidth * 0.48}
+                      y={-activeCarouselCardHeight * 0.4}
+                      onClick={() => onDiscardActiveCard(activeCarouselCard.id)}
+                      color="#7d3f48"
+                      textScale={textScaleBoost}
+                    />
+                  </group>
+                ) : (
+                  <UiText position={[0, 0, 0.04]} fontSize={0.2 * textScaleBoost} color="#d8ebff" anchorX="center" anchorY="middle">
+                    No active cards.
+                  </UiText>
+                )}
+                {(isMobile || activePageCount > 1) && (
+                  <PageControls
+                    page={activePage}
+                    pageCount={activePageCount}
+                    width={Math.min(contentWidth * 0.44, 2.8)}
+                    y={-activeAreaHeight * 0.34}
+                    textScale={textScaleBoost}
+                    onPrev={() => setActivePage((value) => (value - 1 + activePageCount) % activePageCount)}
+                    onNext={() => setActivePage((value) => (value + 1) % activePageCount)}
+                  />
+                )}
+              </>
+            ) : (
+              <ActiveCardGrid
+                cards={activeCards}
+                cardWidth={activeCardWidth}
+                cardHeight={activeCardHeight}
+                columns={contentColumns}
+                rows={contentRows}
+                gapX={activeGapX}
+                gapY={activeGapY}
+                textScale={textScaleBoost}
+                onDiscardActiveCard={onDiscardActiveCard}
+                activeCardLimit={activeCardLimit}
+              />
+            )}
+          </group>
+        </Box>
 
-        {activeTab.screen === 'ship' && (
-          <ShipStatsPanel
-            cardWidth={contentCardWidth}
-            cardHeight={contentCardHeight}
-            columns={contentColumns}
-            rows={contentRows}
-            gapX={contentGapX}
-            gapY={contentGapY}
-            weaponLevels={weaponLevels}
-            weaponEnergyMax={weaponEnergyMax}
-            podCount={podCount}
-            podWeaponMode={podWeaponMode}
-            textScale={textScaleBoost}
-            contentWidth={contentWidth}
-            contentAreaHeight={contentAreaHeight}
-          />
-        )}
-        {activeTab.screen !== 'shop' && activeTab.screen !== 'deck' && activeTab.screen !== 'ship' && (
-          <UiText position={[0, 0, 0.04]} fontSize={0.22 * textScaleBoost} color="#d8ebff" anchorX="center" anchorY="middle">
-            {`${activeTab.label} screen is not configured yet.`}
-          </UiText>
-        )}
-      </group>
-
-      <group position={[0, -panelHeight * 0.27, 0.04]}>
-        <UiText position={[0, activeAreaHeight * 0.66, 0.03]} fontSize={0.18 * textScaleBoost} color="#9ec9ff" anchorX="center" anchorY="middle">
-          {`Active Cards ${activeCards.length}/${activeCardLimit}`}
-        </UiText>
-        <ActiveCardGrid
-          cards={activeCards}
-          cardWidth={activeCardWidth}
-          cardHeight={activeCardHeight}
-          columns={contentColumns}
-          rows={contentRows}
-          gapX={activeGapX}
-          gapY={activeGapY}
-          textScale={textScaleBoost}
-          onDiscardActiveCard={onDiscardActiveCard}
-          activeCardLimit={activeCardLimit}
-        />
-      </group>
-
-      <group position={[0, -panelHeight * 0.455, 0.05]}>
-        <ActionButton label="Start Round" width={Math.min(contentWidth * 0.52, 3.6)} onClick={onContinue} color="#2b8c56" textScale={textScaleBoost} />
-      </group>
+        <Box width={panelWidth} height={startSectionHeight} centerAnchor>
+          <ActionButton label="Start Round" width={startButtonWidth} onClick={onContinue} color="#2b8c56" textScale={textScaleBoost} />
+        </Box>
+      </Flex>
     </group>
   );
 }
@@ -534,36 +675,38 @@ function CardGrid({
 }: CardGridProps) {
   const maxSlots = columns * rows;
   const visibleCards = cards.slice(0, maxSlots);
-  const startX = -((columns - 1) * gapX) / 2;
-  const startY = ((rows - 1) * gapY) / 2;
+  const gridWidth = columns * cardWidth + Math.max(0, columns - 1) * gapX;
+  const gridHeight = rows * cardHeight + Math.max(0, rows - 1) * gapY;
 
   return (
     <group position={[0, 0, 0.03]}>
-      {visibleCards.map((card, index) => {
-        const col = index % columns;
-        const row = Math.floor(index / columns);
-        const x = startX + col * gapX;
-        const y = startY - row * gapY;
+      <Flex size={[gridWidth, gridHeight, 0]} position={[-gridWidth / 2, gridHeight / 2, 0.02]} flexDirection="row" flexWrap="wrap">
+        {visibleCards.map((card, index) => {
+          const col = index % columns;
+          const row = Math.floor(index / columns);
+          const rightGap = col < columns - 1 ? gapX : 0;
+          const bottomGap = row < rows - 1 ? gapY : 0;
 
-        return (
-          <group key={`${card.id}-${index}`} position={[x, y, 0.02]}>
-            <InteractiveCard
-              card={card}
-              width={cardWidth}
-              height={cardHeight}
-              money={money}
-              activeCards={activeCards}
-              activeCardLimit={activeCardLimit}
-              shopMode={shopMode}
-              shopBlocked={shopBlocked}
-              textScale={textScale}
-              onActivateCard={onActivateCard}
-              onDiscardCard={onDiscardCard}
-              onBuyCard={onBuyCard}
-            />
-          </group>
-        );
-      })}
+          return (
+            <Box key={`${card.id}-${index}`} width={cardWidth} height={cardHeight} mr={rightGap} mb={bottomGap} centerAnchor>
+              <InteractiveCard
+                card={card}
+                width={cardWidth}
+                height={cardHeight}
+                money={money}
+                activeCards={activeCards}
+                activeCardLimit={activeCardLimit}
+                shopMode={shopMode}
+                shopBlocked={shopBlocked}
+                textScale={textScale}
+                onActivateCard={onActivateCard}
+                onDiscardCard={onDiscardCard}
+                onBuyCard={onBuyCard}
+              />
+            </Box>
+          );
+        })}
+      </Flex>
     </group>
   );
 }
@@ -785,34 +928,77 @@ function ActiveCardGrid({
 
   const displayCards = Array.from({ length: activeCardLimit }, (_, index) => cards[index] ?? placeholderCards[index]);
   const maxSlots = Math.max(columns * rows, activeCardLimit);
-  const startX = -((columns - 1) * gapX) / 2;
-  const startY = ((rows - 1) * gapY) / 2;
+  const gridWidth = columns * cardWidth + Math.max(0, columns - 1) * gapX;
+  const gridHeight = rows * cardHeight + Math.max(0, rows - 1) * gapY;
 
   return (
     <group>
-      {displayCards.slice(0, maxSlots).map((card, index) => {
-        const col = index % columns;
-        const row = Math.floor(index / columns);
-        const x = startX + col * gapX;
-        const y = startY - row * gapY;
-        const isPlaceholder = index >= cards.length;
+      <Flex size={[gridWidth, gridHeight, 0]} position={[-gridWidth / 2, gridHeight / 2, 0.03]} flexDirection="row" flexWrap="wrap">
+        {displayCards.slice(0, maxSlots).map((card, index) => {
+          const col = index % columns;
+          const row = Math.floor(index / columns);
+          const rightGap = col < columns - 1 ? gapX : 0;
+          const bottomGap = row < rows - 1 ? gapY : 0;
+          const isPlaceholder = index >= cards.length;
 
-        return (
-          <group key={`active-slot-${index}`} position={[x, y, 0.03]}>
-            <CardFrame card={card} width={cardWidth} height={cardHeight} muted={isPlaceholder} textScale={textScale} />
-            {!isPlaceholder && (
+          return (
+            <Box key={`active-slot-${index}`} width={cardWidth} height={cardHeight} mr={rightGap} mb={bottomGap} centerAnchor>
+              <CardFrame card={card} width={cardWidth} height={cardHeight} muted={isPlaceholder} textScale={textScale} />
+              {!isPlaceholder && (
+                <ActionButton
+                  label="Discard"
+                  width={cardWidth * 0.48}
+                  y={-cardHeight * 0.4}
+                  onClick={() => onDiscardActiveCard(card.id)}
+                  color="#7d3f48"
+                  textScale={textScale}
+                />
+              )}
+            </Box>
+          );
+        })}
+      </Flex>
+    </group>
+  );
+}
+
+function TabsRow({
+  tabs,
+  contentWidth,
+  tabArrowWidth,
+  tabButtonWidth,
+  tabGap,
+  activeTabId,
+  textScale,
+  onCycleTab,
+  onSelectTab
+}: TabsRowProps) {
+  const rowHeight = Math.max(computeActionButtonHeight(tabArrowWidth), computeActionButtonHeight(tabButtonWidth, textScale));
+
+  return (
+    <group>
+      <Flex size={[contentWidth, rowHeight, 0]} position={[-contentWidth / 2, rowHeight / 2, 0]} flexDirection="row" alignItems="center" justifyContent="center">
+        <Box width={tabArrowWidth} height={rowHeight} mr={tabGap} centerAnchor>
+          <ActionButton label="<" width={tabArrowWidth} onClick={() => onCycleTab(-1)} color="#2d587f" textScale={textScale} />
+        </Box>
+        {tabs.map((tab) => {
+          const active = tab.id === activeTabId;
+          return (
+            <Box key={tab.id} width={tabButtonWidth} height={rowHeight} mr={tabGap} centerAnchor>
               <ActionButton
-                label="Discard"
-                width={cardWidth * 0.48}
-                y={-cardHeight * 0.4}
-                onClick={() => onDiscardActiveCard(card.id)}
-                color="#7d3f48"
+                label={tab.label}
+                width={tabButtonWidth}
+                onClick={() => onSelectTab(tab.id)}
+                color={active ? '#3b8fcb' : '#1f3e5a'}
                 textScale={textScale}
               />
-            )}
-          </group>
-        );
-      })}
+            </Box>
+          );
+        })}
+        <Box width={tabArrowWidth} height={rowHeight} centerAnchor>
+          <ActionButton label=">" width={tabArrowWidth} onClick={() => onCycleTab(1)} color="#2d587f" textScale={textScale} />
+        </Box>
+      </Flex>
     </group>
   );
 }
@@ -820,24 +1006,37 @@ function ActiveCardGrid({
 function PageControls({ page, pageCount, width, y, textScale, onPrev, onNext }: PageControlsProps) {
   const gap = 0.18;
   const buttonWidth = width * 0.38;
-  const offset = buttonWidth / 2 + gap / 2;
+  const buttonHeight = computeActionButtonHeight(buttonWidth, textScale);
+  const rowWidth = buttonWidth * 2 + gap;
+  const hasMultiplePages = pageCount > 1;
 
   return (
     <group position={[0, y, 0.04]}>
-      <ActionButton label="Prev" width={buttonWidth} x={-offset} onClick={onPrev} color="#244866" textScale={textScale} />
-      <ActionButton label="Next" width={buttonWidth} x={offset} onClick={onNext} color="#244866" textScale={textScale} />
-      <UiText position={[0, -0.21, 0.02]} fontSize={0.12 * textScale} color="#9ec9ff" anchorX="center" anchorY="middle">
+      <Flex size={[rowWidth, buttonHeight, 0]} position={[-rowWidth / 2, buttonHeight / 2, 0]} flexDirection="row" alignItems="center">
+        <Box width={buttonWidth} height={buttonHeight} mr={gap} centerAnchor>
+          <ActionButton label="<" width={buttonWidth} onClick={onPrev} color="#244866" textScale={textScale} disabled={!hasMultiplePages} />
+        </Box>
+        <Box width={buttonWidth} height={buttonHeight} centerAnchor>
+          <ActionButton label=">" width={buttonWidth} onClick={onNext} color="#244866" textScale={textScale} disabled={!hasMultiplePages} />
+        </Box>
+      </Flex>
+      <UiText position={[0, -buttonHeight * 0.95, 0.02]} fontSize={0.12 * textScale} color="#9ec9ff" anchorX="center" anchorY="middle">
         {`Page ${page + 1}/${pageCount}`}
       </UiText>
     </group>
   );
 }
 
+function computeActionButtonHeight(width: number, textScale = 1): number {
+  const labelSize = clamp(width * 0.085 * textScale, 0.2, 0.34);
+  return clamp(labelSize * 2.2, 0.34, 0.5);
+}
+
 function ActionButton({ label, width, disabled = false, onClick, color = '#355f89', x = 0, y = 0, textScale = 1 }: ActionButtonProps) {
   const [hovered, setHovered] = useState(false);
   const meshRef = useRef<Mesh>(null);
   const labelSize = clamp(width * 0.085 * textScale, 0.2, 0.34);
-  const buttonHeight = clamp(labelSize * 2.2, 0.34, 0.5);
+  const buttonHeight = computeActionButtonHeight(width, textScale);
 
   useFrame(() => {
     if (!meshRef.current) {
@@ -922,27 +1121,29 @@ function ShipStatsPanel({
     tags: [weaponModeTag(mode), 'weapon']
   }));
 
-  const startX = -((columns - 1) * gapX) / 2;
-  const startY = ((rows - 1) * gapY) / 2;
+  const gridWidth = columns * cardWidth + Math.max(0, columns - 1) * gapX;
+  const gridHeight = rows * cardHeight + Math.max(0, rows - 1) * gapY;
 
   return (
     <group>
-      <UiText position={[0, contentAreaHeight * 0.61, 0.04]} fontSize={0.18 * textScale} color="#b8d9ff" anchorX="center" anchorY="middle">
+      <UiText position={[0, contentAreaHeight * 0.43, 0.04]} fontSize={0.18 * textScale} color="#b8d9ff" anchorX="center" anchorY="middle">
         Ship and weapon systems
       </UiText>
-      {cards.map((card, index) => {
-        const col = index % columns;
-        const row = Math.floor(index / columns);
-        const x = startX + col * gapX;
-        const y = startY - row * gapY;
-        return (
-          <group key={card.id} position={[x, y, 0.03]}>
-            <CardFrame card={card} width={cardWidth} height={cardHeight} textScale={textScale} />
-          </group>
-        );
-      })}
+      <Flex size={[gridWidth, gridHeight, 0]} position={[-gridWidth / 2, gridHeight / 2, 0.03]} flexDirection="row" flexWrap="wrap">
+        {cards.map((card, index) => {
+          const col = index % columns;
+          const row = Math.floor(index / columns);
+          const rightGap = col < columns - 1 ? gapX : 0;
+          const bottomGap = row < rows - 1 ? gapY : 0;
+          return (
+            <Box key={card.id} width={cardWidth} height={cardHeight} mr={rightGap} mb={bottomGap} centerAnchor>
+              <CardFrame card={card} width={cardWidth} height={cardHeight} textScale={textScale} />
+            </Box>
+          );
+        })}
+      </Flex>
       <UiText
-        position={[0, -contentAreaHeight * 0.52, 0.04]}
+        position={[0, -contentAreaHeight * 0.4, 0.04]}
         fontSize={0.14 * textScale}
         lineHeight={1.24}
         color="#9ec9ff"

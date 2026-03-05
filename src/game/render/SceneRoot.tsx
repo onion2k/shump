@@ -23,6 +23,7 @@ import { movementControllerRegistry } from '../movement/controllers';
 import { resolveEnemyArchetype } from '../content/enemyArchetypes';
 import type { CardDefinition } from '../content/cards';
 import { BetweenRoundsUi3D } from './ui/BetweenRoundsUi3D';
+import { StartScreen3D } from './ui/StartScreen3D';
 
 interface SceneRootProps {
   game: Game;
@@ -40,6 +41,9 @@ interface SceneRootProps {
   onCloseShop: () => void;
   onBuyCard: (cardId: string) => void;
   onContinue: () => void;
+  onStart: () => void;
+  onStartFresh?: () => void;
+  hasSavedRun: boolean;
 }
 
 const USE_GPU_PARTICLES = true;
@@ -61,7 +65,10 @@ export function SceneRoot({
   onOpenShop,
   onCloseShop,
   onBuyCard,
-  onContinue
+  onContinue,
+  onStart,
+  onStartFresh,
+  hasSavedRun
 }: SceneRootProps) {
   const loop = useMemo(() => new GameLoop(), []);
   const camera = useThree((state) => state.camera);
@@ -142,6 +149,7 @@ export function SceneRoot({
           <directionalLight intensity={1.1} position={[3, 8, 8]} />
           <Stats showPanel={0} className="fps-stats" />
           <Hud3D snapshot={snapshot} />
+          <StartScreen3D state={snapshot.state} hasSavedRun={hasSavedRun} onStart={onStart} onStartFresh={onStartFresh} />
           <BetweenRoundsUi3D
             state={snapshot.state}
             levelId={snapshot.levelId}

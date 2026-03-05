@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { GameCanvas } from './game/render/GameCanvas';
 import { Game, type DebugEmitterSettings } from './game/core/Game';
 import { GameState } from './game/core/GameState';
-import { StartScreen } from './game/ui/StartScreen';
 import { GameOverScreen } from './game/ui/GameOverScreen';
 import { PauseScreen } from './game/ui/PauseScreen';
 import { DebugPanel } from './game/ui/DebugPanel';
@@ -85,6 +84,15 @@ export function App() {
       }
 
       if (event.key !== 'Escape') {
+        if (event.key === 'Enter' && game.snapshot().state === GameState.Boot && !debugPanelOpen) {
+          if (saveFile.activeRun) {
+            resumeSavedRun();
+          } else {
+            startRun();
+          }
+          return;
+        }
+
         if (!debugPanelOpen) {
           if (/^[1-4]$/.test(event.key)) {
             game.selectWeaponBySlot(Number(event.key));
@@ -108,7 +116,7 @@ export function App() {
     return () => {
       window.removeEventListener('keydown', onKeyDown);
     };
-  }, [debugPanelOpen, game]);
+  }, [debugPanelOpen, game, saveFile.activeRun]);
 
   function persistCurrentRun() {
     const runProgress = game.exportRunProgress();
@@ -218,6 +226,9 @@ export function App() {
           onCloseShop={closeShop}
           onBuyCard={buyCard}
           onContinue={startNextRound}
+          onStart={saveFile.activeRun ? resumeSavedRun : startRun}
+          onStartFresh={startFreshRun}
+          hasSavedRun={Boolean(saveFile.activeRun)}
         />
       </div>
       <DebugPanel
@@ -230,9 +241,6 @@ export function App() {
         onSetEnemyPatternsEnabled={setDebugEnemyPatternsEnabled}
         onPatchSettings={(patch) => setDebugEmitterSettings((current) => ({ ...current, ...patch }))}
       />
-      {!debugPanelOpen && snapshot.state === GameState.Boot && (
-        <StartScreen onStart={saveFile.activeRun ? resumeSavedRun : startRun} hasSavedRun={Boolean(saveFile.activeRun)} onStartFresh={startFreshRun} />
-      )}
       {!debugPanelOpen && snapshot.state === GameState.Paused && <PauseScreen onResume={() => game.resume()} />}
       {!debugPanelOpen && snapshot.state === GameState.GameOver && <GameOverScreen onRestart={restartRun} />}
     </main>

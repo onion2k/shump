@@ -21,6 +21,9 @@ interface GameCanvasProps {
   onCloseShop: () => void;
   onBuyCard: (cardId: string) => void;
   onContinue: () => void;
+  onStart: () => void;
+  onStartFresh?: () => void;
+  hasSavedRun: boolean;
 }
 
 export function GameCanvas({
@@ -37,7 +40,10 @@ export function GameCanvas({
   onOpenShop,
   onCloseShop,
   onBuyCard,
-  onContinue
+  onContinue,
+  onStart,
+  onStartFresh,
+  hasSavedRun
 }: GameCanvasProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const pointer = useMemo(() => new PointerController(), []);
@@ -69,6 +75,9 @@ export function GameCanvas({
           onCloseShop={onCloseShop}
           onBuyCard={onBuyCard}
           onContinue={onContinue}
+          onStart={onStart}
+          onStartFresh={onStartFresh}
+          hasSavedRun={hasSavedRun}
         />
       </Canvas>
     </div>
