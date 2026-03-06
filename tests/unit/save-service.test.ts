@@ -67,7 +67,16 @@ describe('SaveService', () => {
           'Auto Pulse': 2
         },
         podCount: 1,
-        podWeaponMode: 'Homing Missile'
+        podWeaponMode: 'Homing Missile',
+        moveMaxSpeed: 24,
+        moveFollowGain: 6,
+        pickupAttractRange: 4.2,
+        pickupAttractPower: 16,
+        shieldCurrent: 10,
+        shieldMax: 10,
+        shieldRechargeDelayMs: 1400,
+        shieldRechargeTimeMs: 3600,
+        shieldRechargeDelayRemainingMs: 0
       },
       elapsedMs: 12345,
       distanceTraveled: 210,

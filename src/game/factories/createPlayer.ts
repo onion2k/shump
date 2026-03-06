@@ -4,6 +4,9 @@ import { gameSettings } from '../config/gameSettings';
 import { createDefaultUnlockedWeapons, createDefaultWeaponLevels } from '../weapons/playerWeapons';
 
 export function createPlayer(): Omit<Entity, 'id'> {
+  const shieldMax = Math.max(0, gameSettings.player.shield.max);
+  const shieldStart = Math.max(0, Math.min(shieldMax, gameSettings.player.shield.start));
+
   return {
     type: EntityType.Player,
     faction: Faction.Player,
@@ -23,6 +26,15 @@ export function createPlayer(): Omit<Entity, 'id'> {
     weaponLevels: createDefaultWeaponLevels(),
     unlockedWeaponModes: createDefaultUnlockedWeapons(),
     weaponOscillator: 0,
+    moveMaxSpeed: Math.max(1, gameSettings.player.maxSpeed),
+    moveFollowGain: Math.max(0, gameSettings.player.followGain),
+    pickupAttractRange: Math.max(0, gameSettings.player.pickupAttraction.range),
+    pickupAttractPower: Math.max(0, gameSettings.player.pickupAttraction.power),
+    shieldCurrent: shieldStart,
+    shieldMax,
+    shieldRechargeDelayMs: Math.max(0, gameSettings.player.shield.rechargeDelayMs),
+    shieldRechargeTimeMs: Math.max(1, gameSettings.player.shield.rechargeTimeMs),
+    shieldRechargeDelayRemainingMs: 0,
     podCount: 0,
     podWeaponMode: 'Auto Pulse'
   };

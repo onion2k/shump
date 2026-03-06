@@ -40,7 +40,16 @@ describe('Game run progress', () => {
           'Auto Pulse': 4
         },
         podCount: 1,
-        podWeaponMode: 'Auto Pulse'
+        podWeaponMode: 'Auto Pulse',
+        moveMaxSpeed: 24,
+        moveFollowGain: 6,
+        pickupAttractRange: 4.2,
+        pickupAttractPower: 16,
+        shieldCurrent: 10,
+        shieldMax: 10,
+        shieldRechargeDelayMs: 1400,
+        shieldRechargeTimeMs: 3600,
+        shieldRechargeDelayRemainingMs: 0
       },
       elapsedMs: 8450,
       distanceTraveled: 320,

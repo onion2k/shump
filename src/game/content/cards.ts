@@ -2,13 +2,23 @@ export type CardRarity = 'common' | 'uncommon' | 'rare';
 
 export type WeaponCardMode = 'Auto Pulse' | 'Continuous Laser' | 'Heavy Cannon' | 'Sine SMG';
 
+export type PlayerStatCardStat =
+  | 'moveMaxSpeed'
+  | 'moveFollowGain'
+  | 'pickupAttractRange'
+  | 'pickupAttractPower'
+  | 'shieldMax'
+  | 'shieldRechargeDelayMs'
+  | 'shieldRechargeTimeMs';
+
 export type CardEffect =
   | { kind: 'maxHealth'; amount: number }
   | { kind: 'weaponLevel'; weaponMode: WeaponCardMode; amount: number }
   | { kind: 'moneyMultiplier'; percent: number }
   | { kind: 'killMoneyFlat'; amount: number }
   | { kind: 'podCount'; amount: number }
-  | { kind: 'podWeaponMode'; mode: 'Auto Pulse' | 'Homing Missile' };
+  | { kind: 'podWeaponMode'; mode: 'Auto Pulse' | 'Homing Missile' }
+  | { kind: 'playerStat'; stat: PlayerStatCardStat; amount: number };
 
 export interface CardDefinition {
   id: string;

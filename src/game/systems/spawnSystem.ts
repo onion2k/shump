@@ -17,6 +17,9 @@ import { BASE_PLAYFIELD_BOUNDS, scaleXAcrossBounds } from '../core/playfieldBoun
 
 const MAX_SPAWNS_PER_TICK = 3;
 const BASE_ACTIVE_ENEMY_CAP = 1000;
+const WARP_SPHERE_ARCHETYPE = 'warp-sphere' as const;
+const WARP_SPHERE_SPAWN_CHANCE = 0.0125;
+const WARP_SPHERE_UNLOCK_LEVEL = 2;
 
 export interface SpawnTickOptions {
   enemyDensityScale?: number;
@@ -67,6 +70,8 @@ export class SpawnSystem {
       }
 
       const spawn = this.queue[this.cursor];
+      const spawnIndex = this.cursor;
+      const enemyArchetype = this.pickEnemyArchetype(spawn, level, spawnIndex);
       const scaledX = scaleXAcrossBounds(spawn.x, BASE_PLAYFIELD_BOUNDS, bounds);
       const spawnY = spawn.spawnFrom === 'bottom' ? bounds.bottom - 1.2 : bounds.top + 1.2;
       entityManager.create(
@@ -77,7 +82,7 @@ export class SpawnSystem {
           spawn.patternAmplitude,
           spawn.patternFrequency,
           spawn.movementParams,
-          spawn.enemyArchetype
+          enemyArchetype
         )
       );
       this.cursor += 1;
@@ -149,6 +154,20 @@ export class SpawnSystem {
       x: spreadX
     };
   }
+
+  private pickEnemyArchetype(spawn: ScheduledSpawn, level: number, spawnIndex: number): ScheduledSpawn['enemyArchetype'] {
+    if (spawn.enemyArchetype === WARP_SPHERE_ARCHETYPE || level < WARP_SPHERE_UNLOCK_LEVEL) {
+      return spawn.enemyArchetype;
+    }
+
+    const seed = spawn.atMs * 0.01 + spawn.x * 13.37 + spawnIndex * 19.91 + level * 23.17;
+    const roll = deterministicUnit(seed);
+    if (roll < WARP_SPHERE_SPAWN_CHANCE) {
+      return WARP_SPHERE_ARCHETYPE;
+    }
+
+    return spawn.enemyArchetype;
+  }
 }
 
 function clampDensityScale(value: number): number {
@@ -157,4 +176,9 @@ function clampDensityScale(value: number): number {
   }
 
   return Math.max(0.2, Math.min(1, value));
+}
+
+function deterministicUnit(seed: number): number {
+  const raw = Math.sin(seed) * 43758.5453123;
+  return raw - Math.floor(raw);
 }

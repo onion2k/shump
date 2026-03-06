@@ -17,6 +17,16 @@
     "health": 10,
     "maxSpeed": 24,
     "followGain": 6,
+    "pickupAttraction": {
+      "range": 4.2,
+      "power": 16
+    },
+    "shield": {
+      "max": 10,
+      "start": 10,
+      "rechargeDelayMs": 1400,
+      "rechargeTimeMs": 3600
+    },
     "weapon": {
       "mode": "Auto Pulse",
       "level": 1,
@@ -69,7 +79,6 @@
       "waveSize": 1.1,
       "amplitude": 0.16,
       "minIntervalMs": 40,
-      "triggerChance": 0.1,
       "cameraShakeChance": 0
     }
   },

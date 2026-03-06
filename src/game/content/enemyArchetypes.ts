@@ -1,4 +1,4 @@
-export type EnemyArchetypeId = 'scout' | 'striker' | 'tank' | 'bruiser' | 'juggernaut';
+export type EnemyArchetypeId = 'scout' | 'striker' | 'tank' | 'bruiser' | 'juggernaut' | 'warp-sphere';
 
 export interface EnemyArchetypeDef {
   id: EnemyArchetypeId;
@@ -67,6 +67,17 @@ const ENEMY_ARCHETYPES: Record<EnemyArchetypeId, EnemyArchetypeDef> = {
     color: '#2edb88',
     accentColor: '#d4ffd8',
     meshScale: 1.46
+  },
+  'warp-sphere': {
+    id: 'warp-sphere',
+    health: 7,
+    radius: 0.92,
+    speedYMultiplier: 0.82,
+    scoreValue: 520,
+    fireIntervalMultiplier: 0.74,
+    color: '#8d46ff',
+    accentColor: '#e9b3ff',
+    meshScale: 1.12
   }
 };
 

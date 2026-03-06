@@ -78,6 +78,31 @@ describe('Game player controls', () => {
     expect(farSpeed).toBeGreaterThan(nearSpeed);
   });
 
+  it('caps movement speed using player maneuverability tuning', () => {
+    const game = new Game();
+    game.start();
+
+    const player = game.entities.all().find((entity) => entity.type === EntityType.Player);
+    expect(player).toBeTruthy();
+    if (!player) {
+      return;
+    }
+
+    player.moveMaxSpeed = 3;
+    player.moveFollowGain = 20;
+
+    game.update(0.016, {
+      hasPosition: true,
+      x: 8,
+      y: -10,
+      leftButtonDown: false,
+      rightButtonDown: false
+    });
+
+    const speed = Math.hypot(player.velocity.x, player.velocity.y);
+    expect(speed).toBeLessThanOrEqual(3.001);
+  });
+
   it('selects unlocked weapon slots by number', () => {
     const game = new Game();
     game.start();

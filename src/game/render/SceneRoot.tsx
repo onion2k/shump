@@ -113,11 +113,12 @@ export function SceneRoot({
 
   useEffect(() => {
     return game.events.on('EntityDestroyed', (event) => {
-      if (!canUsePostProcessing || event.entityType !== EntityType.Enemy || event.reason !== 'health') {
-        return;
-      }
-
-      if (Math.random() >= explosionWarp.triggerChance) {
+      if (
+        !canUsePostProcessing
+        || event.entityType !== EntityType.Enemy
+        || event.reason !== 'health'
+        || event.enemyArchetype !== 'warp-sphere'
+      ) {
         return;
       }
 
@@ -131,7 +132,7 @@ export function SceneRoot({
       effect.position.set(event.positionX ?? 0, event.positionY ?? 0, 0);
       effect.explode();
     });
-  }, [canUsePostProcessing, explosionWarp.minIntervalMs, explosionWarp.triggerChance, game, shockWaveEffects]);
+  }, [canUsePostProcessing, explosionWarp.minIntervalMs, game, shockWaveEffects]);
 
   useFrame(({ clock }, deltaSeconds) => {
     game.reportFrameDelta(deltaSeconds);

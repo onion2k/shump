@@ -39,6 +39,15 @@ export interface Entity {
   weaponLevels?: Partial<Record<PlayerWeaponMode, number>>;
   unlockedWeaponModes?: PlayerWeaponMode[];
   weaponOscillator?: number;
+  moveMaxSpeed?: number;
+  moveFollowGain?: number;
+  pickupAttractRange?: number;
+  pickupAttractPower?: number;
+  shieldCurrent?: number;
+  shieldMax?: number;
+  shieldRechargeDelayMs?: number;
+  shieldRechargeTimeMs?: number;
+  shieldRechargeDelayRemainingMs?: number;
   podCount?: number;
   podWeaponMode?: 'Auto Pulse' | 'Homing Missile';
   podIndex?: number;

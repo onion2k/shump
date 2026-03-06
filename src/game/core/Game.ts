@@ -11,12 +11,12 @@ import { despawnSystem } from '../systems/despawnSystem';
 import { playerWeaponSystem } from '../systems/playerWeaponSystem';
 import { homingSystem } from '../systems/homingSystem';
 import { pickupSystem } from '../systems/pickupSystem';
+import { pickupAttractionSystem } from '../systems/pickupAttractionSystem';
+import { shieldSystem } from '../systems/shieldSystem';
 import { GameState } from './GameState';
 import type { Entity } from '../ecs/components';
 import type { PointerState } from '../input/types';
 import {
-  PLAYER_FOLLOW_GAIN,
-  PLAYER_MAX_SPEED,
   BULLET_SPEED,
   WORLD_SCROLL_SPEED,
   WORLD_BOUNDS,
@@ -76,6 +76,8 @@ export interface GameSnapshot {
   weaponEnergyMax: number;
   weaponEnergyCost: number;
   weaponFireIntervalMs: number;
+  shieldCurrent: number;
+  shieldMax: number;
   podCount: number;
   podWeaponMode: 'Auto Pulse' | 'Homing Missile';
   distanceTraveled: number;
@@ -544,6 +546,7 @@ export class Game {
     this.distanceTraveled += WORLD_SCROLL_SPEED * deltaSeconds;
     this.updateTrailSources(deltaSeconds);
     this.applyPlayerInput(pointer, deltaSeconds);
+    shieldSystem(this.entities.all(), deltaSeconds);
     this.handlePlayerWeapons(deltaSeconds);
     this.spawner.tick(this.entities, deltaSeconds, this.playableBounds, this.distanceTraveled, {
       enemyDensityScale: this.getEnemyDensityScale()
@@ -553,6 +556,7 @@ export class Game {
     this.particles.tick(this.entities, deltaSeconds, this.useGpuParticles ? this.handleParticleSpawn : undefined);
     shootingSystem(this.entities, deltaSeconds);
     homingSystem(this.entities, deltaSeconds);
+    pickupAttractionSystem(this.entities, this.playerId);
     movementSystem(this.entities.all(), deltaSeconds);
     this.clampPlayerToBounds();
     this.syncPodsWithPlayer(deltaSeconds);
@@ -617,6 +621,7 @@ export class Game {
         atMs: this.elapsedMs,
         entityId: entity.id,
         entityType: entity.type,
+        enemyArchetype: entity.enemyArchetype as EnemyArchetypeId | undefined,
         positionX: entity.position.x,
         positionY: entity.position.y,
         entityFaction: entity.faction,
@@ -664,6 +669,8 @@ export class Game {
       weaponEnergyMax: player?.weaponEnergyMax ?? 0,
       weaponEnergyCost: player?.weaponEnergyCost ?? 0,
       weaponFireIntervalMs: player?.weaponFireIntervalMs ?? 0,
+      shieldCurrent: Math.max(0, player?.shieldCurrent ?? 0),
+      shieldMax: Math.max(0, player?.shieldMax ?? 0),
       podCount: Math.max(0, player?.podCount ?? 0),
       podWeaponMode: player?.podWeaponMode === 'Homing Missile' ? 'Homing Missile' : 'Auto Pulse',
       distanceTraveled: this.distanceTraveled
@@ -686,6 +693,18 @@ export class Game {
 
     player.podCount = Math.max(0, playerState.podCount);
     player.podWeaponMode = playerState.podWeaponMode;
+    player.moveMaxSpeed = Math.max(1, playerState.moveMaxSpeed);
+    player.moveFollowGain = Math.max(0, playerState.moveFollowGain);
+    player.pickupAttractRange = Math.max(0, playerState.pickupAttractRange);
+    player.pickupAttractPower = Math.max(0, playerState.pickupAttractPower);
+    player.shieldMax = Math.max(0, playerState.shieldMax);
+    player.shieldCurrent = Math.max(0, Math.min(player.shieldMax, playerState.shieldCurrent));
+    player.shieldRechargeDelayMs = Math.max(0, playerState.shieldRechargeDelayMs);
+    player.shieldRechargeTimeMs = Math.max(1, playerState.shieldRechargeTimeMs);
+    player.shieldRechargeDelayRemainingMs = Math.max(
+      0,
+      Math.min(player.shieldRechargeDelayMs, playerState.shieldRechargeDelayRemainingMs)
+    );
   }
 
   private syncPlayerWithRunProgressCards() {
@@ -741,12 +760,14 @@ export class Game {
     const dx = pointer.x - player.position.x;
     const dy = pointer.y - player.position.y;
     const mag = Math.hypot(dx, dy) || 1;
-    const speedFromDistance = mag * PLAYER_FOLLOW_GAIN;
-    const maxSpeedWithoutOvershoot = deltaSeconds > 0 ? mag / deltaSeconds : PLAYER_MAX_SPEED;
-    const speed = Math.min(PLAYER_MAX_SPEED, speedFromDistance, maxSpeedWithoutOvershoot);
+    const maxSpeed = Math.max(1, player.moveMaxSpeed ?? gameSettings.player.maxSpeed);
+    const followGain = Math.max(0, player.moveFollowGain ?? gameSettings.player.followGain);
+    const speedFromDistance = mag * followGain;
+    const maxSpeedWithoutOvershoot = deltaSeconds > 0 ? mag / deltaSeconds : maxSpeed;
+    const speed = Math.min(maxSpeed, speedFromDistance, maxSpeedWithoutOvershoot);
 
-    player.velocity.x = clamp((dx / mag) * speed, -PLAYER_MAX_SPEED, PLAYER_MAX_SPEED);
-    player.velocity.y = clamp((dy / mag) * speed, -PLAYER_MAX_SPEED, PLAYER_MAX_SPEED);
+    player.velocity.x = clamp((dx / mag) * speed, -maxSpeed, maxSpeed);
+    player.velocity.y = clamp((dy / mag) * speed, -maxSpeed, maxSpeed);
   }
 
   entitiesForRender() {

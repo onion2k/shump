@@ -24,7 +24,7 @@ export function CameraRig({ game }: CameraRigProps) {
 
   useEffect(() => {
     return game.events.on('EntityDestroyed', (event) => {
-      if (event.entityType !== EntityType.Enemy || event.reason !== 'health') {
+      if (event.entityType !== EntityType.Enemy || event.reason !== 'health' || event.enemyArchetype !== 'warp-sphere') {
         return;
       }
       if (Math.random() >= gameSettings.visuals.explosionWarp.cameraShakeChance) {

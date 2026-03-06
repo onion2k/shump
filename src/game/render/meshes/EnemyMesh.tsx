@@ -19,6 +19,8 @@ export function EnemyMesh({ archetype, healthRatio = 1, ageMs = 0 }: EnemyMeshPr
         ? 0.62
         : enemy.id === 'tank'
           ? 0.8
+          : enemy.id === 'warp-sphere'
+            ? 1.05
           : enemy.id === 'striker'
             ? 1.35
             : 1.9;
@@ -31,6 +33,8 @@ export function EnemyMesh({ archetype, healthRatio = 1, ageMs = 0 }: EnemyMeshPr
       <mesh>
         {enemy.id === 'juggernaut' ? (
           <icosahedronGeometry args={[0.86, 0]} />
+        ) : enemy.id === 'warp-sphere' ? (
+          <sphereGeometry args={[0.66, 20, 20]} />
         ) : enemy.id === 'bruiser' ? (
           <boxGeometry args={[1.28, 1.04, 1.28]} />
         ) : enemy.id === 'tank' ? (
@@ -43,13 +47,15 @@ export function EnemyMesh({ archetype, healthRatio = 1, ageMs = 0 }: EnemyMeshPr
         <meshStandardMaterial
           color={enemy.color}
           emissive={enemy.accentColor}
-          emissiveIntensity={0.12 + damageGlow * 0.32}
+          emissiveIntensity={(enemy.id === 'warp-sphere' ? 0.22 : 0.12) + damageGlow * 0.32}
           flatShading
         />
       </mesh>
       <mesh scale={1.1}>
         {enemy.id === 'juggernaut' ? (
           <icosahedronGeometry args={[0.86, 0]} />
+        ) : enemy.id === 'warp-sphere' ? (
+          <sphereGeometry args={[0.66, 20, 20]} />
         ) : enemy.id === 'bruiser' ? (
           <boxGeometry args={[1.28, 1.04, 1.28]} />
         ) : enemy.id === 'tank' ? (

@@ -1,4 +1,5 @@
 import type { EntityType, Faction } from '../ecs/entityTypes';
+import type { EnemyArchetypeId } from '../content/enemyArchetypes';
 
 export type DestroyReason = 'health' | 'bounds' | 'lifetime';
 
@@ -16,6 +17,7 @@ export interface EntityDestroyedEvent {
   atMs: number;
   entityId: number;
   entityType: EntityType;
+  enemyArchetype?: EnemyArchetypeId;
   positionX?: number;
   positionY?: number;
   entityFaction?: Faction;

@@ -67,6 +67,7 @@ export function Hud3D({ snapshot }: Hud3DProps) {
   const healthBarHeight = 0.28 * hudScale;
 
   const healthRatio = snapshot.playerMaxHealth > 0 ? snapshot.playerHealth / snapshot.playerMaxHealth : 0;
+  const shieldRatio = snapshot.shieldMax > 0 ? snapshot.shieldCurrent / snapshot.shieldMax : 0;
 
   return (
     <group>
@@ -111,6 +112,27 @@ export function Hud3D({ snapshot }: Hud3DProps) {
         ratio={healthRatio}
         fillColor={healthRatio < 0.3 ? '#ff4f4f' : '#59ff8e'}
         bgColor="#203142"
+      />
+
+      <Text
+        position={[rightX, topY - 1.06 * hudScale, 1.9]}
+        fontSize={0.28 * hudScale}
+        anchorX="right"
+        anchorY="top"
+        color="#9cc9ff"
+        material-depthTest={false}
+      >
+        {`SHIELD ${Math.round(snapshot.shieldCurrent)}/${Math.round(snapshot.shieldMax)}`}
+      </Text>
+
+      <MeterBar
+        x={rightX - healthBarWidth / 2}
+        y={topY - 1.34 * hudScale}
+        width={healthBarWidth}
+        height={0.22 * hudScale}
+        ratio={shieldRatio}
+        fillColor="#5aa8ff"
+        bgColor="#1d2a44"
       />
 
       <Text

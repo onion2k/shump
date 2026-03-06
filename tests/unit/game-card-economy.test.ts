@@ -25,7 +25,16 @@ describe('Game card economy effects', () => {
         maxHealth: 10,
         weaponLevels: { 'Auto Pulse': 1 },
         podCount: 0,
-        podWeaponMode: 'Auto Pulse'
+        podWeaponMode: 'Auto Pulse',
+        moveMaxSpeed: 24,
+        moveFollowGain: 6,
+        pickupAttractRange: 4.2,
+        pickupAttractPower: 16,
+        shieldCurrent: 10,
+        shieldMax: 10,
+        shieldRechargeDelayMs: 1400,
+        shieldRechargeTimeMs: 3600,
+        shieldRechargeDelayRemainingMs: 0
       },
       elapsedMs: 0,
       distanceTraveled: 0,

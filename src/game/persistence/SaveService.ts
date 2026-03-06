@@ -7,6 +7,7 @@ import {
   type SaveFileV1,
   type SaveMetaProgression
 } from './saveSchema';
+import { gameSettings } from '../config/gameSettings';
 
 const DEFAULT_SAVE_KEY = 'shump.save.v1';
 const DEFAULT_BACKUP_SUFFIX = '.bak';
@@ -88,6 +89,20 @@ function sanitizeActiveRun(value: unknown): SaveActiveRun | undefined {
     return undefined;
   }
 
+  const fallbackShieldMax = Math.max(0, gameSettings.player.shield.max);
+  const fallbackShieldCurrent = Math.max(0, Math.min(fallbackShieldMax, gameSettings.player.shield.start));
+  const fallbackShieldDelay = Math.max(0, gameSettings.player.shield.rechargeDelayMs);
+  const shieldMaxRaw =
+    typeof playerStateRaw.shieldMax === 'number' && Number.isFinite(playerStateRaw.shieldMax)
+      ? playerStateRaw.shieldMax
+      : fallbackShieldMax;
+  const shieldMax = Math.max(0, shieldMaxRaw);
+  const shieldRechargeDelayMsRaw =
+    typeof playerStateRaw.shieldRechargeDelayMs === 'number' && Number.isFinite(playerStateRaw.shieldRechargeDelayMs)
+      ? playerStateRaw.shieldRechargeDelayMs
+      : fallbackShieldDelay;
+  const shieldRechargeDelayMs = Math.max(0, shieldRechargeDelayMsRaw);
+
   return {
     seed,
     levelId,
@@ -112,7 +127,38 @@ function sanitizeActiveRun(value: unknown): SaveActiveRun | undefined {
         typeof playerStateRaw.podCount === 'number' && Number.isFinite(playerStateRaw.podCount)
           ? Math.max(0, Math.floor(playerStateRaw.podCount))
           : 0,
-      podWeaponMode: playerStateRaw.podWeaponMode === 'Homing Missile' ? 'Homing Missile' : 'Auto Pulse'
+      podWeaponMode: playerStateRaw.podWeaponMode === 'Homing Missile' ? 'Homing Missile' : 'Auto Pulse',
+      moveMaxSpeed:
+        typeof playerStateRaw.moveMaxSpeed === 'number' && Number.isFinite(playerStateRaw.moveMaxSpeed)
+          ? Math.max(1, playerStateRaw.moveMaxSpeed)
+          : Math.max(1, gameSettings.player.maxSpeed),
+      moveFollowGain:
+        typeof playerStateRaw.moveFollowGain === 'number' && Number.isFinite(playerStateRaw.moveFollowGain)
+          ? Math.max(0, playerStateRaw.moveFollowGain)
+          : Math.max(0, gameSettings.player.followGain),
+      pickupAttractRange:
+        typeof playerStateRaw.pickupAttractRange === 'number' && Number.isFinite(playerStateRaw.pickupAttractRange)
+          ? Math.max(0, playerStateRaw.pickupAttractRange)
+          : Math.max(0, gameSettings.player.pickupAttraction.range),
+      pickupAttractPower:
+        typeof playerStateRaw.pickupAttractPower === 'number' && Number.isFinite(playerStateRaw.pickupAttractPower)
+          ? Math.max(0, playerStateRaw.pickupAttractPower)
+          : Math.max(0, gameSettings.player.pickupAttraction.power),
+      shieldCurrent:
+        typeof playerStateRaw.shieldCurrent === 'number' && Number.isFinite(playerStateRaw.shieldCurrent)
+          ? Math.max(0, Math.min(shieldMax, playerStateRaw.shieldCurrent))
+          : fallbackShieldCurrent,
+      shieldMax,
+      shieldRechargeDelayMs,
+      shieldRechargeTimeMs:
+        typeof playerStateRaw.shieldRechargeTimeMs === 'number' && Number.isFinite(playerStateRaw.shieldRechargeTimeMs)
+          ? Math.max(1, playerStateRaw.shieldRechargeTimeMs)
+          : Math.max(1, gameSettings.player.shield.rechargeTimeMs),
+      shieldRechargeDelayRemainingMs:
+        typeof playerStateRaw.shieldRechargeDelayRemainingMs === 'number'
+        && Number.isFinite(playerStateRaw.shieldRechargeDelayRemainingMs)
+          ? Math.max(0, Math.min(shieldRechargeDelayMs, playerStateRaw.shieldRechargeDelayRemainingMs))
+          : 0
     }
   };
 }
