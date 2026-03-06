@@ -166,6 +166,18 @@ export function App() {
           onRestart={restartRun}
           hasSavedRun={Boolean(saveFile.activeRun)}
         />
+        {snapshot.state === GameState.Paused && (
+          <div
+            role="dialog"
+            aria-label="pause-screen"
+            aria-modal="true"
+            style={{
+              position: 'fixed',
+              inset: 0,
+              pointerEvents: 'none'
+            }}
+          />
+        )}
       </div>
     </main>
   );
