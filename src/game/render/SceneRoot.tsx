@@ -1,5 +1,5 @@
 import { useFrame, useThree } from '@react-three/fiber';
-import { Line, Stats } from '@react-three/drei';
+import { Stats } from '@react-three/drei';
 import { EntityType, Faction } from '../ecs/entityTypes';
 import { GameLoop } from '../core/GameLoop';
 import { useEffect, useMemo } from 'react';
@@ -19,18 +19,16 @@ import { Hud3D } from './Hud3D';
 import { centeredBoundsFromSize } from '../core/playfieldBounds';
 import { Bloom, EffectComposer } from '@react-three/postprocessing';
 import type { PlayerWeaponMode } from '../weapons/playerWeapons';
-import { movementControllerRegistry } from '../movement/controllers';
-import { resolveEnemyArchetype } from '../content/enemyArchetypes';
 import type { CardDefinition } from '../content/cards';
 import { BetweenRoundsUi3D } from './ui/BetweenRoundsUi3D';
 import { StartScreen3D } from './ui/StartScreen3D';
+import { PauseScreen3D } from './ui/PauseScreen3D';
+import { GameOverScreen3D } from './ui/GameOverScreen3D';
 
 interface SceneRootProps {
   game: Game;
   pointer: PointerController;
   snapshot: GameSnapshot;
-  debugMode: boolean;
-  showEnemyPatterns: boolean;
   foundCards: CardDefinition[];
   activeCards: CardDefinition[];
   shopCards: CardDefinition[];
@@ -43,6 +41,8 @@ interface SceneRootProps {
   onContinue: () => void;
   onStart: () => void;
   onStartFresh?: () => void;
+  onResume: () => void;
+  onRestart: () => void;
   hasSavedRun: boolean;
 }
 
@@ -54,8 +54,6 @@ export function SceneRoot({
   game,
   pointer,
   snapshot,
-  debugMode,
-  showEnemyPatterns,
   foundCards,
   activeCards,
   shopCards,
@@ -68,6 +66,8 @@ export function SceneRoot({
   onContinue,
   onStart,
   onStartFresh,
+  onResume,
+  onRestart,
   hasSavedRun
 }: SceneRootProps) {
   const loop = useMemo(() => new GameLoop(), []);
@@ -95,23 +95,6 @@ export function SceneRoot({
   useFrame(({ clock }, deltaSeconds) => {
     game.reportFrameDelta(deltaSeconds);
 
-    if (debugMode) {
-      loop.frame(clock.elapsedTime * 1000, (dt) => {
-        game.update(
-          dt,
-          {
-            hasPosition: false,
-            x: 0,
-            y: 0,
-            leftButtonDown: false,
-            rightButtonDown: false
-          },
-          { runGameplay: false, runDebug: true }
-        );
-      });
-      return;
-    }
-
     const playViewport = viewport.getCurrentViewport(camera, [0, 0, 0]);
     const bounds = centeredBoundsFromSize(playViewport.width, playViewport.height);
     pointer.setWorldBounds(bounds);
@@ -128,177 +111,104 @@ export function SceneRoot({
   const playerEntity = renderEntities.find((entity) => entity.type === EntityType.Player);
   const playerX = playerEntity?.x ?? 0;
   const particleScale = size.width <= PARTICLE_MOBILE_BREAKPOINT_PX ? MOBILE_PARTICLE_SCALE : 1;
-  const patternCandidates = showEnemyPatterns
-    ? nonParticleEntities.filter((entity) => entity.type === EntityType.Enemy).slice(0, 120)
-    : [];
 
   return (
     <>
-      {debugMode ? (
-        <>
-          <color attach="background" args={['#020611']} />
-          <ambientLight intensity={0.65} />
-          <directionalLight intensity={0.9} position={[2.5, 4, 6]} />
-          <gridHelper args={[24, 24, '#2b4d7a', '#13233d']} position={[0, 0, -0.02]} />
-          <GpuParticleSystem game={game} maxParticles={8000} particleScale={particleScale} />
-        </>
+      <CameraRig />
+      <ambientLight intensity={0.75} />
+      <directionalLight intensity={1.1} position={[3, 8, 8]} />
+      <Stats showPanel={0} className="fps-stats" />
+      <Hud3D snapshot={snapshot} />
+      <StartScreen3D state={snapshot.state} hasSavedRun={hasSavedRun} onStart={onStart} onStartFresh={onStartFresh} />
+      <PauseScreen3D state={snapshot.state} onResume={onResume} />
+      <GameOverScreen3D state={snapshot.state} onRestart={onRestart} />
+      <BetweenRoundsUi3D
+        state={snapshot.state}
+        levelId={snapshot.levelId}
+        roundIndex={snapshot.roundIndex}
+        totalRounds={snapshot.totalRounds}
+        activeCardLimit={snapshot.activeCardLimit}
+        money={snapshot.inRunMoney}
+        weaponLevels={snapshot.weaponLevels}
+        weaponEnergyMax={snapshot.weaponEnergyMax}
+        podCount={snapshot.podCount}
+        podWeaponMode={snapshot.podWeaponMode}
+        foundCards={foundCards}
+        activeCards={activeCards}
+        shopCards={shopCards}
+        onActivateCard={onActivateCard}
+        onDiscardCard={onDiscardCard}
+        onDiscardActiveCard={onDiscardActiveCard}
+        onOpenShop={onOpenShop}
+        onCloseShop={onCloseShop}
+        onBuyCard={onBuyCard}
+        onContinue={onContinue}
+      />
+      <ParallaxBackground
+        width={backgroundViewport.width}
+        height={backgroundViewport.height}
+        playerX={playerX}
+        scrollDistance={snapshot.distanceTraveled}
+      />
+      {nonParticleEntities.map((entity) => {
+        const position: [number, number, number] = [entity.x, entity.y, 0];
+
+        if (entity.type === EntityType.Player) {
+          return (
+            <group key={entity.id} position={position}>
+              <PlayerMesh />
+            </group>
+          );
+        }
+
+        if (entity.type === EntityType.Enemy) {
+          const healthRatio = entity.maxHealth > 0 ? entity.health / entity.maxHealth : 1;
+          return (
+            <group key={entity.id} position={position}>
+              <EnemyMesh archetype={entity.enemyArchetype} healthRatio={healthRatio} ageMs={entity.ageMs} />
+            </group>
+          );
+        }
+
+        if (entity.type === EntityType.Pod) {
+          return (
+            <group key={entity.id} position={position}>
+              <PodMesh />
+            </group>
+          );
+        }
+
+        if (entity.type === EntityType.Pickup) {
+          return (
+            <group key={entity.id} position={position}>
+              <PickupMesh kind={entity.pickupKind ?? 'score'} weaponMode={entity.pickupWeaponMode as PlayerWeaponMode | undefined} />
+            </group>
+          );
+        }
+
+        return (
+          <group key={entity.id} position={position}>
+            <BulletMesh
+              enemy={entity.faction === Faction.Enemy}
+              projectileKind={entity.projectileKind}
+              projectileSpeed={entity.projectileSpeed}
+              radius={entity.radius}
+              vx={entity.vx}
+              vy={entity.vy}
+            />
+          </group>
+        );
+      })}
+      {USE_GPU_PARTICLES ? (
+        <GpuParticleSystem game={game} particleScale={particleScale} />
       ) : (
-        <>
-          <CameraRig />
-          <ambientLight intensity={0.75} />
-          <directionalLight intensity={1.1} position={[3, 8, 8]} />
-          <Stats showPanel={0} className="fps-stats" />
-          <Hud3D snapshot={snapshot} />
-          <StartScreen3D state={snapshot.state} hasSavedRun={hasSavedRun} onStart={onStart} onStartFresh={onStartFresh} />
-          <BetweenRoundsUi3D
-            state={snapshot.state}
-            levelId={snapshot.levelId}
-            roundIndex={snapshot.roundIndex}
-            totalRounds={snapshot.totalRounds}
-            activeCardLimit={snapshot.activeCardLimit}
-            money={snapshot.inRunMoney}
-            weaponLevels={snapshot.weaponLevels}
-            weaponEnergyMax={snapshot.weaponEnergyMax}
-            podCount={snapshot.podCount}
-            podWeaponMode={snapshot.podWeaponMode}
-            foundCards={foundCards}
-            activeCards={activeCards}
-            shopCards={shopCards}
-            onActivateCard={onActivateCard}
-            onDiscardCard={onDiscardCard}
-            onDiscardActiveCard={onDiscardActiveCard}
-            onOpenShop={onOpenShop}
-            onCloseShop={onCloseShop}
-            onBuyCard={onBuyCard}
-            onContinue={onContinue}
-          />
-          <ParallaxBackground
-            width={backgroundViewport.width}
-            height={backgroundViewport.height}
-            playerX={playerX}
-            scrollDistance={snapshot.distanceTraveled}
-          />
-          {nonParticleEntities.map((entity) => {
-            const position: [number, number, number] = [entity.x, entity.y, 0];
-
-            if (entity.type === EntityType.Player) {
-              return (
-                <group key={entity.id} position={position}>
-                  <PlayerMesh />
-                </group>
-              );
-            }
-
-            if (entity.type === EntityType.Enemy) {
-              const healthRatio = entity.maxHealth > 0 ? entity.health / entity.maxHealth : 1;
-              return (
-                <group key={entity.id} position={position}>
-                  <EnemyMesh archetype={entity.enemyArchetype} healthRatio={healthRatio} ageMs={entity.ageMs} />
-                </group>
-              );
-            }
-
-            if (entity.type === EntityType.Pod) {
-              return (
-                <group key={entity.id} position={position}>
-                  <PodMesh />
-                </group>
-              );
-            }
-
-            if (entity.type === EntityType.Pickup) {
-              return (
-                <group key={entity.id} position={position}>
-                  <PickupMesh kind={entity.pickupKind ?? 'score'} weaponMode={entity.pickupWeaponMode as PlayerWeaponMode | undefined} />
-                </group>
-              );
-            }
-
-            return (
-              <group key={entity.id} position={position}>
-                <BulletMesh
-                  enemy={entity.faction === Faction.Enemy}
-                  projectileKind={entity.projectileKind}
-                  projectileSpeed={entity.projectileSpeed}
-                  radius={entity.radius}
-                  vx={entity.vx}
-                  vy={entity.vy}
-                />
-              </group>
-            );
-          })}
-          {showEnemyPatterns
-            && patternCandidates.map((enemy) => {
-              const points = buildEnemyPatternPreviewPoints(enemy);
-              if (points.length < 2) {
-                return null;
-              }
-              const archetype = resolveEnemyArchetype(enemy.enemyArchetype);
-              return (
-                <Line
-                  key={`pattern-${enemy.id}`}
-                  points={points}
-                  color={archetype.accentColor}
-                  lineWidth={1}
-                  transparent
-                  opacity={0.6}
-                  depthWrite={false}
-                  toneMapped={false}
-                />
-              );
-            })}
-          {USE_GPU_PARTICLES ? (
-            <GpuParticleSystem game={game} particleScale={particleScale} />
-          ) : (
-            <ParticleInstances particles={particles} particleScale={particleScale} />
-          )}
-          {canUsePostProcessing && (
-            <EffectComposer multisampling={4}>
-              <Bloom intensity={0.7} luminanceThreshold={0.15} luminanceSmoothing={0.4} />
-            </EffectComposer>
-          )}
-        </>
+        <ParticleInstances particles={particles} particleScale={particleScale} />
+      )}
+      {canUsePostProcessing && (
+        <EffectComposer multisampling={4}>
+          <Bloom intensity={0.7} luminanceThreshold={0.15} luminanceSmoothing={0.4} />
+        </EffectComposer>
       )}
     </>
   );
-}
-
-function buildEnemyPatternPreviewPoints(enemy: ReturnType<Game['entitiesForRender']>[number]): [number, number, number][] {
-  if (enemy.type !== EntityType.Enemy) {
-    return [];
-  }
-
-  const pattern = enemy.movementPattern;
-  const controller = movementControllerRegistry.resolve(pattern);
-  const ageSeconds = Math.max(0, (enemy.ageMs ?? 0) / 1000);
-  const baseX = enemy.spawnX ?? enemy.x;
-  const baseY = enemy.spawnY ?? enemy.y;
-  const amplitude = enemy.patternAmplitude ?? 0;
-  const frequency = enemy.patternFrequency ?? 1;
-  const vx = enemy.vx ?? 0;
-  const vy = enemy.vy ?? 0;
-  const sampleCount = 28;
-  const horizonSeconds = 4.5;
-  const step = horizonSeconds / sampleCount;
-  const points: [number, number, number][] = [];
-
-  for (let index = 0; index <= sampleCount; index += 1) {
-    const t = ageSeconds + index * step;
-    const driftX = baseX + vx * t;
-    const driftY = baseY + vy * t;
-    const controlled = controller({
-      ageSeconds: t,
-      baseX,
-      baseY,
-      driftX,
-      driftY,
-      amplitude,
-      frequency,
-      params: enemy.movementParams
-    });
-    const point = controlled ?? { x: driftX, y: driftY };
-    points.push([point.x, point.y, 0.02]);
-  }
-
-  return points;
 }

@@ -9,8 +9,6 @@ import type { CardDefinition } from '../content/cards';
 interface GameCanvasProps {
   game: Game;
   snapshot: GameSnapshot;
-  debugMode: boolean;
-  showEnemyPatterns: boolean;
   foundCards: CardDefinition[];
   activeCards: CardDefinition[];
   shopCards: CardDefinition[];
@@ -23,14 +21,14 @@ interface GameCanvasProps {
   onContinue: () => void;
   onStart: () => void;
   onStartFresh?: () => void;
+  onResume: () => void;
+  onRestart: () => void;
   hasSavedRun: boolean;
 }
 
 export function GameCanvas({
   game,
   snapshot,
-  debugMode,
-  showEnemyPatterns,
   foundCards,
   activeCards,
   shopCards,
@@ -43,18 +41,20 @@ export function GameCanvas({
   onContinue,
   onStart,
   onStartFresh,
+  onResume,
+  onRestart,
   hasSavedRun
 }: GameCanvasProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const pointer = useMemo(() => new PointerController(), []);
 
   useEffect(() => {
-    if (!wrapperRef.current || debugMode) {
+    if (!wrapperRef.current) {
       return;
     }
 
     return pointer.attach(wrapperRef.current);
-  }, [debugMode, pointer]);
+  }, [pointer]);
 
   return (
     <div ref={wrapperRef} style={{ width: '100%', height: '100%', touchAction: 'none' }}>
@@ -63,8 +63,6 @@ export function GameCanvas({
           game={game}
           pointer={pointer}
           snapshot={snapshot}
-          debugMode={debugMode}
-          showEnemyPatterns={showEnemyPatterns}
           foundCards={foundCards}
           activeCards={activeCards}
           shopCards={shopCards}
@@ -77,6 +75,8 @@ export function GameCanvas({
           onContinue={onContinue}
           onStart={onStart}
           onStartFresh={onStartFresh}
+          onResume={onResume}
+          onRestart={onRestart}
           hasSavedRun={hasSavedRun}
         />
       </Canvas>

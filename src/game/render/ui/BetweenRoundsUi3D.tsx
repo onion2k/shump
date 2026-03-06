@@ -1,6 +1,6 @@
 import { Text } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
-import { useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
+import { useEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import { Box, Flex } from 'react-three-flex';
 import type { Group, Mesh } from 'three';
 import { isConsumableUpgradeCard, type CardDefinition } from '../../content/cards';
@@ -34,6 +34,7 @@ interface BetweenRoundsUi3DProps {
 interface ActionButtonProps {
   label: string;
   width: number;
+  height?: number;
   disabled?: boolean;
   onClick: () => void;
   color?: string;
@@ -98,6 +99,30 @@ interface TabsRowProps {
   onSelectTab: (tabId: string) => void;
 }
 
+interface MobileCarouselTrackProps<T> {
+  items: T[];
+  selectedIndex: number;
+  cardWidth: number;
+  cardHeight: number;
+  trackWidth: number;
+  gap: number;
+  y?: number;
+  renderItem: (item: T, index: number) => ReactNode;
+}
+
+interface FractionColumnSlot {
+  id: string;
+  fraction: number;
+  content: ReactNode;
+}
+
+interface FractionColumnProps {
+  width: number;
+  height: number;
+  slots: FractionColumnSlot[];
+  z?: number;
+}
+
 type CardRenderModel = Pick<CardDefinition, 'id' | 'name' | 'description' | 'rarity' | 'tags'>;
 
 interface BetweenRoundsTab {
@@ -118,14 +143,32 @@ const FOUND_DECK_LIMIT = 12;
 const MIN_MOBILE_TEXT_PX = 16;
 const MOBILE_TEXT_BREAKPOINT_PX = 900;
 const CARD_ASPECT_RATIO = 1.45;
-const ACTIVE_CARD_ASPECT_RATIO = 1.35;
-const DESKTOP_CARD_COLUMNS = 4;
-const BETWEEN_ROUNDS_SECTION_RATIO = {
+const MOBILE_CARD_HEIGHT_RATIO = 1;
+const BETWEEN_ROUNDS_SECTION_RATIO_DESKTOP = {
   title: 0.1,
   tabs: 0.1,
-  content: 0.5,
-  active: 0.2,
+  content: 0.35,
+  active: 0.35,
   action: 0.1
+} as const;
+
+const BETWEEN_ROUNDS_SECTION_RATIO_MOBILE = {
+  title: 0.05,
+  tabs: 0.06,
+  content: 0.395,
+  active: 0.395,
+  action: 0.1
+} as const;
+const CONTENT_LAYOUT_FRACTIONS = {
+  header: 0.14,
+  notice: 0.1,
+  cards: 0.58,
+  footer: 0.18
+} as const;
+const ACTIVE_LAYOUT_FRACTIONS = {
+  header: 0.18,
+  cards: 0.62,
+  footer: 0.2
 } as const;
 
 const TAG_ICON_BY_NAME: Record<string, string> = {
@@ -209,48 +252,51 @@ export function BetweenRoundsUi3D({
   const textScaleBoost = viewport.width < 8.5 ? 1.15 : viewport.width < 11 ? 1.1 : 1;
   const panelWidth = isMobile ? viewport.width * 0.96 : Math.max(6, viewport.width * 0.78);
   const panelHeight = isMobile ? viewport.height * 0.94 : Math.max(4.4, viewport.height * 0.8);
+  const sectionRatio = isMobile ? BETWEEN_ROUNDS_SECTION_RATIO_MOBILE : BETWEEN_ROUNDS_SECTION_RATIO_DESKTOP;
 
   const sidePadding = panelWidth * (isMobile ? 0.07 : 0.06);
   const contentWidth = panelWidth - sidePadding * 2;
   const contentColumns = isMobile ? 2 : 4;
   const contentRows = isMobile ? 2 : 1;
   const cardsPerPage = contentColumns * contentRows;
-  const deckCardsPerPage = isMobile ? 1 : cardsPerPage;
-  const shopCardsPerPage = isMobile ? 1 : cardsPerPage;
+  const deckCardsPerPage = cardsPerPage;
+  const shopCardsPerPage = cardsPerPage;
 
-  const tabArrowWidth = clamp(panelWidth * 0.07, 0.62, 0.92);
+  const tabArrowWidth = clamp(panelWidth * 0.1, 0.62, 0.92);
   const tabGap = clamp(contentWidth * 0.016, 0.1, 0.18);
   const tabTrackWidth = contentWidth - tabArrowWidth * 2 - tabGap * 2;
   const tabButtonWidth = Math.max(0.7, (tabTrackWidth - tabGap * Math.max(0, BETWEEN_ROUND_TABS.length - 1)) / Math.max(1, BETWEEN_ROUND_TABS.length));
-  const startButtonWidth = Math.min(contentWidth * 0.52, 3.6);
-  const titleSectionHeight = panelHeight * BETWEEN_ROUNDS_SECTION_RATIO.title;
-  const tabSectionHeight = panelHeight * BETWEEN_ROUNDS_SECTION_RATIO.tabs;
-  const contentSectionHeight = panelHeight * BETWEEN_ROUNDS_SECTION_RATIO.content;
-  const activeSectionHeight = panelHeight * BETWEEN_ROUNDS_SECTION_RATIO.active;
-  const startSectionHeight = panelHeight * BETWEEN_ROUNDS_SECTION_RATIO.action;
+  const startButtonWidth = Math.min(contentWidth, 7);
+  const titleSectionHeight = panelHeight * sectionRatio.title;
+  const tabSectionHeight = panelHeight * sectionRatio.tabs;
+  const contentSectionHeight = panelHeight * sectionRatio.content;
+  const activeSectionHeight = panelHeight * sectionRatio.active;
+  const startSectionHeight = panelHeight * sectionRatio.action;
 
-  const contentAreaHeight = contentSectionHeight * (isMobile ? 0.8 : 0.78);
+  const contentAreaHeight = contentSectionHeight * CONTENT_LAYOUT_FRACTIONS.cards;
+  const contentFooterHeight = contentSectionHeight * CONTENT_LAYOUT_FRACTIONS.footer;
   const contentGapX = contentColumns > 1 ? contentWidth * (isMobile ? 0.045 : 0.028) : 0;
   const contentGapY = contentRows > 1 ? contentAreaHeight * 0.075 : 0;
   const contentCardWidthFromWidth = (contentWidth - contentGapX * (contentColumns - 1)) / contentColumns;
   const contentCardHeightFromHeight = (contentAreaHeight - contentGapY * (contentRows - 1)) / contentRows;
   const contentCardHeight = Math.min(contentCardWidthFromWidth * CARD_ASPECT_RATIO, contentCardHeightFromHeight);
   const contentCardWidth = contentCardHeight / CARD_ASPECT_RATIO;
-  const desktopReferenceGapX = contentWidth * 0.028;
-  const desktopReferenceWidthFromWidth = (contentWidth - desktopReferenceGapX * (DESKTOP_CARD_COLUMNS - 1)) / DESKTOP_CARD_COLUMNS;
-  const desktopReferenceHeightFromHeight = panelHeight * 0.24;
-  const desktopReferenceCardHeight = Math.min(desktopReferenceWidthFromWidth * CARD_ASPECT_RATIO, desktopReferenceHeightFromHeight);
-  const desktopReferenceCardWidth = desktopReferenceCardHeight / CARD_ASPECT_RATIO;
+  const mobileContentCarouselCardHeight = Math.min(contentAreaHeight * MOBILE_CARD_HEIGHT_RATIO, contentWidth * CARD_ASPECT_RATIO);
+  const mobileContentCarouselCardWidth = mobileContentCarouselCardHeight / CARD_ASPECT_RATIO;
+  const mobileContentCarouselGap = mobileContentCarouselCardWidth * 0.1;
 
-  const activeAreaHeight = activeSectionHeight * (isMobile ? 0.8 : 0.78);
+  const activeAreaHeight = activeSectionHeight * ACTIVE_LAYOUT_FRACTIONS.cards;
   const activeGapX = contentColumns > 1 ? contentWidth * (isMobile ? 0.05 : 0.03) : 0;
   const activeGapY = contentRows > 1 ? activeAreaHeight * 0.1 : 0;
   const activeCardWidthFromWidth = (contentWidth - activeGapX * (contentColumns - 1)) / contentColumns;
   const activeCardHeightFromHeight = (activeAreaHeight - activeGapY * (contentRows - 1)) / contentRows;
-  const activeCardHeight = Math.min(activeCardWidthFromWidth * ACTIVE_CARD_ASPECT_RATIO, activeCardHeightFromHeight);
-  const activeCardWidth = activeCardHeight / ACTIVE_CARD_ASPECT_RATIO;
-  const activeCarouselCardHeight = isMobile ? desktopReferenceCardHeight : activeCardHeight;
-  const activeCarouselCardWidth = isMobile ? desktopReferenceCardWidth : activeCardWidth;
+  const activeCardHeight = Math.min(activeCardWidthFromWidth * CARD_ASPECT_RATIO, activeCardHeightFromHeight);
+  const activeCardWidth = activeCardHeight / CARD_ASPECT_RATIO;
+  const mobileActiveCarouselCardHeight = Math.min(activeAreaHeight * MOBILE_CARD_HEIGHT_RATIO, contentWidth * CARD_ASPECT_RATIO);
+  const mobileActiveCarouselCardWidth = mobileActiveCarouselCardHeight / CARD_ASPECT_RATIO;
+  const mobileActiveCarouselGap = mobileActiveCarouselCardWidth * 0.1;
+  const activeCarouselCardHeight = isMobile ? mobileActiveCarouselCardHeight : activeCardHeight;
+  const activeCarouselCardWidth = isMobile ? mobileActiveCarouselCardWidth : activeCardWidth;
 
   const foundDeckFull = foundCards.length >= FOUND_DECK_LIMIT;
 
@@ -294,8 +340,8 @@ export function BetweenRoundsUi3D({
     }
   }, [activeTab, foundDeckFull, onCloseShop, onOpenShop, state]);
 
-  const deckPageCount = Math.max(1, Math.ceil(foundCards.length / deckCardsPerPage));
-  const shopPageCount = Math.max(1, Math.ceil(shopCards.length / shopCardsPerPage));
+  const deckPageCount = isMobile ? Math.max(1, foundCards.length) : Math.max(1, Math.ceil(foundCards.length / deckCardsPerPage));
+  const shopPageCount = isMobile ? Math.max(1, shopCards.length) : Math.max(1, Math.ceil(shopCards.length / shopCardsPerPage));
   const activePageCount = Math.max(1, activeCards.length);
   const shipCards: CardRenderModel[] = useMemo(
     () =>
@@ -324,11 +370,12 @@ export function BetweenRoundsUi3D({
     setShipPage((value) => Math.min(value, shipPageCount - 1));
   }, [shipPageCount]);
 
-  const visibleDeckCards = foundCards.slice(deckPage * deckCardsPerPage, deckPage * deckCardsPerPage + deckCardsPerPage);
-  const visibleShopCards = shopCards.slice(shopPage * shopCardsPerPage, shopPage * shopCardsPerPage + shopCardsPerPage);
-  const activeCarouselCard = activeCards[activePage];
-  const shipCarouselCard = shipCards[shipPage];
-
+  const visibleDeckCards = isMobile
+    ? foundCards
+    : foundCards.slice(deckPage * deckCardsPerPage, deckPage * deckCardsPerPage + deckCardsPerPage);
+  const visibleShopCards = isMobile
+    ? shopCards
+    : shopCards.slice(shopPage * shopCardsPerPage, shopPage * shopCardsPerPage + shopCardsPerPage);
   const nextRoundInfo = resolveNextRoundDisplay(levelId, roundIndex, totalRounds);
 
   const cycleTab = (direction: -1 | 1) => {
@@ -350,6 +397,7 @@ export function BetweenRoundsUi3D({
       <PanelFrame width={panelWidth} height={panelHeight} />
       <Flex size={[panelWidth, panelHeight, 0]} position={[-panelWidth / 2, panelHeight / 2, 0.03]} flexDirection="column">
         <Box width={panelWidth} height={titleSectionHeight} centerAnchor>
+          <SectionBackground width={panelWidth} height={titleSectionHeight} color="#3b5bdb" />
           <group>
             <UiText position={[0, 0, 0.03]} fontSize={0.36 * scale * textScaleBoost} color="#eaf5ff" anchorX="center" anchorY="middle">
               {`Next: Level ${nextRoundInfo.level} • Round ${nextRoundInfo.round}`}
@@ -367,6 +415,7 @@ export function BetweenRoundsUi3D({
         </Box>
 
         <Box width={panelWidth} height={tabSectionHeight} centerAnchor>
+          <SectionBackground width={panelWidth} height={tabSectionHeight} color="#0ca678" />
           <TabsRow
             tabs={BETWEEN_ROUND_TABS}
             contentWidth={contentWidth}
@@ -381,165 +430,319 @@ export function BetweenRoundsUi3D({
         </Box>
 
         <Box width={panelWidth} height={contentSectionHeight} centerAnchor>
+          <SectionBackground width={panelWidth} height={contentSectionHeight} color="#e67700" />
           <group>
             {activeTab.screen === 'shop' && (
-              <>
-                <UiText position={[0, contentAreaHeight * 0.43, 0.04]} fontSize={0.18 * textScaleBoost} color="#b8d9ff" anchorX="center" anchorY="middle">
-                  Buy cards for the next round
-                </UiText>
-                {foundDeckFull && (
-                  <UiText position={[0, contentAreaHeight * 0.34, 0.04]} fontSize={0.15 * textScaleBoost} color="#ffbe9a" anchorX="center" anchorY="middle">
-                    Deck is full. Discard cards before buying.
-                  </UiText>
-                )}
-                {visibleShopCards.length === 0 ? (
-                  <UiText position={[0, 0, 0.04]} fontSize={0.24 * textScaleBoost} color="#d8ebff" anchorX="center" anchorY="middle">
-                    No shop offers.
-                  </UiText>
-                ) : (
-                  <group position={[0, isMobile ? contentAreaHeight * 0.08 : 0, 0]}>
-                    <CardGrid
-                      cards={visibleShopCards}
-                      columns={isMobile ? 1 : contentColumns}
-                      rows={isMobile ? 1 : contentRows}
-                      cardWidth={isMobile ? desktopReferenceCardWidth : contentCardWidth}
-                      cardHeight={isMobile ? desktopReferenceCardHeight : contentCardHeight}
-                      gapX={contentGapX}
-                      gapY={contentGapY}
-                      money={money}
-                      activeCards={activeCards}
-                      activeCardLimit={activeCardLimit}
-                      shopMode
-                      shopBlocked={foundDeckFull}
-                      textScale={textScaleBoost}
-                      onActivateCard={onActivateCard}
-                      onDiscardCard={onDiscardCard}
-                      onBuyCard={onBuyCard}
-                    />
-                  </group>
-                )}
-                {(isMobile || shopPageCount > 1) && (
-                  <PageControls
-                    page={shopPage}
-                    pageCount={shopPageCount}
-                    width={Math.min(contentWidth * 0.46, 3.2)}
-                    y={isMobile ? -contentAreaHeight * 0.46 : -contentAreaHeight * 0.66}
-                    textScale={textScaleBoost}
-                    onPrev={() => setShopPage((value) => (value - 1 + shopPageCount) % shopPageCount)}
-                    onNext={() => setShopPage((value) => (value + 1) % shopPageCount)}
-                  />
-                )}
-              </>
+              <FractionColumn
+                width={contentWidth}
+                height={contentSectionHeight}
+                slots={[
+                  {
+                    id: 'shop-header',
+                    fraction: CONTENT_LAYOUT_FRACTIONS.header,
+                    content: (
+                      <UiText position={[0, 0, 0.04]} fontSize={0.2 * textScaleBoost} color="#b8d9ff" anchorX="center" anchorY="middle">
+                        Buy cards for the next round
+                      </UiText>
+                    )
+                  },
+                  {
+                    id: 'shop-notice',
+                    fraction: CONTENT_LAYOUT_FRACTIONS.notice,
+                    content: foundDeckFull ? (
+                      <UiText position={[0, 0, 0.04]} fontSize={0.17 * textScaleBoost} color="#ffbe9a" anchorX="center" anchorY="middle">
+                        Deck is full. Discard cards before buying.
+                      </UiText>
+                    ) : null
+                  },
+                  {
+                    id: 'shop-cards',
+                    fraction: CONTENT_LAYOUT_FRACTIONS.cards,
+                    content:
+                      visibleShopCards.length === 0 ? (
+                        <UiText position={[0, 0, 0.04]} fontSize={0.24 * textScaleBoost} color="#d8ebff" anchorX="center" anchorY="middle">
+                          No shop offers.
+                        </UiText>
+                      ) : isMobile ? (
+                        <MobileCarouselTrack
+                          items={visibleShopCards}
+                          selectedIndex={shopPage}
+                          cardWidth={mobileContentCarouselCardWidth}
+                          cardHeight={mobileContentCarouselCardHeight}
+                          trackWidth={contentWidth}
+                          gap={mobileContentCarouselGap}
+                          renderItem={(card) => (
+                            <InteractiveCard
+                              card={card}
+                              width={mobileContentCarouselCardWidth}
+                              height={mobileContentCarouselCardHeight}
+                              money={money}
+                              activeCards={activeCards}
+                              activeCardLimit={activeCardLimit}
+                              shopMode
+                              shopBlocked={foundDeckFull}
+                              textScale={textScaleBoost}
+                              onActivateCard={onActivateCard}
+                              onDiscardCard={onDiscardCard}
+                              onBuyCard={onBuyCard}
+                            />
+                          )}
+                        />
+                      ) : (
+                        <CardGrid
+                          cards={visibleShopCards}
+                          columns={contentColumns}
+                          rows={contentRows}
+                          cardWidth={contentCardWidth}
+                          cardHeight={contentCardHeight}
+                          gapX={contentGapX}
+                          gapY={contentGapY}
+                          money={money}
+                          activeCards={activeCards}
+                          activeCardLimit={activeCardLimit}
+                          shopMode
+                          shopBlocked={foundDeckFull}
+                          textScale={textScaleBoost}
+                          onActivateCard={onActivateCard}
+                          onDiscardCard={onDiscardCard}
+                          onBuyCard={onBuyCard}
+                        />
+                      )
+                  },
+                  {
+                    id: 'shop-footer',
+                    fraction: CONTENT_LAYOUT_FRACTIONS.footer,
+                    content:
+                      isMobile || shopPageCount > 1 ? (
+                        <PageControls
+                          page={shopPage}
+                          pageCount={shopPageCount}
+                          width={Math.min(contentWidth * 0.46, 3.2)}
+                          y={0}
+                          textScale={textScaleBoost}
+                          onPrev={() => setShopPage((value) => (value - 1 + shopPageCount) % shopPageCount)}
+                          onNext={() => setShopPage((value) => (value + 1) % shopPageCount)}
+                        />
+                      ) : null
+                  }
+                ]}
+              />
             )}
 
             {activeTab.screen === 'deck' && (
-              <>
-                <UiText position={[0, contentAreaHeight * 0.43, 0.04]} fontSize={0.18 * textScaleBoost} color="#b8d9ff" anchorX="center" anchorY="middle">
-                  Manage found cards: activate, use, or discard
-                </UiText>
-                {visibleDeckCards.length === 0 ? (
-                  <UiText position={[0, 0, 0.04]} fontSize={0.24 * textScaleBoost} color="#d8ebff" anchorX="center" anchorY="middle">
-                    No cards found this round.
-                  </UiText>
-                ) : (
-                  <group position={[0, isMobile ? contentAreaHeight * 0.16 : 0, 0]}>
-                    <CardGrid
-                      cards={visibleDeckCards}
-                      columns={isMobile ? 1 : contentColumns}
-                      rows={isMobile ? 1 : contentRows}
-                      cardWidth={isMobile ? desktopReferenceCardWidth : contentCardWidth}
-                      cardHeight={isMobile ? desktopReferenceCardHeight : contentCardHeight}
-                      gapX={contentGapX}
-                      gapY={contentGapY}
-                      money={money}
-                      activeCards={activeCards}
-                      activeCardLimit={activeCardLimit}
-                      shopMode={false}
-                      textScale={textScaleBoost}
-                      onActivateCard={onActivateCard}
-                      onDiscardCard={onDiscardCard}
-                      onBuyCard={onBuyCard}
-                    />
-                  </group>
-                )}
-                {(isMobile || deckPageCount > 1) && (
-                  <PageControls
-                    page={deckPage}
-                    pageCount={deckPageCount}
-                    width={Math.min(contentWidth * 0.46, 3.2)}
-                    y={isMobile ? -contentAreaHeight * 0.46 : -contentAreaHeight * 0.66}
-                    textScale={textScaleBoost}
-                    onPrev={() => setDeckPage((value) => (value - 1 + deckPageCount) % deckPageCount)}
-                    onNext={() => setDeckPage((value) => (value + 1) % deckPageCount)}
-                  />
-                )}
-                {!isMobile && (
-                  <UiText
-                    position={[0, -contentAreaHeight * 0.52, 0.04]}
-                    fontSize={0.14 * textScaleBoost}
-                    lineHeight={1.25}
-                    color="#9ec9ff"
-                    anchorX="center"
-                    anchorY="middle"
-                    maxWidth={contentWidth}
-                  >
-                    {`Synergies: ${renderTagSummary(activeCards)}`}
-                  </UiText>
-                )}
-              </>
+              <FractionColumn
+                width={contentWidth}
+                height={contentSectionHeight}
+                slots={[
+                  {
+                    id: 'deck-header',
+                    fraction: CONTENT_LAYOUT_FRACTIONS.header,
+                    content: (
+                      <UiText position={[0, 0, 0.04]} fontSize={0.18 * textScaleBoost} color="#b8d9ff" anchorX="center" anchorY="middle">
+                        Manage found cards: activate, use, or discard
+                      </UiText>
+                    )
+                  },
+                  {
+                    id: 'deck-notice',
+                    fraction: CONTENT_LAYOUT_FRACTIONS.notice,
+                    content: null
+                  },
+                  {
+                    id: 'deck-cards',
+                    fraction: CONTENT_LAYOUT_FRACTIONS.cards,
+                    content:
+                      visibleDeckCards.length === 0 ? (
+                        <UiText position={[0, 0, 0.04]} fontSize={0.24 * textScaleBoost} color="#d8ebff" anchorX="center" anchorY="middle">
+                          No cards found this round.
+                        </UiText>
+                      ) : isMobile ? (
+                        <MobileCarouselTrack
+                          items={visibleDeckCards}
+                          selectedIndex={deckPage}
+                          cardWidth={mobileContentCarouselCardWidth}
+                          cardHeight={mobileContentCarouselCardHeight}
+                          trackWidth={contentWidth}
+                          gap={mobileContentCarouselGap}
+                          renderItem={(card) => (
+                            <InteractiveCard
+                              card={card}
+                              width={mobileContentCarouselCardWidth}
+                              height={mobileContentCarouselCardHeight}
+                              money={money}
+                              activeCards={activeCards}
+                              activeCardLimit={activeCardLimit}
+                              shopMode={false}
+                              textScale={textScaleBoost}
+                              onActivateCard={onActivateCard}
+                              onDiscardCard={onDiscardCard}
+                              onBuyCard={onBuyCard}
+                            />
+                          )}
+                        />
+                      ) : (
+                        <CardGrid
+                          cards={visibleDeckCards}
+                          columns={contentColumns}
+                          rows={contentRows}
+                          cardWidth={contentCardWidth}
+                          cardHeight={contentCardHeight}
+                          gapX={contentGapX}
+                          gapY={contentGapY}
+                          money={money}
+                          activeCards={activeCards}
+                          activeCardLimit={activeCardLimit}
+                          shopMode={false}
+                          textScale={textScaleBoost}
+                          onActivateCard={onActivateCard}
+                          onDiscardCard={onDiscardCard}
+                          onBuyCard={onBuyCard}
+                        />
+                      )
+                  },
+                  {
+                    id: 'deck-footer',
+                    fraction: CONTENT_LAYOUT_FRACTIONS.footer,
+                    content: (
+                      <FractionColumn
+                        width={contentWidth}
+                        height={contentFooterHeight}
+                        slots={[
+                          {
+                            id: 'deck-footer-controls',
+                            fraction: isMobile || deckPageCount > 1 ? 0.62 : 0,
+                            content:
+                              isMobile || deckPageCount > 1 ? (
+                                <PageControls
+                                  page={deckPage}
+                                  pageCount={deckPageCount}
+                                  width={Math.min(contentWidth * 0.46, 3.2)}
+                                  y={0}
+                                  textScale={textScaleBoost}
+                                  onPrev={() => setDeckPage((value) => (value - 1 + deckPageCount) % deckPageCount)}
+                                  onNext={() => setDeckPage((value) => (value + 1) % deckPageCount)}
+                                />
+                              ) : null
+                          },
+                          {
+                            id: 'deck-footer-synergy',
+                            fraction: !isMobile ? 0.38 : 0,
+                            content: !isMobile ? (
+                              <UiText
+                                position={[0, 0, 0.04]}
+                                fontSize={0.14 * textScaleBoost}
+                                lineHeight={1.25}
+                                color="#9ec9ff"
+                                anchorX="center"
+                                anchorY="middle"
+                                maxWidth={contentWidth}
+                              >
+                                {`Synergies: ${renderTagSummary(activeCards)}`}
+                              </UiText>
+                            ) : null
+                          }
+                        ]}
+                      />
+                    )
+                  }
+                ]}
+              />
             )}
 
             {activeTab.screen === 'ship' && (
-              isMobile ? (
-                <>
-                  <UiText position={[0, contentAreaHeight * 0.43, 0.04]} fontSize={0.18 * textScaleBoost} color="#b8d9ff" anchorX="center" anchorY="middle">
-                    Ship and weapon systems
-                  </UiText>
-                  {shipCarouselCard && (
-                    <group position={[0, contentAreaHeight * 0.18, 0.03]}>
-                      <CardFrame card={shipCarouselCard} width={desktopReferenceCardWidth} height={desktopReferenceCardHeight} textScale={textScaleBoost} />
-                    </group>
-                  )}
-                  <UiText
-                    position={[0, -contentAreaHeight * 0.38, 0.04]}
-                    fontSize={0.14 * textScaleBoost}
-                    lineHeight={1.24}
-                    color="#9ec9ff"
-                    anchorX="center"
-                    anchorY="middle"
-                    maxWidth={contentWidth}
-                  >
-                    {`Max Energy ${Math.round(weaponEnergyMax)}  •  Pods ${podCount}  •  Pod Weapon ${podWeaponMode}`}
-                  </UiText>
-                  {(isMobile || shipPageCount > 1) && (
-                    <PageControls
-                      page={shipPage}
-                      pageCount={shipPageCount}
-                      width={Math.min(contentWidth * 0.46, 3.2)}
-                      y={-contentAreaHeight * 0.52}
-                      textScale={textScaleBoost}
-                      onPrev={() => setShipPage((value) => (value - 1 + shipPageCount) % shipPageCount)}
-                      onNext={() => setShipPage((value) => (value + 1) % shipPageCount)}
-                    />
-                  )}
-                </>
-              ) : (
-                <ShipStatsPanel
-                  cardWidth={contentCardWidth}
-                  cardHeight={contentCardHeight}
-                  columns={contentColumns}
-                  rows={contentRows}
-                  gapX={contentGapX}
-                  gapY={contentGapY}
-                  weaponLevels={weaponLevels}
-                  weaponEnergyMax={weaponEnergyMax}
-                  podCount={podCount}
-                  podWeaponMode={podWeaponMode}
-                  textScale={textScaleBoost}
-                  contentWidth={contentWidth}
-                  contentAreaHeight={contentAreaHeight}
-                />
-              )
+              <FractionColumn
+                width={contentWidth}
+                height={contentSectionHeight}
+                slots={[
+                  {
+                    id: 'ship-header',
+                    fraction: CONTENT_LAYOUT_FRACTIONS.header,
+                    content: (
+                      <UiText position={[0, 0, 0.04]} fontSize={0.18 * textScaleBoost} color="#b8d9ff" anchorX="center" anchorY="middle">
+                        Ship and weapon systems
+                      </UiText>
+                    )
+                  },
+                  {
+                    id: 'ship-notice',
+                    fraction: CONTENT_LAYOUT_FRACTIONS.notice,
+                    content: null
+                  },
+                  {
+                    id: 'ship-cards',
+                    fraction: CONTENT_LAYOUT_FRACTIONS.cards,
+                    content: isMobile ? (
+                      <MobileCarouselTrack
+                        items={shipCards}
+                        selectedIndex={shipPage}
+                        cardWidth={mobileContentCarouselCardWidth}
+                        cardHeight={mobileContentCarouselCardHeight}
+                        trackWidth={contentWidth}
+                        gap={mobileContentCarouselGap}
+                        renderItem={(card) => (
+                          <CardFrame card={card} width={mobileContentCarouselCardWidth} height={mobileContentCarouselCardHeight} textScale={textScaleBoost} />
+                        )}
+                      />
+                    ) : (
+                      <ShipStatsPanel
+                        cardWidth={contentCardWidth}
+                        cardHeight={contentCardHeight}
+                        columns={contentColumns}
+                        rows={contentRows}
+                        gapX={contentGapX}
+                        gapY={contentGapY}
+                        weaponLevels={weaponLevels}
+                        textScale={textScaleBoost}
+                      />
+                    )
+                  },
+                  {
+                    id: 'ship-footer',
+                    fraction: CONTENT_LAYOUT_FRACTIONS.footer,
+                    content: (
+                      <FractionColumn
+                        width={contentWidth}
+                        height={contentFooterHeight}
+                        slots={[
+                          {
+                            id: 'ship-footer-summary',
+                            fraction: 0.56,
+                            content: (
+                              <UiText
+                                position={[0, 0, 0.04]}
+                                fontSize={0.14 * textScaleBoost}
+                                lineHeight={1.24}
+                                color="#9ec9ff"
+                                anchorX="center"
+                                anchorY="middle"
+                                maxWidth={contentWidth}
+                              >
+                                {`Max Energy ${Math.round(weaponEnergyMax)}  •  Pods ${podCount}  •  Pod Weapon ${podWeaponMode}`}
+                              </UiText>
+                            )
+                          },
+                          {
+                            id: 'ship-footer-controls',
+                            fraction: isMobile || shipPageCount > 1 ? 0.44 : 0,
+                            content:
+                              isMobile || shipPageCount > 1 ? (
+                                <PageControls
+                                  page={shipPage}
+                                  pageCount={shipPageCount}
+                                  width={Math.min(contentWidth * 0.46, 3.2)}
+                                  y={0}
+                                  textScale={textScaleBoost}
+                                  onPrev={() => setShipPage((value) => (value - 1 + shipPageCount) % shipPageCount)}
+                                  onNext={() => setShipPage((value) => (value + 1) % shipPageCount)}
+                                />
+                              ) : null
+                          }
+                        ]}
+                      />
+                    )
+                  }
+                ]}
+              />
             )}
             {activeTab.screen !== 'shop' && activeTab.screen !== 'deck' && activeTab.screen !== 'ship' && (
               <UiText position={[0, 0, 0.04]} fontSize={0.22 * textScaleBoost} color="#d8ebff" anchorX="center" anchorY="middle">
@@ -550,69 +753,101 @@ export function BetweenRoundsUi3D({
         </Box>
 
         <Box width={panelWidth} height={activeSectionHeight} centerAnchor>
-          <group>
-            <UiText
-              position={[0, isMobile ? activeAreaHeight * 0.42 : activeAreaHeight * 0.66, 0.03]}
-              fontSize={0.18 * textScaleBoost}
-              color="#9ec9ff"
-              anchorX="center"
-              anchorY="middle"
-            >
-              {`Active Cards ${activeCards.length}/${activeCardLimit}`}
-            </UiText>
-            {isMobile ? (
-              <>
-                {activeCarouselCard ? (
-                  <group position={[0, activeAreaHeight * 0.08, 0.03]}>
-                    <CardFrame card={activeCarouselCard} width={activeCarouselCardWidth} height={activeCarouselCardHeight} textScale={textScaleBoost} />
-                    <ActionButton
-                      label="Discard"
-                      width={activeCarouselCardWidth * 0.48}
-                      y={-activeCarouselCardHeight * 0.4}
-                      onClick={() => onDiscardActiveCard(activeCarouselCard.id)}
-                      color="#7d3f48"
-                      textScale={textScaleBoost}
-                    />
-                  </group>
-                ) : (
-                  <UiText position={[0, 0, 0.04]} fontSize={0.2 * textScaleBoost} color="#d8ebff" anchorX="center" anchorY="middle">
-                    No active cards.
+          <SectionBackground width={panelWidth} height={activeSectionHeight} color="#c2255c" />
+          <FractionColumn
+            width={contentWidth}
+            height={activeSectionHeight}
+            slots={[
+              {
+                id: 'active-header',
+                fraction: ACTIVE_LAYOUT_FRACTIONS.header,
+                content: (
+                  <UiText position={[0, 0, 0.03]} fontSize={0.18 * textScaleBoost} color="#9ec9ff" anchorX="center" anchorY="middle">
+                    {`Active Cards ${activeCards.length}/${activeCardLimit}`}
                   </UiText>
-                )}
-                {(isMobile || activePageCount > 1) && (
-                  <PageControls
-                    page={activePage}
-                    pageCount={activePageCount}
-                    width={Math.min(contentWidth * 0.44, 2.8)}
-                    y={-activeAreaHeight * 0.34}
+                )
+              },
+              {
+                id: 'active-cards',
+                fraction: ACTIVE_LAYOUT_FRACTIONS.cards,
+                content: isMobile ? (
+                  activeCards.length > 0 ? (
+                    <MobileCarouselTrack
+                      items={activeCards}
+                      selectedIndex={activePage}
+                      cardWidth={activeCarouselCardWidth}
+                      cardHeight={activeCarouselCardHeight}
+                      trackWidth={contentWidth}
+                      gap={mobileActiveCarouselGap}
+                      renderItem={(card) => (
+                        <>
+                          <CardFrame card={card} width={activeCarouselCardWidth} height={activeCarouselCardHeight} textScale={textScaleBoost} />
+                          <ActionButton
+                            label="Discard"
+                            width={activeCarouselCardWidth * 0.48}
+                            y={-activeCarouselCardHeight * 0.4}
+                            onClick={() => onDiscardActiveCard(card.id)}
+                            color="#7d3f48"
+                            textScale={textScaleBoost}
+                          />
+                        </>
+                      )}
+                    />
+                  ) : (
+                    <UiText position={[0, 0, 0.04]} fontSize={0.2 * textScaleBoost} color="#d8ebff" anchorX="center" anchorY="middle">
+                      No active cards.
+                    </UiText>
+                  )
+                ) : (
+                  <ActiveCardGrid
+                    cards={activeCards}
+                    cardWidth={activeCardWidth}
+                    cardHeight={activeCardHeight}
+                    columns={contentColumns}
+                    rows={contentRows}
+                    gapX={activeGapX}
+                    gapY={activeGapY}
                     textScale={textScaleBoost}
-                    onPrev={() => setActivePage((value) => (value - 1 + activePageCount) % activePageCount)}
-                    onNext={() => setActivePage((value) => (value + 1) % activePageCount)}
+                    onDiscardActiveCard={onDiscardActiveCard}
+                    activeCardLimit={activeCardLimit}
                   />
-                )}
-              </>
-            ) : (
-              <ActiveCardGrid
-                cards={activeCards}
-                cardWidth={activeCardWidth}
-                cardHeight={activeCardHeight}
-                columns={contentColumns}
-                rows={contentRows}
-                gapX={activeGapX}
-                gapY={activeGapY}
-                textScale={textScaleBoost}
-                onDiscardActiveCard={onDiscardActiveCard}
-                activeCardLimit={activeCardLimit}
-              />
-            )}
-          </group>
+                )
+              },
+              {
+                id: 'active-footer',
+                fraction: ACTIVE_LAYOUT_FRACTIONS.footer,
+                content:
+                  isMobile || activePageCount > 1 ? (
+                    <PageControls
+                      page={activePage}
+                      pageCount={activePageCount}
+                      width={Math.min(contentWidth * 0.44, 2.8)}
+                      y={0}
+                      textScale={textScaleBoost}
+                      onPrev={() => setActivePage((value) => (value - 1 + activePageCount) % activePageCount)}
+                      onNext={() => setActivePage((value) => (value + 1) % activePageCount)}
+                    />
+                  ) : null
+              }
+            ]}
+          />
         </Box>
 
         <Box width={panelWidth} height={startSectionHeight} centerAnchor>
+          <SectionBackground width={panelWidth} height={startSectionHeight} color="#1971c2" />
           <ActionButton label="Start Round" width={startButtonWidth} onClick={onContinue} color="#2b8c56" textScale={textScaleBoost} />
         </Box>
       </Flex>
     </group>
+  );
+}
+
+function SectionBackground({ width, height, color }: { width: number; height: number; color: string }) {
+  return (
+    <mesh position={[0, 0, -0.01]} renderOrder={1410}>
+      <planeGeometry args={[width, height]} />
+      <meshBasicMaterial color={color} transparent opacity={0.2} depthTest={false} depthWrite={false} toneMapped={false} />
+    </mesh>
   );
 }
 
@@ -807,10 +1042,12 @@ function CardFrame({
   const [hovered, setHovered] = useState(false);
   const groupRef = useRef<Group>(null);
   const size = useThree((state) => state.size);
-  const mobileCardTextScale = size.width <= MOBILE_TEXT_BREAKPOINT_PX ? 0.5 : 1;
-  const iconSize = Math.max(0.16, height * 0.055 * textScale * mobileCardTextScale);
-  const titleSize = Math.max(0.19, height * 0.06 * textScale * mobileCardTextScale);
-  const bodySize = Math.max(0.145, height * 0.043 * textScale * mobileCardTextScale);
+  const isMobile = size.width <= MOBILE_TEXT_BREAKPOINT_PX;
+  const mobileIconScale = isMobile ? 0.62 : 1;
+  const mobileTitleBodyScale = isMobile ? 0.72 : 1;
+  const iconSize = Math.max(isMobile ? 0.18 : 0.16, height * 0.055 * textScale * mobileIconScale);
+  const titleSize = Math.max(isMobile ? 0.26 : 0.19, height * 0.06 * textScale * mobileTitleBodyScale);
+  const bodySize = Math.max(isMobile ? 0.19 : 0.145, height * 0.043 * textScale * mobileTitleBodyScale);
 
   useFrame(({ clock }) => {
     if (!groupRef.current) {
@@ -1003,26 +1240,124 @@ function TabsRow({
   );
 }
 
+function FractionColumn({ width, height, slots, z = 0 }: FractionColumnProps) {
+  const visibleSlots = slots.filter((slot) => slot.fraction > 0);
+  const totalFraction = visibleSlots.reduce((sum, slot) => sum + slot.fraction, 0) || 1;
+
+  return (
+    <Flex size={[width, height, 0]} position={[-width / 2, height / 2, z]} flexDirection="column">
+      {visibleSlots.map((slot) => (
+        <Box key={slot.id} width={width} height={(height * slot.fraction) / totalFraction} centerAnchor>
+          {slot.content}
+        </Box>
+      ))}
+    </Flex>
+  );
+}
+
 function PageControls({ page, pageCount, width, y, textScale, onPrev, onNext }: PageControlsProps) {
   const gap = 0.18;
-  const buttonWidth = width * 0.38;
-  const buttonHeight = computeActionButtonHeight(buttonWidth, textScale);
-  const rowWidth = buttonWidth * 2 + gap;
+  const buttonSize = clamp(width * 0.34, 0.4, 0.56);
+  const rowWidth = buttonSize * 2 + gap;
   const hasMultiplePages = pageCount > 1;
 
   return (
     <group position={[0, y, 0.04]}>
-      <Flex size={[rowWidth, buttonHeight, 0]} position={[-rowWidth / 2, buttonHeight / 2, 0]} flexDirection="row" alignItems="center">
-        <Box width={buttonWidth} height={buttonHeight} mr={gap} centerAnchor>
-          <ActionButton label="<" width={buttonWidth} onClick={onPrev} color="#244866" textScale={textScale} disabled={!hasMultiplePages} />
+      <Flex size={[rowWidth, buttonSize, 0]} position={[-rowWidth / 2, buttonSize / 2, 0]} flexDirection="row" alignItems="center">
+        <Box width={buttonSize} height={buttonSize} mr={gap} centerAnchor>
+          <ActionButton
+            label="<"
+            width={buttonSize}
+            height={buttonSize}
+            onClick={onPrev}
+            color="#244866"
+            textScale={textScale}
+            disabled={!hasMultiplePages}
+          />
         </Box>
-        <Box width={buttonWidth} height={buttonHeight} centerAnchor>
-          <ActionButton label=">" width={buttonWidth} onClick={onNext} color="#244866" textScale={textScale} disabled={!hasMultiplePages} />
+        <Box width={buttonSize} height={buttonSize} centerAnchor>
+          <ActionButton
+            label=">"
+            width={buttonSize}
+            height={buttonSize}
+            onClick={onNext}
+            color="#244866"
+            textScale={textScale}
+            disabled={!hasMultiplePages}
+          />
         </Box>
       </Flex>
-      <UiText position={[0, -buttonHeight * 0.95, 0.02]} fontSize={0.12 * textScale} color="#9ec9ff" anchorX="center" anchorY="middle">
+      <UiText position={[0, -buttonSize * 0.95, 0.02]} fontSize={0.12 * textScale} color="#9ec9ff" anchorX="center" anchorY="middle">
         {`Page ${page + 1}/${pageCount}`}
       </UiText>
+    </group>
+  );
+}
+
+function MobileCarouselTrack<T>({
+  items,
+  selectedIndex,
+  cardWidth,
+  cardHeight,
+  trackWidth,
+  gap,
+  y = 0,
+  renderItem
+}: MobileCarouselTrackProps<T>) {
+  const trackRef = useRef<Group>(null);
+  const animatedOffsetRef = useRef(0);
+  const step = cardWidth + gap;
+  const startX = -((Math.max(0, items.length - 1) * step) / 2);
+  const clampedIndex = clamp(selectedIndex, 0, Math.max(0, items.length - 1));
+  const targetOffset = items.length > 0 ? -(startX + clampedIndex * step) : 0;
+
+  useFrame(() => {
+    if (!trackRef.current) {
+      return;
+    }
+    animatedOffsetRef.current += (targetOffset - animatedOffsetRef.current) * 0.18;
+    trackRef.current.position.x = animatedOffsetRef.current;
+  });
+
+  return (
+    <group position={[0, y, 0.03]}>
+      <group ref={trackRef}>
+        {items.map((item, index) => (
+          <group key={`carousel-item-${index}`} position={[startX + index * step, 0, 0.03]}>
+            {renderItem(item, index)}
+          </group>
+        ))}
+      </group>
+      <CarouselEdgeFade width={trackWidth} height={cardHeight} />
+    </group>
+  );
+}
+
+function CarouselEdgeFade({ width, height }: { width: number; height: number }) {
+  const stripCount = 6;
+  const stripWidth = width * 0.035;
+  const edgeInset = stripWidth * 0.5;
+
+  return (
+    <group position={[0, 0, 0.22]}>
+      {Array.from({ length: stripCount }).map((_, index) => {
+        const t = (index + 1) / stripCount;
+        const opacity = 0.04 + t * 0.12;
+        const leftX = -width / 2 + edgeInset + index * stripWidth;
+        const rightX = width / 2 - edgeInset - index * stripWidth;
+        return (
+          <group key={`fade-${index}`}>
+            <mesh position={[leftX, 0, 0]} renderOrder={1700}>
+              <planeGeometry args={[stripWidth, height]} />
+              <meshBasicMaterial color="#061425" transparent opacity={opacity} depthTest={false} depthWrite={false} toneMapped={false} />
+            </mesh>
+            <mesh position={[rightX, 0, 0]} renderOrder={1700}>
+              <planeGeometry args={[stripWidth, height]} />
+              <meshBasicMaterial color="#061425" transparent opacity={opacity} depthTest={false} depthWrite={false} toneMapped={false} />
+            </mesh>
+          </group>
+        );
+      })}
     </group>
   );
 }
@@ -1032,11 +1367,11 @@ function computeActionButtonHeight(width: number, textScale = 1): number {
   return clamp(labelSize * 2.2, 0.34, 0.5);
 }
 
-function ActionButton({ label, width, disabled = false, onClick, color = '#355f89', x = 0, y = 0, textScale = 1 }: ActionButtonProps) {
+function ActionButton({ label, width, height, disabled = false, onClick, color = '#355f89', x = 0, y = 0, textScale = 1 }: ActionButtonProps) {
   const [hovered, setHovered] = useState(false);
   const meshRef = useRef<Mesh>(null);
   const labelSize = clamp(width * 0.085 * textScale, 0.2, 0.34);
-  const buttonHeight = computeActionButtonHeight(width, textScale);
+  const buttonHeight = height ?? computeActionButtonHeight(width, textScale);
 
   useFrame(() => {
     if (!meshRef.current) {
@@ -1092,12 +1427,7 @@ function ShipStatsPanel({
   gapX,
   gapY,
   weaponLevels,
-  weaponEnergyMax,
-  podCount,
-  podWeaponMode,
-  textScale,
-  contentWidth,
-  contentAreaHeight
+  textScale
 }: {
   cardWidth: number;
   cardHeight: number;
@@ -1106,12 +1436,7 @@ function ShipStatsPanel({
   gapX: number;
   gapY: number;
   weaponLevels: Record<PlayerWeaponMode, number>;
-  weaponEnergyMax: number;
-  podCount: number;
-  podWeaponMode: 'Auto Pulse' | 'Homing Missile';
   textScale: number;
-  contentWidth: number;
-  contentAreaHeight: number;
 }) {
   const cards: CardRenderModel[] = PLAYER_WEAPON_ORDER.map((mode) => ({
     id: `ship-${mode}`,
@@ -1126,9 +1451,6 @@ function ShipStatsPanel({
 
   return (
     <group>
-      <UiText position={[0, contentAreaHeight * 0.43, 0.04]} fontSize={0.18 * textScale} color="#b8d9ff" anchorX="center" anchorY="middle">
-        Ship and weapon systems
-      </UiText>
       <Flex size={[gridWidth, gridHeight, 0]} position={[-gridWidth / 2, gridHeight / 2, 0.03]} flexDirection="row" flexWrap="wrap">
         {cards.map((card, index) => {
           const col = index % columns;
@@ -1142,17 +1464,6 @@ function ShipStatsPanel({
           );
         })}
       </Flex>
-      <UiText
-        position={[0, -contentAreaHeight * 0.4, 0.04]}
-        fontSize={0.14 * textScale}
-        lineHeight={1.24}
-        color="#9ec9ff"
-        anchorX="center"
-        anchorY="middle"
-        maxWidth={contentWidth}
-      >
-        {`Max Energy ${Math.round(weaponEnergyMax)}  •  Pods ${podCount}  •  Pod Weapon ${podWeaponMode}`}
-      </UiText>
     </group>
   );
 }
