@@ -1,6 +1,6 @@
 import { Text } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
-import { Box, Flex } from 'react-three-flex';
+import { Box, Flex } from './layout/FlexLayout';
 import { useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import type { Group, Mesh } from 'three';
 import { clamp } from '../../util/math';

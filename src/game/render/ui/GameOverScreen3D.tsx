@@ -1,5 +1,5 @@
 import { useThree } from '@react-three/fiber';
-import { Box, Flex } from 'react-three-flex';
+import { Box, Flex } from './layout/FlexLayout';
 import { GameState } from '../../core/GameState';
 import { clamp } from '../../util/math';
 import { FractionColumnLayout, OverlayActionButton, OverlayBackdrop, OverlayPanelFrame, OverlayText } from './OverlayLayout3D';

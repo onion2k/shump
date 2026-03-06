@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Box, Flex } from 'react-three-flex';
+import { Box, Flex } from './layout/FlexLayout';
 import type { CardDefinition } from '../../content/cards';
 import { GameState } from '../../core/GameState';
 import { clamp } from '../../util/math';

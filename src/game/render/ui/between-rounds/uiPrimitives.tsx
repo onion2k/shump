@@ -1,7 +1,7 @@
 import { Text } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useRef, useState, type ComponentProps, type ReactNode } from 'react';
-import { Box, Flex } from 'react-three-flex';
+import { Box, Flex } from '../layout/FlexLayout';
 import type { Group, Mesh } from 'three';
 import { clamp } from '../../../util/math';
 import { MIN_MOBILE_TEXT_PX, MOBILE_TEXT_BREAKPOINT_PX } from './constants';
