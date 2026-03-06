@@ -2,7 +2,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { Stats } from '@react-three/drei';
 import { EntityType, Faction } from '../ecs/entityTypes';
 import { GameLoop } from '../core/GameLoop';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { PlayerMesh } from './meshes/PlayerMesh';
 import { EnemyMesh } from './meshes/EnemyMesh';
 import { PodMesh } from './meshes/PodMesh';
@@ -18,12 +18,15 @@ import type { GameSnapshot } from '../core/Game';
 import { Hud3D } from './Hud3D';
 import { centeredBoundsFromSize } from '../core/playfieldBounds';
 import { Bloom, EffectComposer } from '@react-three/postprocessing';
+import { ShockWaveEffect } from 'postprocessing';
+import { Vector3 } from 'three';
 import type { PlayerWeaponMode } from '../weapons/playerWeapons';
 import type { CardDefinition } from '../content/cards';
 import { BetweenRoundsUi3D } from './ui/BetweenRoundsUi3D';
 import { StartScreen3D } from './ui/StartScreen3D';
 import { PauseScreen3D } from './ui/PauseScreen3D';
 import { GameOverScreen3D } from './ui/GameOverScreen3D';
+import { gameSettings } from '../config/gameSettings';
 
 interface SceneRootProps {
   game: Game;
@@ -49,6 +52,7 @@ interface SceneRootProps {
 const USE_GPU_PARTICLES = true;
 const PARTICLE_MOBILE_BREAKPOINT_PX = 768;
 const MOBILE_PARTICLE_SCALE = 0.8;
+const SHOCK_WAVE_LAYERS = 3;
 
 export function SceneRoot({
   game,
@@ -77,6 +81,13 @@ export function SceneRoot({
   const gl = useThree((state) => state.gl);
   const backgroundViewport = viewport.getCurrentViewport(camera, [0, 0, -2]);
   const canUsePostProcessing = Boolean(gl.getContext()?.getContextAttributes());
+  const explosionWarp = gameSettings.visuals.explosionWarp;
+  const lastExplosionWarpAtMs = useRef(Number.NEGATIVE_INFINITY);
+  const shockWaveEffects = useMemo(
+    () => Array.from({ length: SHOCK_WAVE_LAYERS }, () => new ShockWaveEffect(camera, new Vector3(0, 0, 0), explosionWarp)),
+    [camera, explosionWarp]
+  );
+  const nextShockWaveIndex = useRef(0);
 
   useEffect(() => {
     game.setUseGpuParticles(USE_GPU_PARTICLES);
@@ -91,6 +102,36 @@ export function SceneRoot({
       game.setAdaptiveDensityEnabled(false);
     };
   }, [game]);
+
+  useEffect(() => {
+    return () => {
+      for (const effect of shockWaveEffects) {
+        effect.dispose();
+      }
+    };
+  }, [shockWaveEffects]);
+
+  useEffect(() => {
+    return game.events.on('EntityDestroyed', (event) => {
+      if (!canUsePostProcessing || event.entityType !== EntityType.Enemy || event.reason !== 'health') {
+        return;
+      }
+
+      if (Math.random() >= explosionWarp.triggerChance) {
+        return;
+      }
+
+      if (event.atMs - lastExplosionWarpAtMs.current < explosionWarp.minIntervalMs) {
+        return;
+      }
+      lastExplosionWarpAtMs.current = event.atMs;
+
+      const effect = shockWaveEffects[nextShockWaveIndex.current % shockWaveEffects.length];
+      nextShockWaveIndex.current += 1;
+      effect.position.set(event.positionX ?? 0, event.positionY ?? 0, 0);
+      effect.explode();
+    });
+  }, [canUsePostProcessing, explosionWarp.minIntervalMs, explosionWarp.triggerChance, game, shockWaveEffects]);
 
   useFrame(({ clock }, deltaSeconds) => {
     game.reportFrameDelta(deltaSeconds);
@@ -114,7 +155,7 @@ export function SceneRoot({
 
   return (
     <>
-      <CameraRig />
+      <CameraRig game={game} />
       <ambientLight intensity={0.75} />
       <directionalLight intensity={1.1} position={[3, 8, 8]} />
       <Stats showPanel={0} className="fps-stats" />
@@ -207,6 +248,11 @@ export function SceneRoot({
       {canUsePostProcessing && (
         <EffectComposer multisampling={4}>
           <Bloom intensity={0.7} luminanceThreshold={0.15} luminanceSmoothing={0.4} />
+          <>
+            {shockWaveEffects.map((effect, index) => (
+              <primitive key={`shock-wave-${index}`} object={effect} />
+            ))}
+          </>
         </EffectComposer>
       )}
     </>

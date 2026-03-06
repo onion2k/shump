@@ -16,6 +16,8 @@ export interface EntityDestroyedEvent {
   atMs: number;
   entityId: number;
   entityType: EntityType;
+  positionX?: number;
+  positionY?: number;
   entityFaction?: Faction;
   reason: DestroyReason;
   scoreValue?: number;

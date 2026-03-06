@@ -617,6 +617,8 @@ export class Game {
         atMs: this.elapsedMs,
         entityId: entity.id,
         entityType: entity.type,
+        positionX: entity.position.x,
+        positionY: entity.position.y,
         entityFaction: entity.faction,
         reason,
         scoreValue: entity.scoreValue

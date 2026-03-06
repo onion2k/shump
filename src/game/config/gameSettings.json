@@ -62,6 +62,15 @@
         "smoke": "#7f8794",
         "enemy-shard": "#ff5a4f"
       }
+    },
+    "explosionWarp": {
+      "speed": 2.25,
+      "maxRadius": 3.4,
+      "waveSize": 1.1,
+      "amplitude": 0.16,
+      "minIntervalMs": 40,
+      "triggerChance": 0.1,
+      "cameraShakeChance": 0
     }
   },
   "particles": {
