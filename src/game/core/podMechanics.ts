@@ -1,0 +1,135 @@
+import type { EntityManager } from '../ecs/EntityManager';
+import type { Entity } from '../ecs/components';
+import { EntityType, Faction } from '../ecs/entityTypes';
+import { createPod } from '../factories/createPod';
+import { createBullet } from '../factories/createBullet';
+import { createMissile } from '../factories/createMissile';
+import { BULLET_SPEED } from './constants';
+import { podTuning } from './gameTuning';
+import { findNearestEnemy, normalizeDirection } from './gameEntityHelpers';
+import { clamp } from '../util/math';
+
+function getEntitiesByType(entityManager: EntityManager, type: EntityType): Entity[] {
+  return entityManager.all().filter((entity) => entity.type === type);
+}
+
+function getPodsSortedByIndex(entityManager: EntityManager): Entity[] {
+  return getEntitiesByType(entityManager, EntityType.Pod).sort((a, b) => (a.podIndex ?? 0) - (b.podIndex ?? 0));
+}
+
+export function syncPodsWithPlayer(
+  entityManager: EntityManager,
+  playerId: number,
+  elapsedMs: number,
+  deltaSeconds: number
+): void {
+  const player = entityManager.get(playerId);
+  if (!player) {
+    return;
+  }
+
+  const desiredCount = clamp(player.podCount ?? 0, 0, podTuning.maxCount);
+  player.podCount = desiredCount;
+  const existingPods = getEntitiesByType(entityManager, EntityType.Pod);
+
+  for (const pod of existingPods) {
+    if ((pod.podIndex ?? -1) >= desiredCount) {
+      entityManager.remove(pod.id);
+    }
+  }
+
+  const activePods = getPodsSortedByIndex(entityManager);
+
+  for (let index = 0; index < desiredCount; index += 1) {
+    if (activePods.some((pod) => pod.podIndex === index)) {
+      continue;
+    }
+    entityManager.create(createPod(index, player.position.x, player.position.y));
+  }
+
+  if (desiredCount === 0) {
+    return;
+  }
+
+  const pods = getPodsSortedByIndex(entityManager);
+  const orbitSeconds = elapsedMs * 0.001;
+  const orbitAngularSpeed = podTuning.orbitAngularSpeed;
+  const orbitRadius = podTuning.orbitRadius;
+
+  for (const pod of pods) {
+    const index = pod.podIndex ?? 0;
+    const angle = orbitSeconds * orbitAngularSpeed + (index / desiredCount) * Math.PI * 2;
+    pod.position.x = player.position.x + Math.cos(angle) * orbitRadius;
+    pod.position.y = player.position.y + podTuning.orbitYOffset + Math.sin(angle) * orbitRadius * podTuning.orbitVerticalScale;
+    pod.velocity.x = 0;
+    pod.velocity.y = 0;
+    pod.fireCooldownMs = (pod.fireCooldownMs ?? 0) - deltaSeconds * 1000;
+  }
+}
+
+export function handlePodWeapons(
+  entityManager: EntityManager,
+  playerId: number,
+  deltaSeconds: number,
+  emitWeaponFiredEvent: (shooter: Pick<Entity, 'id' | 'faction'>, weaponMode: string, projectileEntityId?: number) => void
+): void {
+  if (deltaSeconds <= 0) {
+    return;
+  }
+
+  const player = entityManager.get(playerId);
+  if (!player) {
+    return;
+  }
+
+  const podWeaponMode = player.podWeaponMode ?? 'Auto Pulse';
+  const pods = getEntitiesByType(entityManager, EntityType.Pod);
+  if (pods.length === 0) {
+    return;
+  }
+
+  for (const pod of pods) {
+    if ((pod.fireCooldownMs ?? 0) > 0) {
+      continue;
+    }
+
+    const target = findNearestEnemy(entityManager.all(), pod.position.x, pod.position.y);
+    const direction = normalizeDirection(
+      target ? target.position.x - pod.position.x : 0,
+      target ? target.position.y - pod.position.y : 1
+    );
+
+    if (podWeaponMode === 'Homing Missile') {
+      const missileSpeed = podTuning.homingMissileSpeed;
+      const missile = entityManager.create(
+        createMissile(
+          pod.position.x,
+          pod.position.y,
+          direction.x * missileSpeed,
+          direction.y * missileSpeed,
+          Faction.Player,
+          target?.id
+        )
+      );
+      pod.fireCooldownMs = podTuning.homingMissileCooldownMs;
+      emitWeaponFiredEvent(player, 'Pod Homing Missile', missile.id);
+      continue;
+    }
+
+    const pulseSpeed = BULLET_SPEED * podTuning.pulseSpeedMultiplier;
+    const bullet = entityManager.create(
+      createBullet(
+        pod.position.x,
+        pod.position.y,
+        direction.y * pulseSpeed,
+        Faction.Player,
+        podTuning.pulseLifetimeMs,
+        podTuning.pulseDamage,
+        podTuning.pulseRadius,
+        direction.x * pulseSpeed
+      )
+    );
+    pod.fireCooldownMs = podTuning.pulseCooldownMs;
+    emitWeaponFiredEvent(player, 'Pod Auto Pulse', bullet.id);
+  }
+}

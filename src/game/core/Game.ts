@@ -1,7 +1,6 @@
 import { EntityManager } from '../ecs/EntityManager';
-import { EntityType, Faction } from '../ecs/entityTypes';
+import { EntityType } from '../ecs/entityTypes';
 import { createPlayer } from '../factories/createPlayer';
-import { createPod } from '../factories/createPod';
 import { SpawnSystem } from '../systems/spawnSystem';
 import { movementSystem } from '../systems/movementSystem';
 import { shootingSystem } from '../systems/shootingSystem';
@@ -17,7 +16,6 @@ import { GameState } from './GameState';
 import type { Entity } from '../ecs/components';
 import type { PointerState } from '../input/types';
 import {
-  BULLET_SPEED,
   WORLD_SCROLL_SPEED,
   WORLD_BOUNDS,
   FIXED_TIMESTEP_MS,
@@ -26,16 +24,11 @@ import {
 import { clamp } from '../util/math';
 import { GameEventBus } from './GameEventBus';
 import { createPickup } from '../factories/createPickup';
-import { createParticle } from '../factories/createParticle';
-import { createBullet } from '../factories/createBullet';
-import { createMissile } from '../factories/createMissile';
 import { ParticleSystem } from '../particles/particleSystem';
 import type { ParticleEmitterConfig } from '../particles/particleSystem';
-import { randomRange } from '../util/random';
 import { gameSettings } from '../config/gameSettings';
 import { getPlayerWeaponMaxLevel, PLAYER_WEAPON_ORDER, type PlayerWeaponMode } from '../weapons/playerWeapons';
-import { enemyDropTuning, particleTuning, playerTuning, podTuning } from './gameTuning';
-import { findNearestEnemy, normalizeDirection } from './gameEntityHelpers';
+import { enemyDropTuning, playerTuning, podTuning } from './gameTuning';
 import type { EnemyArchetypeId } from '../content/enemyArchetypes';
 import type { MovementPatternId } from '../movement/patterns';
 import {
@@ -48,14 +41,37 @@ import {
 import {
   ACTIVE_CARD_LIMIT,
   canAcquireCard,
-  drawDropCard,
   drawShopOffers,
   isConsumableUpgradeCard,
   resolveCard,
   type CardDefinition
 } from '../content/cards';
 import { LevelDirector } from './LevelDirector';
-import { applyCardsToPlayer, captureBaseStateFromPlayer, computeCardBonuses } from '../systems/cardEffectSystem';
+import { computeCardBonuses } from '../systems/cardEffectSystem';
+import {
+  applyConsumableCardUpgrade as applyConsumableCardUpgradeToRunProgress,
+  applyRunPlayerState as applyRunPlayerStateToEntity,
+  captureRunProgress as captureRunProgressFromPlayer,
+  syncPlayerWithRunProgressCards as syncPlayerWithRunProgressCardsFromState
+} from './playerProgress';
+import { applyPlayerInput as applyPointerInputVelocity } from './playerMovement';
+import {
+  handlePodWeapons as handlePodWeaponFire,
+  syncPodsWithPlayer as syncPodsWithPlayerOrbit
+} from './podMechanics';
+import {
+  foundCardsFull as isFoundCardsFull,
+  pickCardDropId as pickCardDropIdForRun,
+  pickWeaponPickupMode as pickWeaponPickupModeBySeed,
+  shouldSpawnDropPickup as shouldSpawnDropPickupByDensity
+} from './dropLogic';
+import {
+  emitMissileThrusterParticles as emitMissileThrusterParticlesEffect,
+  spawnEnemyExplosionEffects,
+  spawnLaserFocusEmitter as spawnLaserFocusEmitterEffect,
+  tickTrailSources,
+  type TrailSource
+} from './particleEffects';
 
 export interface GameSnapshot {
   state: GameState;
@@ -121,24 +137,14 @@ interface ScheduledEmitter {
   config: ParticleEmitterConfig;
 }
 
-interface TrailSource {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  remainingMs: number;
-}
-
 type SnapshotListener = (snapshot: GameSnapshot) => void;
 
 const TARGET_FPS = 60;
 const ADAPTIVE_MIN_DENSITY_SCALE = 0.4;
 const ADAPTIVE_LOW_FPS_HOLD_MS = 800;
 const ADAPTIVE_RECOVERY_HOLD_MS = 1800;
-const BASE_ACTIVE_PICKUP_CAP = 18;
 const ENEMY_MONEY_REWARD = 2;
 const POD_CARD_IDS = ['satellite-bay', 'pulse-relay', 'missile-command'] as const;
-const FOUND_CARD_LIMIT = 12;
 
 export class Game {
   readonly entities = new EntityManager();
@@ -678,96 +684,26 @@ export class Game {
   }
 
   private applyRunPlayerState(player: Entity, playerState: RunPlayerState) {
-    const nextMaxHealth = Math.max(1, playerState.maxHealth);
-    player.maxHealth = nextMaxHealth;
-    player.health = clamp(playerState.health, 0, nextMaxHealth);
-
-    const mergedWeaponLevels = {
-      ...(player.weaponLevels ?? {}),
-      ...playerState.weaponLevels
-    };
-    player.weaponLevels = mergedWeaponLevels;
-    if (player.weaponMode) {
-      player.weaponLevel = mergedWeaponLevels[player.weaponMode as PlayerWeaponMode] ?? player.weaponLevel ?? 1;
-    }
-
-    player.podCount = Math.max(0, playerState.podCount);
-    player.podWeaponMode = playerState.podWeaponMode;
-    player.moveMaxSpeed = Math.max(1, playerState.moveMaxSpeed);
-    player.moveFollowGain = Math.max(0, playerState.moveFollowGain);
-    player.pickupAttractRange = Math.max(0, playerState.pickupAttractRange);
-    player.pickupAttractPower = Math.max(0, playerState.pickupAttractPower);
-    player.shieldMax = Math.max(0, playerState.shieldMax);
-    player.shieldCurrent = Math.max(0, Math.min(player.shieldMax, playerState.shieldCurrent));
-    player.shieldRechargeDelayMs = Math.max(0, playerState.shieldRechargeDelayMs);
-    player.shieldRechargeTimeMs = Math.max(1, playerState.shieldRechargeTimeMs);
-    player.shieldRechargeDelayRemainingMs = Math.max(
-      0,
-      Math.min(player.shieldRechargeDelayMs, playerState.shieldRechargeDelayRemainingMs)
-    );
+    applyRunPlayerStateToEntity(player, playerState);
   }
 
   private syncPlayerWithRunProgressCards() {
-    if (!this.runProgress) {
-      return;
-    }
-
-    const player = this.entities.get(this.playerId);
-    if (!player) {
-      return;
-    }
-
-    applyCardsToPlayer(player, this.runProgress.playerState, this.runProgress.activeCards);
+    syncPlayerWithRunProgressCardsFromState(this.entities, this.playerId, this.runProgress);
   }
 
   private captureRunProgress() {
-    if (!this.runProgress) {
-      return;
-    }
-
-    this.runProgress.elapsedMs = this.elapsedMs;
-    this.runProgress.distanceTraveled = this.distanceTraveled;
-    this.runProgress.score = this.score;
-
-    const player = this.entities.get(this.playerId);
-    if (!player) {
-      this.runProgress.playerState = {
-        ...this.runProgress.playerState,
-        health: 0
-      };
-      return;
-    }
-
-    this.runProgress.playerState = captureBaseStateFromPlayer(
-      player,
-      this.runProgress.activeCards,
-      this.runProgress.playerState
+    captureRunProgressFromPlayer(
+      this.entities,
+      this.playerId,
+      this.runProgress,
+      this.elapsedMs,
+      this.distanceTraveled,
+      this.score
     );
   }
 
   private applyPlayerInput(pointer: PointerState, deltaSeconds: number) {
-    const player = this.entities.get(this.playerId);
-    if (!player) {
-      return;
-    }
-
-    if (!pointer.hasPosition) {
-      player.velocity.x = 0;
-      player.velocity.y = 0;
-      return;
-    }
-
-    const dx = pointer.x - player.position.x;
-    const dy = pointer.y - player.position.y;
-    const mag = Math.hypot(dx, dy) || 1;
-    const maxSpeed = Math.max(1, player.moveMaxSpeed ?? gameSettings.player.maxSpeed);
-    const followGain = Math.max(0, player.moveFollowGain ?? gameSettings.player.followGain);
-    const speedFromDistance = mag * followGain;
-    const maxSpeedWithoutOvershoot = deltaSeconds > 0 ? mag / deltaSeconds : maxSpeed;
-    const speed = Math.min(maxSpeed, speedFromDistance, maxSpeedWithoutOvershoot);
-
-    player.velocity.x = clamp((dx / mag) * speed, -maxSpeed, maxSpeed);
-    player.velocity.y = clamp((dy / mag) * speed, -maxSpeed, maxSpeed);
+    applyPointerInputVelocity(this.entities.get(this.playerId), pointer, deltaSeconds);
   }
 
   entitiesForRender() {
@@ -988,39 +924,11 @@ export class Game {
   }
 
   private foundCardsFull(): boolean {
-    if (!this.runProgress) {
-      return false;
-    }
-    return this.runProgress.foundCards.length >= FOUND_CARD_LIMIT;
+    return isFoundCardsFull(this.runProgress);
   }
 
   private applyConsumableCardUpgrade(card: CardDefinition) {
-    if (!this.runProgress) {
-      return;
-    }
-
-    const nextPlayerState: RunPlayerState = {
-      ...this.runProgress.playerState,
-      weaponLevels: { ...this.runProgress.playerState.weaponLevels }
-    };
-
-    for (const effect of card.effects) {
-      if (effect.kind === 'maxHealth') {
-        const nextMaxHealth = Math.max(1, nextPlayerState.maxHealth + effect.amount);
-        nextPlayerState.maxHealth = nextMaxHealth;
-        nextPlayerState.health = Math.min(nextMaxHealth, nextPlayerState.health + effect.amount);
-      }
-
-      if (effect.kind === 'weaponLevel') {
-        const currentLevel = nextPlayerState.weaponLevels[effect.weaponMode] ?? 1;
-        nextPlayerState.weaponLevels[effect.weaponMode] = Math.min(
-          getPlayerWeaponMaxLevel(effect.weaponMode),
-          Math.max(1, currentLevel + effect.amount)
-        );
-      }
-    }
-
-    this.runProgress.playerState = nextPlayerState;
+    applyConsumableCardUpgradeToRunProgress(this.runProgress, card);
   }
 
   private countActivePickups(): number {
@@ -1028,128 +936,17 @@ export class Game {
   }
 
   private shouldSpawnDropPickup(entityId: number, modulo: number, activePickups: number, salt: number): boolean {
-    if (entityId % modulo !== 0) {
-      return false;
-    }
-
-    const densityScale = this.getEnemyDensityScale();
-    const activePickupCap = Math.max(3, Math.floor(BASE_ACTIVE_PICKUP_CAP * densityScale));
-    if (activePickups >= activePickupCap) {
-      return false;
-    }
-
-    if (densityScale >= 0.999) {
-      return true;
-    }
-
-    return deterministicRoll(entityId, salt) <= densityScale;
+    return shouldSpawnDropPickupByDensity(entityId, modulo, activePickups, salt, this.getEnemyDensityScale());
   }
 
   private syncPodsWithPlayer(deltaSeconds: number) {
-    const player = this.entities.get(this.playerId);
-    if (!player) {
-      return;
-    }
-
-    const desiredCount = clamp(player.podCount ?? 0, 0, podTuning.maxCount);
-    player.podCount = desiredCount;
-    const existingPods = this.getEntitiesByType(EntityType.Pod);
-
-    for (const pod of existingPods) {
-      if ((pod.podIndex ?? -1) >= desiredCount) {
-        this.entities.remove(pod.id);
-      }
-    }
-
-    const activePods = this.getPodsSortedByIndex();
-
-    for (let index = 0; index < desiredCount; index += 1) {
-      if (activePods.some((pod) => pod.podIndex === index)) {
-        continue;
-      }
-      this.entities.create(createPod(index, player.position.x, player.position.y));
-    }
-
-    if (desiredCount === 0) {
-      return;
-    }
-
-    const pods = this.getPodsSortedByIndex();
-    const orbitSeconds = this.elapsedMs * 0.001;
-    const orbitAngularSpeed = podTuning.orbitAngularSpeed;
-    const orbitRadius = podTuning.orbitRadius;
-
-    for (const pod of pods) {
-      const index = pod.podIndex ?? 0;
-      const angle = orbitSeconds * orbitAngularSpeed + (index / desiredCount) * Math.PI * 2;
-      pod.position.x = player.position.x + Math.cos(angle) * orbitRadius;
-      pod.position.y = player.position.y + podTuning.orbitYOffset + Math.sin(angle) * orbitRadius * podTuning.orbitVerticalScale;
-      pod.velocity.x = 0;
-      pod.velocity.y = 0;
-      pod.fireCooldownMs = (pod.fireCooldownMs ?? 0) - deltaSeconds * 1000;
-    }
+    syncPodsWithPlayerOrbit(this.entities, this.playerId, this.elapsedMs, deltaSeconds);
   }
 
   private handlePodWeapons(deltaSeconds: number) {
-    if (deltaSeconds <= 0) {
-      return;
-    }
-
-    const player = this.entities.get(this.playerId);
-    if (!player) {
-      return;
-    }
-
-    const podWeaponMode = player.podWeaponMode ?? 'Auto Pulse';
-    const pods = this.getEntitiesByType(EntityType.Pod);
-    if (pods.length === 0) {
-      return;
-    }
-
-    for (const pod of pods) {
-      if ((pod.fireCooldownMs ?? 0) > 0) {
-        continue;
-      }
-
-      const target = findNearestEnemy(this.entities.all(), pod.position.x, pod.position.y);
-      const direction = normalizeDirection(
-        target ? target.position.x - pod.position.x : 0,
-        target ? target.position.y - pod.position.y : 1
-      );
-
-      if (podWeaponMode === 'Homing Missile') {
-        const missileSpeed = podTuning.homingMissileSpeed;
-        const missile = this.entities.create(
-          createMissile(
-            pod.position.x,
-            pod.position.y,
-            direction.x * missileSpeed,
-            direction.y * missileSpeed,
-            Faction.Player,
-            target?.id
-          )
-        );
-        pod.fireCooldownMs = podTuning.homingMissileCooldownMs;
-        this.emitWeaponFiredEvent(player, 'Pod Homing Missile', missile.id);
-        continue;
-      }
-
-      const pulseSpeed = BULLET_SPEED * podTuning.pulseSpeedMultiplier;
-      const bullet = this.entities.create(
-        createBullet(
-          pod.position.x,
-          pod.position.y,
-          direction.y * pulseSpeed,
-          Faction.Player,
-          podTuning.pulseLifetimeMs,
-          podTuning.pulseDamage,
-          podTuning.pulseRadius,
-          direction.x * pulseSpeed
-        )
-      );
-      pod.fireCooldownMs = podTuning.pulseCooldownMs;
-      this.emitWeaponFiredEvent(player, 'Pod Auto Pulse', bullet.id);
-    }
+    handlePodWeaponFire(this.entities, this.playerId, deltaSeconds, (shooter, weaponMode, projectileEntityId) => {
+      this.emitWeaponFiredEvent(shooter, weaponMode, projectileEntityId);
+    });
   }
 
   private clampPlayerToBounds() {
@@ -1171,31 +968,11 @@ export class Game {
   }
 
   private pickWeaponPickupMode(seed: number): PlayerWeaponMode {
-    const nonDefaultModes = PLAYER_WEAPON_ORDER.slice(1);
-    return nonDefaultModes[seed % nonDefaultModes.length];
+    return pickWeaponPickupModeBySeed(seed);
   }
 
   private pickCardDropId(seed: number): string {
-    if (!this.runProgress) {
-      return 'reinforced-hull';
-    }
-
-    const card = drawDropCard({
-      seed: this.runProgress.seed + seed * 31,
-      roundIndex: this.runProgress.roundIndex,
-      foundCards: this.runProgress.foundCards,
-      activeCards: this.runProgress.activeCards,
-      consumedCards: this.runProgress.consumedCards ?? []
-    });
-    return card?.id ?? 'reinforced-hull';
-  }
-
-  private getPodsSortedByIndex() {
-    return this.getEntitiesByType(EntityType.Pod).sort((a, b) => (a.podIndex ?? 0) - (b.podIndex ?? 0));
-  }
-
-  private getEntitiesByType(type: EntityType) {
-    return this.entities.all().filter((entity) => entity.type === type);
+    return pickCardDropIdForRun(this.runProgress, seed);
   }
 
   private syncDebugEmitter() {
@@ -1242,152 +1019,31 @@ export class Game {
   }
 
   private updateTrailSources(deltaSeconds: number) {
-    if (this.trailSources.length === 0) {
-      return;
-    }
-
-    const deltaMs = deltaSeconds * 1000;
-    const next: TrailSource[] = [];
-    for (const source of this.trailSources) {
-      source.remainingMs -= deltaMs;
-      if (source.remainingMs <= 0) {
-        continue;
-      }
-
-      source.x += source.vx * deltaSeconds;
-      source.y += source.vy * deltaSeconds;
-      next.push(source);
-    }
-
-    this.trailSources = next;
+    this.trailSources = tickTrailSources(this.trailSources, deltaSeconds);
   }
 
   private spawnEnemyExplosion(x: number, y: number) {
-    const explosion = gameSettings.particles.explosion;
-    const fireBurst = explosion.fireBurst;
-    const smokeBurst = explosion.smokeBurst;
-    const shards = explosion.shards;
-    const trail = explosion.trail;
-
-    this.particles.addEmitter({
-      position: { x, y },
-      direction: 0,
-      spread: Math.PI * 2,
-      directionRandomness: fireBurst.directionRandomness,
-      lifetimeMs: fireBurst.emitterLifetimeMs,
-      particleType: 'fire',
-      emissionRatePerSecond: fireBurst.emissionRatePerSecond,
-      particleLifetimeMs: fireBurst.particleLifetimeMs,
-      particleSpeed: fireBurst.particleSpeed,
-      lifetimeRandomness: fireBurst.lifetimeRandomness,
-      velocityRandomness: fireBurst.velocityRandomness,
-      particleRadius: fireBurst.particleRadius
-    });
-
-    this.scheduleEmitter(smokeBurst.delayMs, {
-      position: { x, y },
-      direction: 0,
-      spread: Math.PI * 2,
-      directionRandomness: smokeBurst.directionRandomness,
-      lifetimeMs: smokeBurst.emitterLifetimeMs,
-      particleType: 'smoke',
-      emissionRatePerSecond: smokeBurst.emissionRatePerSecond,
-      particleLifetimeMs: smokeBurst.particleLifetimeMs,
-      particleSpeed: smokeBurst.particleSpeed,
-      lifetimeRandomness: smokeBurst.lifetimeRandomness,
-      velocityRandomness: smokeBurst.velocityRandomness,
-      particleRadius: smokeBurst.particleRadius
-    });
-
-    for (let i = 0; i < shards.count; i += 1) {
-      const angle = randomRange(0, Math.PI * 2);
-      const speed = randomRange(shards.speedMin, shards.speedMax);
-      const vx = Math.cos(angle) * speed;
-      const vy = Math.sin(angle) * speed;
-      const shardLifetimeMs = randomRange(shards.lifetimeMinMs, shards.lifetimeMaxMs);
-
-      this.emitOneShotParticle(
-        createParticle(x, y, vx, vy, 'enemy-shard', shardLifetimeMs, randomRange(shards.radiusMin, shards.radiusMax))
-      );
-
-      const trailSource: TrailSource = { x, y, vx, vy, remainingMs: shardLifetimeMs };
-      this.trailSources.push(trailSource);
-      this.particles.addEmitter({
-        position: { x, y },
-        direction: Math.atan2(vy, vx),
-        spread: trail.spreadRadians,
-        directionRandomness: trail.directionRandomness,
-        lifetimeMs: shardLifetimeMs,
-        particleType: 'fire',
-        emissionRatePerSecond: trail.emissionRatePerSecond,
-        particleLifetimeMs: trail.particleLifetimeMs,
-        particleSpeed: trail.particleSpeed,
-        lifetimeRandomness: trail.lifetimeRandomness,
-        velocityRandomness: trail.velocityRandomness,
-        particleRadius: trail.particleRadius,
-        positionProvider: () => ({ x: trailSource.x, y: trailSource.y }),
-        velocityProvider: () => ({
-          x: trailSource.vx * trail.inheritVelocityFactor,
-          y: trailSource.vy * trail.inheritVelocityFactor
-        })
-      });
-    }
+    spawnEnemyExplosionEffects(
+      this.particles,
+      this.trailSources,
+      x,
+      y,
+      (delayMs, config) => this.scheduleEmitter(delayMs, config),
+      (particle) => this.emitOneShotParticle(particle)
+    );
   }
 
   private spawnLaserFocusEmitter(x: number, y: number, vx: number, vy: number) {
-    const laserFocus = particleTuning.laserFocus;
-    this.particles.addEmitter({
-      position: { x, y },
-      direction: laserFocus.directionRadians,
-      spread: laserFocus.spreadRadians,
-      directionRandomness: laserFocus.directionRandomness,
-      lifetimeMs: laserFocus.lifetimeMs,
-      particleType: 'laser-focus',
-      emissionRatePerSecond: laserFocus.emissionRatePerSecond,
-      particleLifetimeMs: laserFocus.particleLifetimeMs,
-      particleSpeed: laserFocus.particleSpeed,
-      lifetimeRandomness: laserFocus.lifetimeRandomness,
-      velocityRandomness: laserFocus.velocityRandomness,
-      particleRadius: laserFocus.particleRadius,
-      velocityProvider: () => ({ x: vx * laserFocus.inheritedVelocityFactor, y: vy * laserFocus.inheritedVelocityFactor })
-    });
+    spawnLaserFocusEmitterEffect(this.particles, x, y, vx, vy);
   }
 
   private emitMissileThrusterParticles(deltaSeconds: number) {
-    const missileThruster = particleTuning.missileThruster;
-    this.missileThrusterAccumulator += deltaSeconds * missileThruster.spawnRatePerSecond;
-    const spawnSteps = Math.floor(this.missileThrusterAccumulator);
-    if (spawnSteps <= 0) {
-      return;
-    }
-    this.missileThrusterAccumulator -= spawnSteps;
-
-    const missiles = this.entities
-      .all()
-      .filter((entity) => entity.type === EntityType.Bullet && entity.projectileKind === 'missile' && entity.faction === Faction.Player);
-
-    for (const missile of missiles) {
-      const velocity = normalizeDirection(missile.velocity.x, missile.velocity.y);
-      for (let i = 0; i < spawnSteps; i += 1) {
-        const spread = randomRange(missileThruster.spreadMin, missileThruster.spreadMax);
-        const backwardX = -velocity.x + spread;
-        const backwardY = -velocity.y + spread * missileThruster.spreadVerticalScale;
-        const trailDirection = normalizeDirection(backwardX, backwardY);
-        const spawnX = missile.position.x - velocity.x * missileThruster.spawnOffset;
-        const spawnY = missile.position.y - velocity.y * missileThruster.spawnOffset;
-        this.emitOneShotParticle(
-          createParticle(
-            spawnX,
-            spawnY,
-            trailDirection.x * missileThruster.particleSpeed + missile.velocity.x * missileThruster.inheritedVelocityFactor,
-            trailDirection.y * missileThruster.particleSpeed + missile.velocity.y * missileThruster.inheritedVelocityFactor,
-            'missile-thruster',
-            randomRange(missileThruster.lifetimeMinMs, missileThruster.lifetimeMaxMs),
-            randomRange(missileThruster.radiusMin, missileThruster.radiusMax)
-          )
-        );
-      }
-    }
+    this.missileThrusterAccumulator = emitMissileThrusterParticlesEffect(
+      this.entities,
+      deltaSeconds,
+      this.missileThrusterAccumulator,
+      (particle) => this.emitOneShotParticle(particle)
+    );
   }
 
   private emitOneShotParticle(particle: Omit<Entity, 'id'>) {
@@ -1475,10 +1131,4 @@ export class Game {
       listener(snapshot);
     }
   }
-}
-
-function deterministicRoll(seed: number, salt: number): number {
-  const mixed = Math.imul(seed ^ (salt * 0x9e3779b9), 0x85ebca6b) ^ 0xc2b2ae35;
-  const scrambled = mixed ^ (mixed >>> 13);
-  return (scrambled >>> 0) / 4294967296;
 }
