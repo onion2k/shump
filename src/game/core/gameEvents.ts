@@ -20,6 +20,7 @@ export interface EntityDestroyedEvent {
   enemyArchetype?: EnemyArchetypeId;
   positionX?: number;
   positionY?: number;
+  entityAgeMs?: number;
   entityFaction?: Faction;
   reason: DestroyReason;
   scoreValue?: number;

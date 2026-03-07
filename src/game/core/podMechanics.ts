@@ -17,6 +17,10 @@ function getPodsSortedByIndex(entityManager: EntityManager): Entity[] {
   return getEntitiesByType(entityManager, EntityType.Pod).sort((a, b) => (a.podIndex ?? 0) - (b.podIndex ?? 0));
 }
 
+interface PodWeaponOptions {
+  missileModifierBonus?: Record<string, number>;
+}
+
 export function syncPodsWithPlayer(
   entityManager: EntityManager,
   playerId: number,
@@ -71,7 +75,8 @@ export function handlePodWeapons(
   entityManager: EntityManager,
   playerId: number,
   deltaSeconds: number,
-  emitWeaponFiredEvent: (shooter: Pick<Entity, 'id' | 'faction'>, weaponMode: string, projectileEntityId?: number) => void
+  emitWeaponFiredEvent: (shooter: Pick<Entity, 'id' | 'faction'>, weaponMode: string, projectileEntityId?: number) => void,
+  options: PodWeaponOptions = {}
 ): void {
   if (deltaSeconds <= 0) {
     return;
@@ -83,6 +88,7 @@ export function handlePodWeapons(
   }
 
   const podWeaponMode = player.podWeaponMode ?? 'Auto Pulse';
+  const missileBonuses = options.missileModifierBonus ?? {};
   const pods = getEntitiesByType(entityManager, EntityType.Pod);
   if (pods.length === 0) {
     return;
@@ -101,18 +107,48 @@ export function handlePodWeapons(
 
     if (podWeaponMode === 'Homing Missile') {
       const missileSpeed = podTuning.homingMissileSpeed;
-      const missile = entityManager.create(
-        createMissile(
-          pod.position.x,
-          pod.position.y,
-          direction.x * missileSpeed,
-          direction.y * missileSpeed,
-          Faction.Player,
-          target?.id
-        )
-      );
-      pod.fireCooldownMs = podTuning.homingMissileCooldownMs;
-      emitWeaponFiredEvent(player, 'Pod Homing Missile', missile.id);
+      const swarmStacks = Math.max(0, Math.round(missileBonuses['swarm-missiles'] ?? 0));
+      const missileCount = 1 + swarmStacks * 2;
+      const guidanceBonus = Math.max(0, missileBonuses['guidance-upgrade'] ?? 0);
+      const delayedDetonation = Math.max(0, missileBonuses['delayed-detonation'] ?? 0);
+      const clusterWarheads = Math.max(0, Math.round(missileBonuses['cluster-warheads'] ?? 0));
+      const shockwavePayload = Math.max(0, missileBonuses['shockwave-payload'] ?? 0);
+
+      for (let missileIndex = 0; missileIndex < missileCount; missileIndex += 1) {
+        const angleOffset = missileCount === 1 ? 0 : (missileIndex - (missileCount - 1) * 0.5) * 0.14;
+        const rotated = rotate(direction.x, direction.y, angleOffset);
+        const damageScale = missileCount > 1 ? 0.58 : 1;
+        const speedScale = missileCount > 1 ? 0.92 : 1;
+        const missile = entityManager.create(
+          createMissile(
+            pod.position.x,
+            pod.position.y,
+            rotated.x * missileSpeed * speedScale,
+            rotated.y * missileSpeed * speedScale,
+              Faction.Player,
+              target?.id,
+              {
+              damage: Math.max(1, Math.round(3 * damageScale)),
+              homingTurnRate: 7.5 * Math.max(0.35, 1 + guidanceBonus / 100),
+              metadata: {
+                splashRadius: delayedDetonation > 0 ? 1.9 + delayedDetonation * 0.55 : undefined,
+                splitOnImpact: clusterWarheads > 0 ? true : undefined,
+                splitSpec: clusterWarheads > 0
+                  ? {
+                      childCount: 3 + clusterWarheads,
+                      speedScale: 0.72,
+                      damageScale: 0.45
+                    }
+                  : undefined,
+                knockbackScale: shockwavePayload > 0 ? 1 + shockwavePayload * 0.32 : undefined
+              }
+            }
+          )
+        );
+        emitWeaponFiredEvent(player, 'Pod Homing Missile', missile.id);
+      }
+
+      pod.fireCooldownMs = podTuning.homingMissileCooldownMs + Math.max(0, missileCount - 1) * 70;
       continue;
     }
 
@@ -132,4 +168,16 @@ export function handlePodWeapons(
     pod.fireCooldownMs = podTuning.pulseCooldownMs;
     emitWeaponFiredEvent(player, 'Pod Auto Pulse', bullet.id);
   }
+}
+
+function rotate(x: number, y: number, radians: number): { x: number; y: number } {
+  if (radians === 0) {
+    return { x, y };
+  }
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  return {
+    x: x * cos - y * sin,
+    y: x * sin + y * cos
+  };
 }
