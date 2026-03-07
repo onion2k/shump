@@ -8,6 +8,7 @@ import { BetweenRoundsUi3D } from './ui/BetweenRoundsUi3D';
 import type { GameSnapshot } from '../core/Game';
 import type { CardDefinition } from '../content/cards';
 import type { EffectsQuality } from './effectsQuality';
+import type { PlayerWeaponMode } from '../weapons/playerWeapons';
 
 interface SceneUiLayerProps {
   showStats: boolean;
@@ -31,6 +32,7 @@ interface SceneUiLayerProps {
   onOpenShop: () => void;
   onCloseShop: () => void;
   onBuyCard: (cardId: string) => void;
+  onSelectPrimaryWeapon: (mode: PlayerWeaponMode) => void;
   onContinue: () => void;
 }
 
@@ -56,6 +58,7 @@ export function SceneUiLayer({
   onOpenShop,
   onCloseShop,
   onBuyCard,
+  onSelectPrimaryWeapon,
   onContinue
 }: SceneUiLayerProps) {
   return (
@@ -89,6 +92,7 @@ export function SceneUiLayer({
         activeCardLimit={snapshot.activeCardLimit}
         money={snapshot.inRunMoney}
         weaponLevels={snapshot.weaponLevels}
+        selectedPrimaryWeapon={snapshot.selectedPrimaryWeaponMode}
         weaponEnergyMax={snapshot.weaponEnergyMax}
         podCount={snapshot.podCount}
         podWeaponMode={snapshot.podWeaponMode}
@@ -101,6 +105,7 @@ export function SceneUiLayer({
         onOpenShop={onOpenShop}
         onCloseShop={onCloseShop}
         onBuyCard={onBuyCard}
+        onSelectPrimaryWeapon={onSelectPrimaryWeapon}
         onContinue={onContinue}
       />
     </>

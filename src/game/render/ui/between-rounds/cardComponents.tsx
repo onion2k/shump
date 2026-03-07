@@ -360,7 +360,9 @@ export function ShipStatsPanel({
   gapX,
   gapY,
   weaponLevels,
-  textScale
+  textScale,
+  selectedPrimaryWeapon,
+  onSelectPrimaryWeapon
 }: {
   cardWidth: number;
   cardHeight: number;
@@ -370,6 +372,8 @@ export function ShipStatsPanel({
   gapY: number;
   weaponLevels: Record<PlayerWeaponMode, number>;
   textScale: number;
+  selectedPrimaryWeapon: PlayerWeaponMode;
+  onSelectPrimaryWeapon: (mode: PlayerWeaponMode) => void;
 }) {
   const cards: CardRenderModel[] = PLAYER_WEAPON_ORDER.map((mode) => ({
     id: `ship-${mode}`,
@@ -392,11 +396,52 @@ export function ShipStatsPanel({
           const bottomGap = row < rows - 1 ? gapY : 0;
           return (
             <Box key={card.id} width={cardWidth} height={cardHeight} mr={rightGap} mb={bottomGap} centerAnchor>
-              <CardFrame card={card} width={cardWidth} height={cardHeight} textScale={textScale} />
+              <ShipLoadoutCard
+                card={card}
+                weaponMode={PLAYER_WEAPON_ORDER[index] ?? 'Auto Pulse'}
+                width={cardWidth}
+                height={cardHeight}
+                textScale={textScale}
+                selected={selectedPrimaryWeapon === (PLAYER_WEAPON_ORDER[index] ?? 'Auto Pulse')}
+                onSelect={onSelectPrimaryWeapon}
+              />
             </Box>
           );
         })}
       </Flex>
+    </group>
+  );
+}
+
+export function ShipLoadoutCard({
+  card,
+  weaponMode,
+  width,
+  height,
+  textScale,
+  selected,
+  onSelect
+}: {
+  card: CardRenderModel;
+  weaponMode: PlayerWeaponMode;
+  width: number;
+  height: number;
+  textScale: number;
+  selected: boolean;
+  onSelect: (mode: PlayerWeaponMode) => void;
+}) {
+  return (
+    <group>
+      <CardFrame card={card} width={width} height={height} textScale={textScale} />
+      <ActionButton
+        label={selected ? 'Selected' : 'Set Primary'}
+        width={width * 0.62}
+        y={-height * 0.39}
+        onClick={() => onSelect(weaponMode)}
+        disabled={selected}
+        color={selected ? '#1f6f4a' : '#2b6f92'}
+        textScale={textScale}
+      />
     </group>
   );
 }

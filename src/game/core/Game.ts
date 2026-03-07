@@ -106,6 +106,7 @@ export interface GameSnapshot {
   playerHealth: number;
   playerMaxHealth: number;
   weaponMode: string;
+  selectedPrimaryWeaponMode: PlayerWeaponMode;
   weaponSlotIndex: number;
   weaponUnlockedCount: number;
   weaponLevel: number;
@@ -801,6 +802,7 @@ export class Game {
       playerHealth: player?.health ?? 0,
       playerMaxHealth: player?.maxHealth ?? 0,
       weaponMode: player?.weaponMode ?? 'Unknown',
+      selectedPrimaryWeaponMode: activeWeaponMode ?? 'Auto Pulse',
       weaponSlotIndex,
       weaponUnlockedCount: unlockedWeaponModes.length,
       weaponLevel: player?.weaponLevel ?? 0,
@@ -991,6 +993,34 @@ export class Game {
     player.fireCooldownMs = 0;
     player.weaponLevels = levels;
     player.weaponLevel = Math.min(currentLevel, maxLevel);
+    this.notify();
+    return true;
+  }
+
+  selectPrimaryWeaponLoadout(mode: PlayerWeaponMode): boolean {
+    if (this.state !== GameState.BetweenRounds && this.state !== GameState.Shop) {
+      return false;
+    }
+
+    const player = this.entities.get(this.playerId);
+    if (!player) {
+      return false;
+    }
+
+    const levels = player.weaponLevels ?? {};
+    const maxLevel = getPlayerWeaponMaxLevel(mode);
+    const currentLevel = Math.max(1, Math.min(maxLevel, levels[mode] ?? 1));
+    levels[mode] = currentLevel;
+
+    const unlocked = player.unlockedWeaponModes ?? [];
+    if (!unlocked.includes(mode)) {
+      player.unlockedWeaponModes = PLAYER_WEAPON_ORDER.filter((candidate) => unlocked.includes(candidate) || candidate === mode);
+    }
+
+    player.weaponMode = mode;
+    player.weaponLevel = currentLevel;
+    player.weaponLevels = levels;
+    player.fireCooldownMs = 0;
     this.notify();
     return true;
   }

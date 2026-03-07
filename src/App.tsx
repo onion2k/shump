@@ -5,6 +5,7 @@ import { GameState } from './game/core/GameState';
 import { createLocalSaveService } from './game/persistence/SaveService';
 import type { SaveFile } from './game/persistence/saveSchema';
 import { resolveCard } from './game/content/cards';
+import { PLAYER_WEAPON_ORDER, isPlayerWeaponMode, type PlayerWeaponMode } from './game/weapons/playerWeapons';
 import {
   DEFAULT_EFFECTS_QUALITY,
   isEffectsQuality,
@@ -58,12 +59,26 @@ export function App() {
           game.cyclePods();
         } else if (event.key === 'x' || event.key === 'X') {
           game.togglePodWeaponMode();
-        } else if (/^[1-9]$/.test(event.key)) {
-          game.selectWeaponBySlot(Number(event.key));
-        } else if (event.key === 'q' || event.key === 'Q') {
-          game.selectPreviousWeapon();
-        } else if (event.key === 'e' || event.key === 'E') {
-          game.selectNextWeapon();
+        } else if (snapshot.state === GameState.BetweenRounds || snapshot.state === GameState.Shop) {
+          if (/^[1-9]$/.test(event.key)) {
+            const weaponMode = PLAYER_WEAPON_ORDER[Number(event.key) - 1];
+            if (weaponMode) {
+              game.selectPrimaryWeaponLoadout(weaponMode);
+              persistCurrentRun();
+            }
+          } else if (event.key === 'q' || event.key === 'Q' || event.key === 'e' || event.key === 'E') {
+            const direction = event.key === 'q' || event.key === 'Q' ? -1 : 1;
+            const current = game.snapshot().selectedPrimaryWeaponMode;
+            const currentMode: PlayerWeaponMode = isPlayerWeaponMode(current) ? current : PLAYER_WEAPON_ORDER[0];
+            const currentIndex = Math.max(0, PLAYER_WEAPON_ORDER.indexOf(currentMode));
+            const nextMode = PLAYER_WEAPON_ORDER[
+              (currentIndex + direction + PLAYER_WEAPON_ORDER.length) % PLAYER_WEAPON_ORDER.length
+            ];
+            if (nextMode) {
+              game.selectPrimaryWeaponLoadout(nextMode);
+              persistCurrentRun();
+            }
+          }
         }
         return;
       }
@@ -172,6 +187,14 @@ export function App() {
     persistCurrentRun();
   }
 
+  function selectPrimaryWeaponLoadout(mode: PlayerWeaponMode) {
+    if (!game.selectPrimaryWeaponLoadout(mode)) {
+      return;
+    }
+
+    persistCurrentRun();
+  }
+
   function openShop() {
     game.openShop();
   }
@@ -219,6 +242,7 @@ export function App() {
           onOpenShop={openShop}
           onCloseShop={closeShop}
           onBuyCard={buyCard}
+          onSelectPrimaryWeapon={selectPrimaryWeaponLoadout}
           onContinue={startNextRound}
           onStart={saveFile.activeRun ? resumeSavedRun : startRun}
           onStartFresh={startFreshRun}

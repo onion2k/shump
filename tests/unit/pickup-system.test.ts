@@ -78,7 +78,7 @@ describe('pickupSystem', () => {
     expect(result.collections).toHaveLength(1);
   });
 
-  it('switches weapon on weapon pickup and powers up when pickup matches selected weapon', () => {
+  it('unlocks weapon on pickup without force-switching and powers up only when pickup matches current weapon', () => {
     const entityManager = new EntityManager();
     const player = createPlayer(entityManager);
 
@@ -96,7 +96,7 @@ describe('pickupSystem', () => {
 
     pickupSystem(entityManager, player.id);
 
-    expect(player.weaponMode).toBe('Heavy Cannon');
+    expect(player.weaponMode).toBe('Auto Pulse');
     expect(player.unlockedWeaponModes).toContain('Heavy Cannon');
     expect(player.weaponLevels?.['Heavy Cannon']).toBe(1);
 
@@ -113,8 +113,8 @@ describe('pickupSystem', () => {
     });
 
     pickupSystem(entityManager, player.id);
-    expect(player.weaponLevels?.['Heavy Cannon']).toBe(2);
-    expect(player.weaponLevel).toBe(2);
+    expect(player.weaponLevels?.['Heavy Cannon']).toBe(1);
+    expect(player.weaponLevel).toBe(1);
   });
 
   it('reports money and card pickups for progression without changing score directly', () => {

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Game } from '../../src/game/core/Game';
 import { GameState } from '../../src/game/core/GameState';
 import { EntityType } from '../../src/game/ecs/entityTypes';
+import { PLAYER_WEAPON_ORDER } from '../../src/game/weapons/playerWeapons';
 
 describe('Game between-round flow', () => {
   it('consumes health upgrade cards and applies permanent hull upgrades', () => {
@@ -315,5 +316,30 @@ describe('Game between-round flow', () => {
 
     expect(game.buyCard('reinforced-hull')).toBe(false);
     expect(game.snapshot().foundCards).toHaveLength(12);
+  });
+
+  it('lets player set next-round primary weapon from the ship loadout between rounds', () => {
+    const game = new Game();
+    game.start();
+
+    expect(game.selectPrimaryWeaponLoadout('Vector Beam')).toBe(false);
+
+    expect(game.enterBetweenRounds()).toBe(true);
+    expect(game.selectPrimaryWeaponLoadout('Vector Beam')).toBe(true);
+
+    const betweenRoundsSnapshot = game.snapshot();
+    expect(betweenRoundsSnapshot.selectedPrimaryWeaponMode).toBe('Vector Beam');
+    expect(betweenRoundsSnapshot.weaponMode).toBe('Vector Beam');
+
+    const player = game.entities.all().find((entity) => entity.type === EntityType.Player);
+    expect(player?.unlockedWeaponModes).toContain('Vector Beam');
+    expect(player?.unlockedWeaponModes).toEqual(
+      PLAYER_WEAPON_ORDER.filter((mode) => (player?.unlockedWeaponModes ?? []).includes(mode))
+    );
+
+    game.startNextRound();
+    const playingSnapshot = game.snapshot();
+    expect(playingSnapshot.state).toBe(GameState.Playing);
+    expect(playingSnapshot.weaponMode).toBe('Vector Beam');
   });
 });

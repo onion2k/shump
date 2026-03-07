@@ -32,6 +32,7 @@ interface BetweenRoundsUi3DProps {
   activeCardLimit: number;
   money: number;
   weaponLevels: Record<PlayerWeaponMode, number>;
+  selectedPrimaryWeapon: PlayerWeaponMode;
   weaponEnergyMax: number;
   podCount: number;
   podWeaponMode: 'Auto Pulse' | 'Homing Missile';
@@ -44,6 +45,7 @@ interface BetweenRoundsUi3DProps {
   onOpenShop: () => void;
   onCloseShop: () => void;
   onBuyCard: (cardId: string) => void;
+  onSelectPrimaryWeapon: (mode: PlayerWeaponMode) => void;
   onContinue: () => void;
 }
 
@@ -55,6 +57,7 @@ export function BetweenRoundsUi3D({
   activeCardLimit,
   money,
   weaponLevels,
+  selectedPrimaryWeapon,
   weaponEnergyMax,
   podCount,
   podWeaponMode,
@@ -67,6 +70,7 @@ export function BetweenRoundsUi3D({
   onOpenShop,
   onCloseShop,
   onBuyCard,
+  onSelectPrimaryWeapon,
   onContinue
 }: BetweenRoundsUi3DProps) {
   const camera = useThree((instance) => instance.camera);
@@ -286,6 +290,7 @@ export function BetweenRoundsUi3D({
               weaponEnergyMax={weaponEnergyMax}
               podCount={podCount}
               podWeaponMode={podWeaponMode}
+              selectedPrimaryWeapon={selectedPrimaryWeapon}
               shopPage={shopPage}
               shopPageCount={shopPageCount}
               setShopPage={setShopPage}
@@ -295,6 +300,7 @@ export function BetweenRoundsUi3D({
               shipPage={shipPage}
               shipPageCount={shipPageCount}
               setShipPage={setShipPage}
+              onSelectPrimaryWeapon={onSelectPrimaryWeapon}
               onActivateCard={onActivateCard}
               onDiscardCard={onDiscardCard}
               onBuyCard={onBuyCard}

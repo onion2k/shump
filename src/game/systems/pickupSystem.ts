@@ -65,12 +65,16 @@ export function pickupSystem(entityManager: EntityManager, playerId: number): Pi
       if (pickupWeaponMode && isPlayerWeaponMode(pickupWeaponMode)) {
         selectedMode = pickupWeaponMode;
         if (!unlockedWeaponModes.includes(selectedMode)) {
-          player.unlockedWeaponModes = [...unlockedWeaponModes, selectedMode];
+          player.unlockedWeaponModes = PLAYER_WEAPON_ORDER.filter(
+            (mode) => unlockedWeaponModes.includes(mode) || mode === selectedMode
+          );
           unlockedThisPickup = true;
         }
       } else if (lockedModes.length > 0) {
         selectedMode = lockedModes[entity.id % lockedModes.length];
-        player.unlockedWeaponModes = [...unlockedWeaponModes, selectedMode];
+        player.unlockedWeaponModes = PLAYER_WEAPON_ORDER.filter(
+          (mode) => unlockedWeaponModes.includes(mode) || mode === selectedMode
+        );
         unlockedThisPickup = true;
       } else {
         selectedMode = isPlayerWeaponMode(player.weaponMode ?? '')
@@ -88,9 +92,10 @@ export function pickupSystem(entityManager: EntityManager, playerId: number): Pi
           levels[selectedMode] = Math.max(1, currentLevel);
         }
         player.weaponLevels = levels;
-        player.weaponMode = selectedMode;
-        player.weaponLevel = levels[selectedMode] ?? 1;
-        player.fireCooldownMs = 0;
+        if (currentMode === selectedMode) {
+          player.weaponLevel = levels[selectedMode] ?? 1;
+          player.fireCooldownMs = 0;
+        }
       }
     } else if (kind === 'money' || kind === 'card') {
       // Run-level progression systems consume these payloads in Game.update.

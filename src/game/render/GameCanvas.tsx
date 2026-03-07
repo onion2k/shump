@@ -6,6 +6,7 @@ import { Game } from '../core/Game';
 import type { GameSnapshot } from '../core/Game';
 import type { CardDefinition } from '../content/cards';
 import type { EffectsQuality } from './effectsQuality';
+import type { PlayerWeaponMode } from '../weapons/playerWeapons';
 
 interface GameCanvasProps {
   game: Game;
@@ -19,6 +20,7 @@ interface GameCanvasProps {
   onOpenShop: () => void;
   onCloseShop: () => void;
   onBuyCard: (cardId: string) => void;
+  onSelectPrimaryWeapon: (mode: PlayerWeaponMode) => void;
   onContinue: () => void;
   onStart: () => void;
   onStartFresh?: () => void;
@@ -44,6 +46,7 @@ export function GameCanvas({
   onOpenShop,
   onCloseShop,
   onBuyCard,
+  onSelectPrimaryWeapon,
   onContinue,
   onStart,
   onStartFresh,
@@ -98,6 +101,7 @@ export function GameCanvas({
           onOpenShop={onOpenShop}
           onCloseShop={onCloseShop}
           onBuyCard={onBuyCard}
+          onSelectPrimaryWeapon={onSelectPrimaryWeapon}
           onContinue={onContinue}
           onStart={onStart}
           onStartFresh={onStartFresh}

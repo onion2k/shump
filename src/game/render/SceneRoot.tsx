@@ -15,6 +15,7 @@ import { ShockWaveEffect } from 'postprocessing';
 import { Vector3 } from 'three';
 import type { CardDefinition } from '../content/cards';
 import { gameSettings } from '../config/gameSettings';
+import type { PlayerWeaponMode } from '../weapons/playerWeapons';
 import {
   resolveEffectsQualityProfile,
   type EffectsQuality
@@ -38,6 +39,7 @@ interface SceneRootProps {
   onOpenShop: () => void;
   onCloseShop: () => void;
   onBuyCard: (cardId: string) => void;
+  onSelectPrimaryWeapon: (mode: PlayerWeaponMode) => void;
   onContinue: () => void;
   onStart: () => void;
   onStartFresh?: () => void;
@@ -68,6 +70,7 @@ export function SceneRoot({
   onOpenShop,
   onCloseShop,
   onBuyCard,
+  onSelectPrimaryWeapon,
   onContinue,
   onStart,
   onStartFresh,
@@ -210,6 +213,7 @@ export function SceneRoot({
         onOpenShop={onOpenShop}
         onCloseShop={onCloseShop}
         onBuyCard={onBuyCard}
+        onSelectPrimaryWeapon={onSelectPrimaryWeapon}
         onContinue={onContinue}
       />
       <ParallaxBackground

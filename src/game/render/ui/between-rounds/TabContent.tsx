@@ -9,9 +9,9 @@ import {
   UiText
 } from './uiPrimitives';
 import {
-  CardFrame,
   CardGrid,
   InteractiveCard,
+  ShipLoadoutCard,
   ShipStatsPanel
 } from './cardComponents';
 import { renderTagSummary } from './utils';
@@ -44,6 +44,7 @@ interface BetweenRoundsTabContentProps {
   weaponEnergyMax: number;
   podCount: number;
   podWeaponMode: 'Auto Pulse' | 'Homing Missile';
+  selectedPrimaryWeapon: PlayerWeaponMode;
   shopPage: number;
   shopPageCount: number;
   setShopPage: Dispatch<SetStateAction<number>>;
@@ -53,6 +54,7 @@ interface BetweenRoundsTabContentProps {
   shipPage: number;
   shipPageCount: number;
   setShipPage: Dispatch<SetStateAction<number>>;
+  onSelectPrimaryWeapon: (mode: PlayerWeaponMode) => void;
   onActivateCard: (cardId: string) => void;
   onDiscardCard: (cardId: string) => void;
   onBuyCard: (cardId: string) => void;
@@ -85,6 +87,7 @@ export function BetweenRoundsTabContent({
   weaponEnergyMax,
   podCount,
   podWeaponMode,
+  selectedPrimaryWeapon,
   shopPage,
   shopPageCount,
   setShopPage,
@@ -94,6 +97,7 @@ export function BetweenRoundsTabContent({
   shipPage,
   shipPageCount,
   setShipPage,
+  onSelectPrimaryWeapon,
   onActivateCard,
   onDiscardCard,
   onBuyCard
@@ -351,7 +355,15 @@ export function BetweenRoundsTabContent({
                 trackWidth={contentWidth}
                 gap={mobileContentCarouselGap}
                 renderItem={(card) => (
-                  <CardFrame card={card} width={mobileContentCarouselCardWidth} height={mobileContentCarouselCardHeight} textScale={textScaleBoost} />
+                  <ShipLoadoutCard
+                    card={card}
+                    weaponMode={card.id.replace('ship-', '') as PlayerWeaponMode}
+                    width={mobileContentCarouselCardWidth}
+                    height={mobileContentCarouselCardHeight}
+                    textScale={textScaleBoost}
+                    selected={selectedPrimaryWeapon === (card.id.replace('ship-', '') as PlayerWeaponMode)}
+                    onSelect={onSelectPrimaryWeapon}
+                  />
                 )}
               />
             ) : (
@@ -364,6 +376,8 @@ export function BetweenRoundsTabContent({
                 gapY={contentGapY}
                 weaponLevels={weaponLevels}
                 textScale={textScaleBoost}
+                selectedPrimaryWeapon={selectedPrimaryWeapon}
+                onSelectPrimaryWeapon={onSelectPrimaryWeapon}
               />
             )
           },
@@ -388,7 +402,7 @@ export function BetweenRoundsTabContent({
                         anchorY="middle"
                         maxWidth={contentWidth}
                       >
-                        {`Max Energy ${Math.round(weaponEnergyMax)}  •  Pods ${podCount}  •  Pod Weapon ${podWeaponMode}`}
+                        {`Primary ${selectedPrimaryWeapon}  •  Max Energy ${Math.round(weaponEnergyMax)}  •  Pods ${podCount}  •  Pod Weapon ${podWeaponMode}`}
                       </UiText>
                     )
                   },
