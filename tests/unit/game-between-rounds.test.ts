@@ -142,6 +142,92 @@ describe('Game between-round flow', () => {
     expect(offers.some((card) => card.tags.includes('pod'))).toBe(true);
   });
 
+  it('keeps shop offers stable while browsing between rounds', () => {
+    const game = new Game();
+    game.startFromRunProgress({
+      seed: 77,
+      levelId: 'level-1',
+      roundIndex: 3,
+      inRunMoney: 120,
+      foundCards: [],
+      activeCards: [],
+      consumedCards: [],
+      playerState: {
+        health: 10,
+        maxHealth: 10,
+        weaponLevels: {
+          'Auto Pulse': 1
+        },
+        podCount: 0,
+        podWeaponMode: 'Auto Pulse',
+        moveMaxSpeed: 24,
+        moveFollowGain: 6,
+        pickupAttractRange: 4.2,
+        pickupAttractPower: 16,
+        shieldCurrent: 10,
+        shieldMax: 10,
+        shieldRechargeDelayMs: 1400,
+        shieldRechargeTimeMs: 3600,
+        shieldRechargeDelayRemainingMs: 0
+      },
+      elapsedMs: 0,
+      distanceTraveled: 0,
+      score: 0
+    });
+
+    expect(game.enterBetweenRounds()).toBe(true);
+    game.openShop();
+    const first = game.shopOffers().map((card) => card.id);
+    const second = game.shopOffers().map((card) => card.id);
+    expect(second).toEqual(first);
+  });
+
+  it('replaces a purchased offer without immediately rerolling the same card', () => {
+    const game = new Game();
+    game.startFromRunProgress({
+      seed: 97,
+      levelId: 'level-1',
+      roundIndex: 4,
+      inRunMoney: 500,
+      foundCards: [],
+      activeCards: [],
+      consumedCards: [],
+      playerState: {
+        health: 10,
+        maxHealth: 10,
+        weaponLevels: {
+          'Auto Pulse': 1
+        },
+        podCount: 0,
+        podWeaponMode: 'Auto Pulse',
+        moveMaxSpeed: 24,
+        moveFollowGain: 6,
+        pickupAttractRange: 4.2,
+        pickupAttractPower: 16,
+        shieldCurrent: 10,
+        shieldMax: 10,
+        shieldRechargeDelayMs: 1400,
+        shieldRechargeTimeMs: 3600,
+        shieldRechargeDelayRemainingMs: 0
+      },
+      elapsedMs: 0,
+      distanceTraveled: 0,
+      score: 0
+    });
+
+    expect(game.enterBetweenRounds()).toBe(true);
+    game.openShop();
+    const before = game.shopOffers();
+    expect(before.length).toBeGreaterThan(0);
+    const purchasedCardId = before[0].id;
+
+    expect(game.buyCard(purchasedCardId)).toBe(true);
+
+    const after = game.shopOffers();
+    expect(after.length).toBeGreaterThan(0);
+    expect(after[0].id).not.toBe(purchasedCardId);
+  });
+
   it('discards found cards without activating them', () => {
     const game = new Game();
     game.startFromRunProgress({

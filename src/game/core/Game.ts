@@ -50,6 +50,7 @@ import {
 import {
   ACTIVE_CARD_LIMIT,
   canAcquireCard,
+  countCardCopies,
   drawShopOffers,
   isConsumableUpgradeCard,
   resolveCard,
@@ -210,6 +211,7 @@ export class Game {
   private cachedCardBonuses: CardBonuses = computeCardBonuses([]);
   private cachedCardBonusesKey = '';
   private levelDirector = new LevelDirector();
+  private shopOfferCardIds: string[] = [];
 
   constructor() {
     this.bootstrap();
@@ -218,6 +220,7 @@ export class Game {
   bootstrap() {
     this.runProgress = undefined;
     this.invalidateCardBonusCache();
+    this.invalidateShopOffers();
     this.resetCardRuntimeState(0);
     this.syncLevelDirectorModifiersWithCards();
     this.resetWorld();
@@ -230,6 +233,7 @@ export class Game {
     const player = this.entities.get(this.playerId);
     this.runProgress = createDefaultRunProgress(seed, createRunPlayerStateFromPlayerEntity(player));
     this.invalidateCardBonusCache();
+    this.invalidateShopOffers();
     this.resetCardRuntimeState(this.runProgress.seed);
     this.levelDirector.configure(this.runProgress.levelId, this.runProgress.roundIndex);
     this.runProgress.levelId = this.levelDirector.currentLevelId();
@@ -243,6 +247,7 @@ export class Game {
   startFromRunProgress(runProgress: RunProgress) {
     this.runProgress = cloneRunProgress(runProgress);
     this.invalidateCardBonusCache();
+    this.invalidateShopOffers();
     this.resetCardRuntimeState(this.runProgress.seed);
     this.levelDirector.configure(this.runProgress.levelId, this.runProgress.roundIndex);
     this.runProgress.levelId = this.levelDirector.currentLevelId();
@@ -269,6 +274,7 @@ export class Game {
   clearRunProgress() {
     this.runProgress = undefined;
     this.invalidateCardBonusCache();
+    this.invalidateShopOffers();
     this.resetCardRuntimeState(0);
     this.syncLevelDirectorModifiersWithCards();
   }
@@ -387,6 +393,7 @@ export class Game {
       const nextRoundIndex = this.levelDirector.advanceRound();
       this.runProgress.levelId = this.levelDirector.currentLevelId();
       this.runProgress.roundIndex = nextRoundIndex;
+      this.invalidateShopOffers();
       this.spawner.setScriptedWaves(this.levelDirector.currentRound().waves);
       this.resetCardRuntimeState(this.runProgress.seed);
     }
@@ -403,6 +410,7 @@ export class Game {
       return false;
     }
 
+    const purchasedOfferIndex = this.shopOfferCardIds.findIndex((offerId) => offerId === cardId);
     const card = resolveCard(cardId);
     if (!card) {
       return false;
@@ -422,6 +430,9 @@ export class Game {
 
     this.runProgress.inRunMoney -= effectiveCost;
     this.runProgress.foundCards = [...this.runProgress.foundCards, cardId];
+    if (purchasedOfferIndex >= 0) {
+      this.replacePurchasedShopOffer(purchasedOfferIndex, cardId);
+    }
     this.captureRunProgress();
     this.notify();
     return true;
@@ -501,45 +512,20 @@ export class Game {
   }
 
   shopOffers(): CardDefinition[] {
-    if (!this.runProgress) {
+    if (!this.runProgress || (this.state !== GameState.BetweenRounds && this.state !== GameState.Shop)) {
       return [];
     }
 
-    const offers = drawShopOffers(
-      {
-        seed: this.runProgress.seed,
-        roundIndex: this.runProgress.roundIndex,
-        foundCards: this.runProgress.foundCards,
-        activeCards: this.runProgress.activeCards,
-        consumedCards: this.runProgress.consumedCards ?? []
-      },
-      3
-    );
-
-    const ownsPodCard = [...this.runProgress.foundCards, ...this.runProgress.activeCards].some((cardId) =>
-      resolveCard(cardId)?.tags.includes('pod')
-    );
-    const hasPodOffer = offers.some((card) => card.tags.includes('pod'));
-
-    if (!ownsPodCard && !hasPodOffer) {
-      const guaranteedPod = POD_CARD_IDS.map((cardId) => resolveCard(cardId))
-        .find(
-          (card) =>
-            card
-            && this.runProgress
-            && this.runProgress.roundIndex >= card.unlockRound
-            && canAcquireCard(card.id, this.runProgress.foundCards, this.runProgress.activeCards, this.runProgress.consumedCards ?? [])
-        );
-
-      if (guaranteedPod) {
-        if (offers.length >= 3) {
-          offers[offers.length - 1] = guaranteedPod;
-        } else {
-          offers.push(guaranteedPod);
-        }
-      }
+    if (this.shopOfferCardIds.length === 0) {
+      this.shopOfferCardIds = this.drawFreshShopOffers().map((card) => card.id);
     }
 
+    const offers = this.shopOfferCardIds.map((cardId) => resolveCard(cardId)).filter((card): card is CardDefinition => Boolean(card));
+    if (offers.length !== this.shopOfferCardIds.length) {
+      this.invalidateShopOffers();
+      this.shopOfferCardIds = this.drawFreshShopOffers().map((card) => card.id);
+      return this.shopOfferCardIds.map((cardId) => resolveCard(cardId)).filter((card): card is CardDefinition => Boolean(card));
+    }
     return offers;
   }
 
@@ -1196,8 +1182,128 @@ export class Game {
 
     this.cardRuntimeState = clearRoundTemporaryCardEffects(this.cardRuntimeState);
     this.captureRunProgress();
+    this.invalidateShopOffers();
     this.state = GameState.BetweenRounds;
     return true;
+  }
+
+  private invalidateShopOffers() {
+    this.shopOfferCardIds = [];
+  }
+
+  private drawFreshShopOffers(): CardDefinition[] {
+    if (!this.runProgress) {
+      return [];
+    }
+
+    const offers = drawShopOffers(
+      {
+        seed: this.runProgress.seed,
+        roundIndex: this.runProgress.roundIndex,
+        foundCards: this.runProgress.foundCards,
+        activeCards: this.runProgress.activeCards,
+        consumedCards: this.runProgress.consumedCards ?? []
+      },
+      3
+    );
+
+    return this.applyGuaranteedPodOfferIfNeeded(offers);
+  }
+
+  private applyGuaranteedPodOfferIfNeeded(offers: CardDefinition[]): CardDefinition[] {
+    if (!this.runProgress) {
+      return offers;
+    }
+
+    const ownsPodCard = [...this.runProgress.foundCards, ...this.runProgress.activeCards].some((cardId) =>
+      resolveCard(cardId)?.tags.includes('pod')
+    );
+    const hasPodOffer = offers.some((card) => card.tags.includes('pod'));
+    if (ownsPodCard || hasPodOffer) {
+      return offers;
+    }
+
+    const guaranteedPod = POD_CARD_IDS.map((cardId) => resolveCard(cardId))
+      .find(
+        (card) =>
+          card
+          && this.runProgress
+          && this.runProgress.roundIndex >= card.unlockRound
+          && canAcquireCard(card.id, this.runProgress.foundCards, this.runProgress.activeCards, this.runProgress.consumedCards ?? [])
+      );
+
+    if (!guaranteedPod) {
+      return offers;
+    }
+
+    const updated = [...offers];
+    if (updated.length >= 3) {
+      updated[updated.length - 1] = guaranteedPod;
+    } else {
+      updated.push(guaranteedPod);
+    }
+    return updated;
+  }
+
+  private replacePurchasedShopOffer(slotIndex: number, purchasedCardId: string) {
+    if (!this.runProgress || slotIndex < 0 || slotIndex >= this.shopOfferCardIds.length) {
+      return;
+    }
+
+    const excluded = new Set<string>([purchasedCardId]);
+    for (let i = 0; i < this.shopOfferCardIds.length; i += 1) {
+      if (i !== slotIndex) {
+        excluded.add(this.shopOfferCardIds[i]);
+      }
+    }
+
+    const replacement = this.drawReplacementOffer(excluded);
+    if (replacement) {
+      this.shopOfferCardIds[slotIndex] = replacement.id;
+      return;
+    }
+
+    const fallback = this.drawReplacementOffer(new Set(this.shopOfferCardIds.filter((_, index) => index !== slotIndex)));
+    if (fallback) {
+      this.shopOfferCardIds[slotIndex] = fallback.id;
+      return;
+    }
+
+    this.shopOfferCardIds.splice(slotIndex, 1);
+  }
+
+  private drawReplacementOffer(excludedCardIds: Set<string>): CardDefinition | undefined {
+    if (!this.runProgress) {
+      return undefined;
+    }
+
+    const augmentedFoundCards = [...this.runProgress.foundCards];
+    const consumedCards = this.runProgress.consumedCards ?? [];
+    for (const excludedId of excludedCardIds) {
+      const card = resolveCard(excludedId);
+      if (!card) {
+        continue;
+      }
+
+      const currentCopies = countCardCopies(excludedId, augmentedFoundCards, this.runProgress.activeCards, consumedCards);
+      const copiesNeeded = card.maxStacks - currentCopies;
+      for (let i = 0; i < copiesNeeded; i += 1) {
+        augmentedFoundCards.push(excludedId);
+      }
+    }
+
+    const offer = drawShopOffers(
+      {
+        seed: this.runProgress.seed,
+        roundIndex: this.runProgress.roundIndex,
+        foundCards: augmentedFoundCards,
+        activeCards: this.runProgress.activeCards,
+        consumedCards
+      },
+      1
+    )[0];
+
+    return offer;
   }
 
   private addRunMoney(amount: number, source: 'kill' | 'pickup' = 'pickup', bonuses?: CardBonuses) {
