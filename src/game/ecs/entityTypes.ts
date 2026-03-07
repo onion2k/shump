@@ -4,7 +4,9 @@ export enum EntityType {
   Pod = 'pod',
   Bullet = 'bullet',
   Pickup = 'pickup',
-  Particle = 'particle'
+  Particle = 'particle',
+  Field = 'field',
+  Drone = 'drone'
 }
 
 export enum Faction {

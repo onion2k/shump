@@ -2,7 +2,10 @@ import type { EntityManager } from '../ecs/EntityManager';
 import { BULLET_SPEED, PLAYER_MACHINE_GUN_INTERVAL_MS } from '../core/constants';
 import { createBullet } from '../factories/createBullet';
 import { createLaserBeam } from '../factories/createLaserBeam';
-import { Faction } from '../ecs/entityTypes';
+import { createField } from '../factories/createField';
+import { createDrone } from '../factories/createDrone';
+import { EntityType, Faction } from '../ecs/entityTypes';
+import { applyDamage } from './damageSystem';
 import {
   applyFireRate,
   applyPercent,
@@ -19,6 +22,8 @@ import type {
   PlayerWeaponSystemOptions,
   WeaponFireRecord
 } from './playerWeaponTypes';
+import type { PlayerWeaponMode } from '../weapons/playerWeapons';
+import type { Entity } from '../ecs/components';
 
 const AUTO_PULSE_BASE_INTERVAL_MS = PLAYER_MACHINE_GUN_INTERVAL_MS;
 const AUTO_PULSE_BASE_COST = 4;
@@ -34,14 +39,109 @@ const CANNON_BASE_COST = 14;
 const SINE_SMG_BASE_INTERVAL_MS = 58;
 const SINE_SMG_BASE_COST = 2;
 
-export interface ProjectileFireModeResult extends FireOutcome {
+export interface ModeFireResult extends FireOutcome {
   firedRecords: WeaponFireRecord[];
+  scoreDelta: number;
 }
 
-export interface LaserFireModeResult extends FireOutcome {
-  scoreDelta: number;
-  range: number;
-  halfWidth: number;
+export type WeaponModeHandler = (
+  entityManager: EntityManager,
+  player: PlayerEntity,
+  level: number,
+  options: PlayerWeaponSystemOptions,
+  conditionalBonuses: ConditionalDerivedBonuses
+) => ModeFireResult;
+
+function noFire(intervalMs = 100, energyCost = 1): ModeFireResult {
+  return { fired: false, intervalMs, energyCost, firedRecords: [], scoreDelta: 0 };
+}
+
+function minEnergy(player: PlayerEntity, energyCost: number): boolean {
+  return (player.weaponEnergy ?? 0) >= energyCost;
+}
+
+function damageScale(options: PlayerWeaponSystemOptions): number {
+  return resolveKineticEscalationScale(options);
+}
+
+function addStatus(entity: Entity, effectId: string, remainingMs: number, stacks = 1): void {
+  const existing = entity.statusEffects?.find((effect) => effect.effectId === effectId);
+  if (existing) {
+    existing.remainingMs = Math.max(existing.remainingMs, remainingMs);
+    existing.stacks = Math.max(existing.stacks ?? 1, stacks);
+    return;
+  }
+  entity.statusEffects = [...(entity.statusEffects ?? []), { effectId, remainingMs, stacks }];
+}
+
+function nearestEnemies(entityManager: EntityManager, x: number, y: number, maxCount: number, maxRange = Number.POSITIVE_INFINITY): Entity[] {
+  const maxRangeSq = maxRange * maxRange;
+  const entries: { enemy: Entity; distSq: number }[] = [];
+  for (const entity of entityManager.values()) {
+    if (entity.type !== EntityType.Enemy || entity.health <= 0) {
+      continue;
+    }
+    const dx = entity.position.x - x;
+    const dy = entity.position.y - y;
+    const distSq = dx * dx + dy * dy;
+    if (distSq > maxRangeSq) {
+      continue;
+    }
+    entries.push({ enemy: entity, distSq });
+  }
+  entries.sort((a, b) => a.distSq - b.distSq);
+  return entries.slice(0, maxCount).map((entry) => entry.enemy);
+}
+
+function dealDamage(target: Entity, amount: number): number {
+  const before = target.health;
+  applyDamage(target, amount);
+  if (before > 0 && target.health <= 0) {
+    return target.scoreValue ?? 0;
+  }
+  return 0;
+}
+
+function fireMultiPellet(
+  entityManager: EntityManager,
+  player: PlayerEntity,
+  count: number,
+  spreadRadians: number,
+  speed: number,
+  damage: number,
+  lifetimeMs: number,
+  weaponMode: PlayerWeaponMode,
+  projectileKind: Entity['projectileKind'] = 'standard',
+  radius = 0.18,
+  metadata?: ReturnType<typeof buildProjectileMetadata>
+): WeaponFireRecord[] {
+  const records: WeaponFireRecord[] = [];
+  for (let i = 0; i < count; i += 1) {
+    const t = count === 1 ? 0 : i / (count - 1);
+    const angle = (t * 2 - 1) * spreadRadians * 0.5;
+    const vx = Math.sin(angle) * speed;
+    const vy = Math.cos(angle) * speed;
+    const bullet = entityManager.create(
+      createBullet(
+        player.position.x,
+        player.position.y + 0.74,
+        vy,
+        Faction.Player,
+        lifetimeMs,
+        damage,
+        radius,
+        vx,
+        {
+          ...(metadata ?? {})
+        }
+      )
+    );
+    if (projectileKind && projectileKind !== 'standard') {
+      bullet.projectileKind = projectileKind;
+    }
+    records.push({ weaponMode, projectileEntityId: bullet.id });
+  }
+  return records;
 }
 
 export function fireAutoPulse(
@@ -50,7 +150,7 @@ export function fireAutoPulse(
   level: number,
   options: PlayerWeaponSystemOptions,
   conditionalBonuses: ConditionalDerivedBonuses
-): ProjectileFireModeResult {
+): ModeFireResult {
   const tuningBonuses = options.weaponTuningBonuses;
   const extraStreams = Math.max(0, Math.round(resolveBonus(options.weaponAmplifierBonus, 'twin-mounts')));
   const helixPattern = resolveBonus(options.patternModifierBonus, 'helix-pattern');
@@ -64,12 +164,8 @@ export function fireAutoPulse(
   const pulseAmplifier = Math.max(0, Math.round(resolveBonus(options.weaponAmplifierBonus, 'pulse-amplifier')));
   const alternatingBarrels = resolveBonus(options.triggerModifierBonus, 'alternating-barrels');
   const baseShotCounter = Math.max(0, options.shotCounter ?? 0);
-  let streamOffsets =
-    level <= 1
-      ? [0]
-      : level === 2
-        ? [-0.24, 0.24]
-        : [-0.34, 0, 0.34];
+
+  let streamOffsets = level <= 1 ? [0] : level === 2 ? [-0.24, 0.24] : [-0.34, 0, 0.34];
   if (triangularSpread > 0) {
     streamOffsets = [-0.4, 0, 0.4];
   }
@@ -82,7 +178,7 @@ export function fireAutoPulse(
   const baseIntervalMs = Math.max(56, AUTO_PULSE_BASE_INTERVAL_MS - (Math.min(level, 8) - 1) * 5);
   const coolingBonus = resolveBonus(options.weaponAmplifierBonus, 'accelerated-cooling');
   const momentumTriggerBonus = momentumTrigger > 0 ? Math.min(24, (options.consecutiveShootingMs ?? 0) / 1000 * momentumTrigger) : 0;
-  const overdriveCycleBonus = overdriveCycle > 0 && (((options.elapsedMs ?? 0) % 7000) < 2400) ? overdriveCycle * 10 : 0;
+  const overdriveCycleBonus = overdriveCycle > 0 && ((options.elapsedMs ?? 0) % 7000) < 2400 ? overdriveCycle * 10 : 0;
   const rapidVentingBonus = rapidVentingActive ? 18 : 0;
   const intervalMs = Math.max(
     20,
@@ -102,7 +198,7 @@ export function fireAutoPulse(
     Math.round(applyPercent(baseEnergyCost, resolveWeaponPercent(tuningBonuses, 'Auto Pulse', 'energyCostPercent')))
   );
   const baseDamage = level >= 5 ? 2 : 1;
-  const kineticScale = resolveKineticEscalationScale(options);
+  const kineticScale = damageScale(options);
   const damage = Math.max(
     1,
     Math.round(
@@ -119,8 +215,8 @@ export function fireAutoPulse(
     resolveWeaponPercent(tuningBonuses, 'Auto Pulse', 'projectileSpeedPercent') + highVelocitySpeed
   );
 
-  if ((player.weaponEnergy ?? 0) < energyCost) {
-    return { fired: false, energyCost, intervalMs, firedRecords: [] };
+  if (!minEnergy(player, energyCost)) {
+    return noFire(intervalMs, energyCost);
   }
 
   const firedRecords: WeaponFireRecord[] = [];
@@ -133,9 +229,10 @@ export function fireAutoPulse(
       const alternatingBoost = alternatingBarrels > 0 && shotIndex % 2 === 0 ? alternatingBarrels : 0;
       const shotDamage = Math.max(1, Math.round(damage * (isPulseAmpShot ? 1.6 : 1) * (1 + alternatingBoost / 100)));
       const fanVx = arcFan > 0 ? offset * BULLET_SPEED * 0.35 * arcFan : 0;
-      const helixVx = helixPattern > 0
-        ? Math.sin((player.weaponOscillator ?? 0) + offset * 7.5 + burst * 0.4) * BULLET_SPEED * 0.08 * helixPattern
-        : 0;
+      const helixVx =
+        helixPattern > 0
+          ? Math.sin((player.weaponOscillator ?? 0) + offset * 7.5 + burst * 0.4) * BULLET_SPEED * 0.08 * helixPattern
+          : 0;
       const bullet = entityManager.create(
         createBullet(
           player.position.x + offset,
@@ -144,7 +241,7 @@ export function fireAutoPulse(
           Faction.Player,
           2000,
           shotDamage,
-          isPulseAmpShot ? 0.25 : 0.22,
+          0.25,
           helixVx + fanVx,
           buildProjectileMetadata(options, false)
         )
@@ -154,7 +251,7 @@ export function fireAutoPulse(
   }
 
   player.weaponOscillator = ((player.weaponOscillator ?? 0) + 0.18 + helixPattern * 0.09) % (Math.PI * 2);
-  return { fired: true, energyCost, intervalMs, firedRecords };
+  return { fired: true, energyCost, intervalMs, firedRecords, scoreDelta: 0 };
 }
 
 export function fireContinuousLaser(
@@ -163,14 +260,14 @@ export function fireContinuousLaser(
   level: number,
   options: PlayerWeaponSystemOptions,
   conditionalBonuses: ConditionalDerivedBonuses
-): LaserFireModeResult {
+): ModeFireResult {
   const tuningBonuses = options.weaponTuningBonuses;
   const baseIntervalMs = Math.max(34, LASER_BASE_INTERVAL_MS - (Math.min(level, 8) - 1) * 2);
   const coolingBonus = resolveBonus(options.weaponAmplifierBonus, 'accelerated-cooling');
   const momentumTrigger = resolveBonus(options.triggerModifierBonus, 'momentum-trigger');
   const momentumTriggerBonus = momentumTrigger > 0 ? Math.min(24, (options.consecutiveShootingMs ?? 0) / 1000 * momentumTrigger) : 0;
   const overdriveCycle = resolveBonus(options.triggerModifierBonus, 'overdrive-cycle');
-  const overdriveCycleBonus = overdriveCycle > 0 && (((options.elapsedMs ?? 0) % 7000) < 2400) ? overdriveCycle * 10 : 0;
+  const overdriveCycleBonus = overdriveCycle > 0 && ((options.elapsedMs ?? 0) % 7000) < 2400 ? overdriveCycle * 10 : 0;
   const rapidVentingBonus = (options.rapidVentingUntilMs ?? 0) > (options.elapsedMs ?? 0) ? 18 : 0;
   const intervalMs = Math.max(
     16,
@@ -189,16 +286,19 @@ export function fireContinuousLaser(
     1,
     Math.round(applyPercent(baseEnergyCost, resolveWeaponPercent(tuningBonuses, 'Continuous Laser', 'energyCostPercent')))
   );
+  if (!minEnergy(player, energyCost)) {
+    return noFire(intervalMs, energyCost);
+  }
+
   const baseDamage = 1 + Math.floor((level - 1) / 2);
   const overchargeDamage = resolveBonus(options.weaponAmplifierBonus, 'overcharged-capacitors-damage');
-  const kineticScale = resolveKineticEscalationScale(options);
   const damage = Math.max(
     1,
     Math.round(
       applyPercent(
         baseDamage,
         resolveWeaponPercent(tuningBonuses, 'Continuous Laser', 'damagePercent') + overchargeDamage + conditionalBonuses.damagePercent
-      ) * kineticScale
+      ) * damageScale(options)
     )
   );
   const range = applyPercent(
@@ -210,23 +310,16 @@ export function fireContinuousLaser(
   const halfWidth = (LASER_BASE_HALF_WIDTH + Math.min(level, 8) * 0.08) * Math.max(0.5, 1 + overchargeWidth / 100);
   const targetCount = 1 + Math.floor((level - 1) / 3);
 
-  if ((player.weaponEnergy ?? 0) < energyCost) {
-    return { fired: false, scoreDelta: 0, energyCost, intervalMs, range, halfWidth };
-  }
-
-  const sweepOffset = oscillatingLaser > 0
-    ? Math.sin((player.weaponOscillator ?? 0) * (1 + oscillatingLaser * 0.25)) * 0.9 * oscillatingLaser
-    : 0;
+  const sweepOffset =
+    oscillatingLaser > 0 ? Math.sin((player.weaponOscillator ?? 0) * (1 + oscillatingLaser * 0.25)) * 0.9 * oscillatingLaser : 0;
   const targets = pickLaserTargets(entityManager, player.position.x + sweepOffset, player.position.y, range, halfWidth, targetCount);
   let scoreDelta = 0;
   for (const target of targets) {
-    target.health -= damage;
-    if (target.health <= 0) {
-      scoreDelta += target.scoreValue ?? 0;
-    }
+    scoreDelta += dealDamage(target, damage);
   }
 
-  return { fired: true, scoreDelta, energyCost, intervalMs, range, halfWidth };
+  spawnLaserBeam(entityManager, player, intervalMs, range, halfWidth);
+  return { fired: true, scoreDelta, energyCost, intervalMs, firedRecords: [{ weaponMode: 'Continuous Laser' }] };
 }
 
 export function spawnLaserBeam(
@@ -234,17 +327,11 @@ export function spawnLaserBeam(
   player: PlayerEntity,
   intervalMs: number,
   range: number,
-  halfWidth: number
+  halfWidth: number,
+  projectileKind: Entity['projectileKind'] = 'laser'
 ): void {
-  entityManager.create(
-    createLaserBeam(
-      player.position.x,
-      player.position.y + 0.95,
-      range,
-      halfWidth,
-      Math.max(90, intervalMs * 0.65)
-    )
-  );
+  const beam = entityManager.create(createLaserBeam(player.position.x, player.position.y + 0.95, range, halfWidth, Math.max(90, intervalMs * 0.65)));
+  beam.projectileKind = projectileKind;
 }
 
 export function fireHeavyCannon(
@@ -253,7 +340,7 @@ export function fireHeavyCannon(
   level: number,
   options: PlayerWeaponSystemOptions,
   conditionalBonuses: ConditionalDerivedBonuses
-): ProjectileFireModeResult {
+): ModeFireResult {
   const tuningBonuses = options.weaponTuningBonuses;
   const compressionCannon = resolveBonus(options.weaponAmplifierBonus, 'compression-cannon');
   const baseIntervalMs = Math.max(180, CANNON_BASE_INTERVAL_MS - (Math.min(level, 8) - 1) * 24 + compressionCannon * 70);
@@ -261,7 +348,7 @@ export function fireHeavyCannon(
   const momentumTrigger = resolveBonus(options.triggerModifierBonus, 'momentum-trigger');
   const momentumTriggerBonus = momentumTrigger > 0 ? Math.min(24, (options.consecutiveShootingMs ?? 0) / 1000 * momentumTrigger) : 0;
   const overdriveCycle = resolveBonus(options.triggerModifierBonus, 'overdrive-cycle');
-  const overdriveCycleBonus = overdriveCycle > 0 && (((options.elapsedMs ?? 0) % 7000) < 2400) ? overdriveCycle * 10 : 0;
+  const overdriveCycleBonus = overdriveCycle > 0 && ((options.elapsedMs ?? 0) % 7000) < 2400 ? overdriveCycle * 10 : 0;
   const rapidVentingBonus = (options.rapidVentingUntilMs ?? 0) > (options.elapsedMs ?? 0) ? 18 : 0;
   const intervalMs = Math.max(
     70,
@@ -280,33 +367,31 @@ export function fireHeavyCannon(
     1,
     Math.round(applyPercent(baseEnergyCost, resolveWeaponPercent(tuningBonuses, 'Heavy Cannon', 'energyCostPercent')))
   );
+  if (!minEnergy(player, energyCost)) {
+    return noFire(intervalMs, energyCost);
+  }
+
   const baseDamage = 6 + (level - 1) * 2;
-  const kineticScale = resolveKineticEscalationScale(options);
   const damage = Math.max(
     1,
     Math.round(
       applyPercent(
         baseDamage,
         resolveWeaponPercent(tuningBonuses, 'Heavy Cannon', 'damagePercent') + conditionalBonuses.damagePercent
-      ) * kineticScale * (compressionCannon > 0 ? 1 + compressionCannon * 0.45 : 1)
+      ) * damageScale(options) * (compressionCannon > 0 ? 1 + compressionCannon * 0.45 : 1)
     )
   );
   const baseSpeed = 13 + Math.min(level, 8) * 0.8;
   const highVelocitySpeed = resolveBonus(options.projectileModifierBonus, 'high-velocity-rounds-speed');
-  const speed = applyPercent(
-    baseSpeed,
-    resolveWeaponPercent(tuningBonuses, 'Heavy Cannon', 'projectileSpeedPercent') + highVelocitySpeed
-  ) * (compressionCannon > 0 ? Math.max(0.25, 1 - compressionCannon * 0.4) : 1);
+  const speed =
+    applyPercent(baseSpeed, resolveWeaponPercent(tuningBonuses, 'Heavy Cannon', 'projectileSpeedPercent') + highVelocitySpeed)
+    * (compressionCannon > 0 ? Math.max(0.25, 1 - compressionCannon * 0.4) : 1);
   const driftReduction = Math.min(
     0.8,
     Math.max(0, (resolveBonus(options.weaponAmplifierBonus, 'gyrostabilised-cannons') + conditionalBonuses.precisionPercent) / 100)
   );
   const twinMounts = Math.max(0, Math.round(resolveBonus(options.weaponAmplifierBonus, 'twin-mounts')));
   const offsets = level >= 3 || twinMounts > 0 ? [-0.22, 0.22] : [0];
-
-  if ((player.weaponEnergy ?? 0) < energyCost) {
-    return { fired: false, energyCost, intervalMs, firedRecords: [] };
-  }
 
   const firedRecords: WeaponFireRecord[] = [];
   for (const offset of offsets) {
@@ -327,7 +412,7 @@ export function fireHeavyCannon(
     firedRecords.push({ weaponMode: 'Heavy Cannon', projectileEntityId: bullet.id });
   }
 
-  return { fired: true, energyCost, intervalMs, firedRecords };
+  return { fired: true, energyCost, intervalMs, firedRecords, scoreDelta: 0 };
 }
 
 export function fireSineSmg(
@@ -336,14 +421,14 @@ export function fireSineSmg(
   level: number,
   options: PlayerWeaponSystemOptions,
   conditionalBonuses: ConditionalDerivedBonuses
-): ProjectileFireModeResult {
+): ModeFireResult {
   const tuningBonuses = options.weaponTuningBonuses;
   const baseIntervalMs = Math.max(28, SINE_SMG_BASE_INTERVAL_MS - (Math.min(level, 10) - 1) * 3);
   const coolingBonus = resolveBonus(options.weaponAmplifierBonus, 'accelerated-cooling');
   const momentumTrigger = resolveBonus(options.triggerModifierBonus, 'momentum-trigger');
   const momentumTriggerBonus = momentumTrigger > 0 ? Math.min(24, (options.consecutiveShootingMs ?? 0) / 1000 * momentumTrigger) : 0;
   const overdriveCycle = resolveBonus(options.triggerModifierBonus, 'overdrive-cycle');
-  const overdriveCycleBonus = overdriveCycle > 0 && (((options.elapsedMs ?? 0) % 7000) < 2400) ? overdriveCycle * 10 : 0;
+  const overdriveCycleBonus = overdriveCycle > 0 && ((options.elapsedMs ?? 0) % 7000) < 2400 ? overdriveCycle * 10 : 0;
   const rapidVentingBonus = (options.rapidVentingUntilMs ?? 0) > (options.elapsedMs ?? 0) ? 18 : 0;
   const intervalMs = Math.max(
     14,
@@ -362,13 +447,16 @@ export function fireSineSmg(
     1,
     Math.round(applyPercent(baseEnergyCost, resolveWeaponPercent(tuningBonuses, 'Sine SMG', 'energyCostPercent')))
   );
+  if (!minEnergy(player, energyCost)) {
+    return noFire(intervalMs, energyCost);
+  }
+
   const baseDamage = 1 + Math.floor((level - 1) / 5);
-  const kineticScale = resolveKineticEscalationScale(options);
   const damage = Math.max(
     1,
     Math.round(
       applyPercent(baseDamage, resolveWeaponPercent(tuningBonuses, 'Sine SMG', 'damagePercent') + conditionalBonuses.damagePercent)
-        * kineticScale
+      * damageScale(options)
     )
   );
   const baseSpeed = BULLET_SPEED * 0.9;
@@ -385,10 +473,6 @@ export function fireSineSmg(
   const twinMounts = Math.max(0, Math.round(resolveBonus(options.weaponAmplifierBonus, 'twin-mounts')));
   const streams = level >= 4 || twinMounts > 0 ? 2 : 1;
   const basePhase = player.weaponOscillator ?? 0;
-
-  if ((player.weaponEnergy ?? 0) < energyCost) {
-    return { fired: false, energyCost, intervalMs, firedRecords: [] };
-  }
 
   const firedRecords: WeaponFireRecord[] = [];
   for (let stream = 0; stream < streams; stream += 1) {
@@ -412,5 +496,478 @@ export function fireSineSmg(
   }
 
   player.weaponOscillator = (basePhase + 0.46 + level * 0.02) % (Math.PI * 2);
-  return { fired: true, energyCost, intervalMs, firedRecords };
+  return { fired: true, energyCost, intervalMs, firedRecords, scoreDelta: 0 };
 }
+
+function fireFlakCannon(
+  entityManager: EntityManager,
+  player: PlayerEntity,
+  level: number,
+  options: PlayerWeaponSystemOptions,
+  conditionalBonuses: ConditionalDerivedBonuses
+): ModeFireResult {
+  const intervalMs = Math.max(160, 420 - level * 24);
+  const energyCost = 9 + Math.floor(level / 2);
+  if (!minEnergy(player, energyCost)) {
+    return noFire(intervalMs, energyCost);
+  }
+  const damage = Math.max(2, Math.round((4 + level * 1.4) * (1 + conditionalBonuses.damagePercent / 100) * damageScale(options)));
+  const bullet = entityManager.create(
+    createBullet(player.position.x, player.position.y + 0.74, BULLET_SPEED * 0.62, Faction.Player, 1600, damage, 0.3, 0, {
+      sourceWeaponTag: 'flak-cannon-shell'
+    })
+  );
+  return { fired: true, intervalMs, energyCost, firedRecords: [{ weaponMode: 'Flak Cannon', projectileEntityId: bullet.id }], scoreDelta: 0 };
+}
+
+function fireProximityMines(
+  entityManager: EntityManager,
+  player: PlayerEntity,
+  level: number
+): ModeFireResult {
+  const intervalMs = Math.max(260, 820 - level * 46);
+  const energyCost = Math.max(4, 7 - Math.floor(level / 3));
+  if (!minEnergy(player, energyCost)) {
+    return noFire(intervalMs, energyCost);
+  }
+  const mine = entityManager.create(
+    createBullet(player.position.x, player.position.y - 0.9, -3.2, Faction.Player, 4200, Math.max(2, 2 + Math.floor(level / 2)), 0.26, 0, {
+      sourceWeaponTag: 'proximity-mine'
+    })
+  );
+  mine.projectileKind = 'mine';
+  mine.armDelayMs = 380;
+  mine.triggerRadius = 1.2 + level * 0.08;
+  mine.splashRadius = 1.4 + level * 0.12;
+  return { fired: true, intervalMs, energyCost, firedRecords: [{ weaponMode: 'Proximity Mines', projectileEntityId: mine.id }], scoreDelta: 0 };
+}
+
+function fireGravityBomb(
+  entityManager: EntityManager,
+  player: PlayerEntity,
+  level: number
+): ModeFireResult {
+  const intervalMs = Math.max(420, 980 - level * 42);
+  const energyCost = 12 + Math.floor(level / 2);
+  if (!minEnergy(player, energyCost)) {
+    return noFire(intervalMs, energyCost);
+  }
+  const bomb = entityManager.create(
+    createBullet(player.position.x, player.position.y + 0.9, BULLET_SPEED * 0.48, Faction.Player, 1700, 2 + Math.floor(level / 2), 0.3, 0, {
+      sourceWeaponTag: 'gravity-bomb'
+    })
+  );
+  bomb.splashRadius = 2 + level * 0.15;
+  return { fired: true, intervalMs, energyCost, firedRecords: [{ weaponMode: 'Gravity Bomb', projectileEntityId: bomb.id }], scoreDelta: 0 };
+}
+
+function fireThermalNapalmPods(entityManager: EntityManager, player: PlayerEntity, level: number): ModeFireResult {
+  const intervalMs = Math.max(260, 720 - level * 40);
+  const energyCost = 7;
+  if (!minEnergy(player, energyCost)) {
+    return noFire(intervalMs, energyCost);
+  }
+  entityManager.create(
+    createField(player.position.x, player.position.y - 0.8, 'napalm-field', Faction.Player, {
+      radius: 0.9 + level * 0.06,
+      fieldRadius: 1.1 + level * 0.08,
+      damage: 0.8 + level * 0.26,
+      lifetimeMs: 2800,
+      ownerId: player.id
+    })
+  );
+  return { fired: true, intervalMs, energyCost, firedRecords: [{ weaponMode: 'Thermal Napalm Pods' }], scoreDelta: 0 };
+}
+
+function fireTeslaArc(entityManager: EntityManager, player: PlayerEntity, level: number, options: PlayerWeaponSystemOptions): ModeFireResult {
+  const intervalMs = Math.max(130, 360 - level * 18);
+  const energyCost = 8;
+  if (!minEnergy(player, energyCost)) {
+    return noFire(intervalMs, energyCost);
+  }
+  const chainTargets = nearestEnemies(entityManager, player.position.x, player.position.y, 2 + Math.floor(level / 2), 7 + level * 0.4);
+  let damage = (2 + level * 0.8) * damageScale(options);
+  let scoreDelta = 0;
+  for (const target of chainTargets) {
+    scoreDelta += dealDamage(target, Math.max(1, damage));
+    damage *= 0.72;
+  }
+  const visuals = fireMultiPellet(
+    entityManager,
+    player,
+    Math.max(1, chainTargets.length),
+    Math.PI / 7,
+    BULLET_SPEED * 0.9,
+    1,
+    280,
+    'Tesla Arc',
+    'arc',
+    0.12
+  );
+  return { fired: true, intervalMs, energyCost, firedRecords: visuals, scoreDelta };
+}
+
+function fireChainLaser(
+  entityManager: EntityManager,
+  player: PlayerEntity,
+  level: number,
+  options: PlayerWeaponSystemOptions,
+  conditionalBonuses: ConditionalDerivedBonuses
+): ModeFireResult {
+  const intervalMs = Math.max(84, 210 - level * 8);
+  const energyCost = 7;
+  if (!minEnergy(player, energyCost)) {
+    return noFire(intervalMs, energyCost);
+  }
+
+  const baseDamage = (2.8 + level * 0.7) * damageScale(options) * (1 + conditionalBonuses.damagePercent / 100);
+  const primary = nearestEnemies(entityManager, player.position.x, player.position.y, 1, 26)[0];
+  let scoreDelta = 0;
+  if (primary) {
+    scoreDelta += dealDamage(primary, baseDamage);
+    const secondaryTargets = nearestEnemies(entityManager, primary.position.x, primary.position.y, 3, 5.2).filter((target) => target.id !== primary.id);
+    let damage = baseDamage * 0.7;
+    for (const target of secondaryTargets) {
+      scoreDelta += dealDamage(target, damage);
+      damage *= 0.72;
+    }
+  }
+
+  spawnLaserBeam(entityManager, player, intervalMs, 34, 0.42);
+  return { fired: true, intervalMs, energyCost, firedRecords: [{ weaponMode: 'Chain Laser' }], scoreDelta };
+}
+
+function fireIonBurst(entityManager: EntityManager, player: PlayerEntity, level: number, options: PlayerWeaponSystemOptions): ModeFireResult {
+  const intervalMs = Math.max(240, 640 - level * 24);
+  const energyCost = 10;
+  if (!minEnergy(player, energyCost)) {
+    return noFire(intervalMs, energyCost);
+  }
+  const targets = nearestEnemies(entityManager, player.position.x, player.position.y + 0.6, 8, 2.2 + level * 0.16);
+  let scoreDelta = 0;
+  for (const target of targets) {
+    scoreDelta += dealDamage(target, (1 + level * 0.4) * damageScale(options));
+    addStatus(target, 'emp-disabled', 650 + level * 50);
+  }
+  entityManager.create(
+    createField(player.position.x, player.position.y + 0.6, 'time-distortion', Faction.Player, {
+      radius: 0.9,
+      fieldRadius: 2 + level * 0.1,
+      slowPercent: 42,
+      lifetimeMs: 220
+    })
+  );
+  return { fired: true, intervalMs, energyCost, firedRecords: [{ weaponMode: 'Ion Burst' }], scoreDelta };
+}
+
+function fireSpreadShot(
+  entityManager: EntityManager,
+  player: PlayerEntity,
+  level: number,
+  options: PlayerWeaponSystemOptions,
+  conditionalBonuses: ConditionalDerivedBonuses
+): ModeFireResult {
+  const intervalMs = Math.max(70, 180 - level * 5);
+  const energyCost = 5;
+  if (!minEnergy(player, energyCost)) {
+    return noFire(intervalMs, energyCost);
+  }
+  const pellets = 6 + Math.floor(level / 2);
+  const damage = Math.max(1, (0.8 + level * 0.22) * damageScale(options) * (1 + conditionalBonuses.damagePercent / 100));
+  const records = fireMultiPellet(entityManager, player, pellets, Math.PI / 3.6, BULLET_SPEED * 0.92, damage, 1200, 'Spread Shot');
+  return { fired: true, intervalMs, energyCost, firedRecords: records, scoreDelta: 0 };
+}
+
+function fireHelixBlaster(
+  entityManager: EntityManager,
+  player: PlayerEntity,
+  level: number,
+  options: PlayerWeaponSystemOptions,
+  conditionalBonuses: ConditionalDerivedBonuses
+): ModeFireResult {
+  const intervalMs = Math.max(34, 90 - level * 2);
+  const energyCost = 3;
+  if (!minEnergy(player, energyCost)) {
+    return noFire(intervalMs, energyCost);
+  }
+  const phase = player.weaponOscillator ?? 0;
+  const speed = BULLET_SPEED;
+  const amp = 0.62 + level * 0.04;
+  const damage = Math.max(1, (1 + level * 0.24) * damageScale(options) * (1 + conditionalBonuses.damagePercent / 100));
+  const offsets = [0, Math.PI];
+  const firedRecords: WeaponFireRecord[] = [];
+  for (const offsetPhase of offsets) {
+    const theta = phase + offsetPhase;
+    const vx = Math.sin(theta) * speed * 0.3 * amp;
+    const bullet = entityManager.create(createBullet(player.position.x, player.position.y + 0.7, speed * 0.95, Faction.Player, 1450, damage, 0.16, vx));
+    firedRecords.push({ weaponMode: 'Helix Blaster', projectileEntityId: bullet.id });
+  }
+  player.weaponOscillator = (phase + 0.42 + level * 0.012) % (Math.PI * 2);
+  return { fired: true, intervalMs, energyCost, firedRecords, scoreDelta: 0 };
+}
+
+function ensureDrone(
+  entityManager: EntityManager,
+  player: PlayerEntity,
+  droneKind: NonNullable<Entity['droneKind']>,
+  level: number,
+  orbit = false
+): number {
+  const existing = Array.from(entityManager.values()).find(
+    (entity) => entity.type === EntityType.Drone && entity.ownerId === player.id && entity.droneKind === droneKind
+  );
+  if (existing) {
+    existing.damage = Math.max(existing.damage ?? 1, 1 + Math.floor(level / 2));
+    return existing.id;
+  }
+
+  const drone = entityManager.create(
+    createDrone(player.position.x - 0.9, player.position.y + 0.45, droneKind, {
+      ownerId: player.id,
+      damage: 1 + Math.floor(level / 2),
+      orbitRadius: orbit ? 1.25 + level * 0.05 : undefined,
+      orbitAngularSpeed: orbit ? 1.2 + level * 0.08 : undefined,
+      orbitAngle: orbit ? 0 : undefined
+    })
+  );
+  drone.fireCooldownMs = 0;
+  return drone.id;
+}
+
+function fireOrbitalDrones(entityManager: EntityManager, player: PlayerEntity, level: number): ModeFireResult {
+  const intervalMs = 680;
+  const energyCost = 6;
+  if (!minEnergy(player, energyCost)) {
+    return noFire(intervalMs, energyCost);
+  }
+
+  const existing = Array.from(entityManager.values()).filter(
+    (entity) => entity.type === EntityType.Drone && entity.ownerId === player.id && entity.droneKind === 'orbital-attack'
+  );
+  if (existing.length < 2) {
+    for (let i = existing.length; i < 2; i += 1) {
+      const drone = entityManager.create(
+        createDrone(player.position.x, player.position.y, 'orbital-attack', {
+          ownerId: player.id,
+          damage: 1 + Math.floor(level / 2),
+          orbitRadius: 1.1 + i * 0.28,
+          orbitAngularSpeed: 1.8 + i * 0.2,
+          orbitAngle: i * Math.PI
+        })
+      );
+      drone.fireCooldownMs = i * 160;
+    }
+  }
+  return { fired: true, intervalMs, energyCost, firedRecords: [{ weaponMode: 'Orbital Drones' }], scoreDelta: 0 };
+}
+
+function fireRotaryDiscLauncher(entityManager: EntityManager, player: PlayerEntity, level: number): ModeFireResult {
+  const intervalMs = Math.max(200, 520 - level * 20);
+  const energyCost = 9;
+  if (!minEnergy(player, energyCost)) {
+    return noFire(intervalMs, energyCost);
+  }
+  const disc = entityManager.create(
+    createBullet(player.position.x, player.position.y + 0.82, BULLET_SPEED * 0.42, Faction.Player, 2600, 2 + level, 0.32, 0, {
+      pierceRemaining: 2 + Math.floor(level / 2),
+      sourceWeaponTag: 'rotary-disc'
+    })
+  );
+  disc.projectileKind = 'disc';
+  return {
+    fired: true,
+    intervalMs,
+    energyCost,
+    firedRecords: [{ weaponMode: 'Rotary Disc Launcher', projectileEntityId: disc.id }],
+    scoreDelta: 0
+  };
+}
+
+function fireEnergyShieldProjector(entityManager: EntityManager, player: PlayerEntity, level: number): ModeFireResult {
+  const intervalMs = Math.max(320, 860 - level * 28);
+  const energyCost = 10;
+  if (!minEnergy(player, energyCost)) {
+    return noFire(intervalMs, energyCost);
+  }
+  entityManager.create(
+    createField(player.position.x, player.position.y + 1.4, 'shield-barrier', Faction.Player, {
+      radius: 0.65 + level * 0.05,
+      fieldRadius: 0.9 + level * 0.06,
+      lifetimeMs: 1000 + level * 90,
+      damage: 0.7 + level * 0.2,
+      ownerId: player.id
+    })
+  );
+  return { fired: true, intervalMs, energyCost, firedRecords: [{ weaponMode: 'Energy Shield Projector' }], scoreDelta: 0 };
+}
+
+function fireReflectorPulse(entityManager: EntityManager, player: PlayerEntity, level: number): ModeFireResult {
+  const intervalMs = Math.max(220, 700 - level * 30);
+  const energyCost = 9;
+  if (!minEnergy(player, energyCost)) {
+    return noFire(intervalMs, energyCost);
+  }
+  entityManager.create(
+    createField(player.position.x, player.position.y + 0.35, 'time-distortion', Faction.Player, {
+      radius: 0.7,
+      fieldRadius: 2.1 + level * 0.14,
+      fieldStrength: 1 + level * 0.2,
+      lifetimeMs: 200,
+      ownerId: player.id
+    })
+  ).sourceWeaponTag = 'reflector-pulse';
+  return { fired: true, intervalMs, energyCost, firedRecords: [{ weaponMode: 'Reflector Pulse' }], scoreDelta: 0 };
+}
+
+function fireTimeDistortionPulse(entityManager: EntityManager, player: PlayerEntity, level: number): ModeFireResult {
+  const intervalMs = Math.max(240, 720 - level * 32);
+  const energyCost = 8;
+  if (!minEnergy(player, energyCost)) {
+    return noFire(intervalMs, energyCost);
+  }
+  entityManager.create(
+    createField(player.position.x, player.position.y + 0.7, 'time-distortion', Faction.Player, {
+      radius: 0.9,
+      fieldRadius: 2.5 + level * 0.16,
+      slowPercent: 26 + level * 4,
+      lifetimeMs: 1050 + level * 80,
+      ownerId: player.id
+    })
+  );
+  return { fired: true, intervalMs, energyCost, firedRecords: [{ weaponMode: 'Time Distortion Pulse' }], scoreDelta: 0 };
+}
+
+function fireAttackDrone(entityManager: EntityManager, player: PlayerEntity, level: number): ModeFireResult {
+  const intervalMs = 520;
+  const energyCost = 5;
+  if (!minEnergy(player, energyCost)) {
+    return noFire(intervalMs, energyCost);
+  }
+  const id = ensureDrone(entityManager, player, 'attack', level);
+  return { fired: true, intervalMs, energyCost, firedRecords: [{ weaponMode: 'Attack Drone', projectileEntityId: id }], scoreDelta: 0 };
+}
+
+function fireInterceptorDrone(entityManager: EntityManager, player: PlayerEntity, level: number): ModeFireResult {
+  const intervalMs = 540;
+  const energyCost = 5;
+  if (!minEnergy(player, energyCost)) {
+    return noFire(intervalMs, energyCost);
+  }
+  const id = ensureDrone(entityManager, player, 'interceptor', level);
+  return { fired: true, intervalMs, energyCost, firedRecords: [{ weaponMode: 'Interceptor Drone', projectileEntityId: id }], scoreDelta: 0 };
+}
+
+function fireSalvageDrone(entityManager: EntityManager, player: PlayerEntity, level: number): ModeFireResult {
+  const intervalMs = 560;
+  const energyCost = 4;
+  if (!minEnergy(player, energyCost)) {
+    return noFire(intervalMs, energyCost);
+  }
+  const id = ensureDrone(entityManager, player, 'salvage', level);
+  return { fired: true, intervalMs, energyCost, firedRecords: [{ weaponMode: 'Salvage Drone', projectileEntityId: id }], scoreDelta: 0 };
+}
+
+function firePrismSplitter(entityManager: EntityManager, player: PlayerEntity, level: number, options: PlayerWeaponSystemOptions): ModeFireResult {
+  const intervalMs = Math.max(70, 170 - level * 4);
+  const energyCost = 5;
+  if (!minEnergy(player, energyCost)) {
+    return noFire(intervalMs, energyCost);
+  }
+  const damage = Math.max(1, 1 + Math.floor(level / 2));
+  const bullet = entityManager.create(
+    createBullet(player.position.x, player.position.y + 0.74, BULLET_SPEED * 0.95, Faction.Player, 1700, damage, 0.18, 0, {
+      ...buildProjectileMetadata(options, false),
+      splitOnImpact: true,
+      splitSpec: {
+        childCount: 3 + Math.floor(level / 3),
+        speedScale: 0.72,
+        damageScale: 0.55
+      },
+      sourceWeaponTag: 'prism-splitter'
+    })
+  );
+  if ((options.shotCounter ?? 0) % 6 === 0) {
+    const prism = entityManager.create(
+      createField(player.position.x + (Math.sin((options.elapsedMs ?? 0) * 0.002) > 0 ? 1 : -1) * 1.2, player.position.y + 3.4, 'time-distortion',
+        undefined,
+        {
+          radius: 0.42,
+          lifetimeMs: 3200
+        })
+    );
+    prism.pickupKind = 'prism';
+    prism.fieldKind = undefined;
+    prism.type = EntityType.Pickup;
+    prism.pickupValue = 0;
+    prism.velocity.y = -1.4;
+  }
+  return { fired: true, intervalMs, energyCost, firedRecords: [{ weaponMode: 'Prism Splitter', projectileEntityId: bullet.id }], scoreDelta: 0 };
+}
+
+function firePolygonShredder(entityManager: EntityManager, player: PlayerEntity, level: number): ModeFireResult {
+  const intervalMs = Math.max(220, 620 - level * 24);
+  const energyCost = 8;
+  if (!minEnergy(player, energyCost)) {
+    return noFire(intervalMs, energyCost);
+  }
+  entityManager.create(
+    createField(player.position.x, player.position.y + 0.2, 'polygon-shredder', Faction.Player, {
+      radius: 0.3,
+      fieldRadius: 0.8 + level * 0.2,
+      fieldStrength: 1 + level * 0.1,
+      damage: 2.2 + level * 0.4,
+      lifetimeMs: 260,
+      ownerId: player.id
+    })
+  );
+  return { fired: true, intervalMs, energyCost, firedRecords: [{ weaponMode: 'Polygon Shredder' }], scoreDelta: 0 };
+}
+
+function fireVectorBeam(
+  entityManager: EntityManager,
+  player: PlayerEntity,
+  level: number,
+  options: PlayerWeaponSystemOptions,
+  conditionalBonuses: ConditionalDerivedBonuses
+): ModeFireResult {
+  const intervalMs = Math.max(94, 250 - level * 9);
+  const energyCost = 6;
+  if (!minEnergy(player, energyCost)) {
+    return noFire(intervalMs, energyCost);
+  }
+  const damage = Math.max(1, (2 + level * 0.7) * (1 + conditionalBonuses.damagePercent / 100) * damageScale(options));
+  const targets = pickLaserTargets(entityManager, player.position.x, player.position.y, 40, 0.34 + level * 0.03, 1 + Math.floor(level / 3));
+  let scoreDelta = 0;
+  for (const target of targets) {
+    scoreDelta += dealDamage(target, damage);
+  }
+  spawnLaserBeam(entityManager, player, 120, 40, 0.22, 'vector');
+  return { fired: true, intervalMs, energyCost, firedRecords: [{ weaponMode: 'Vector Beam' }], scoreDelta };
+}
+
+export const WEAPON_MODE_HANDLERS: Record<PlayerWeaponMode, WeaponModeHandler> = {
+  'Auto Pulse': fireAutoPulse,
+  'Continuous Laser': fireContinuousLaser,
+  'Heavy Cannon': fireHeavyCannon,
+  'Sine SMG': fireSineSmg,
+  'Flak Cannon': fireFlakCannon,
+  'Proximity Mines': fireProximityMines,
+  'Gravity Bomb': fireGravityBomb,
+  'Thermal Napalm Pods': fireThermalNapalmPods,
+  'Tesla Arc': fireTeslaArc,
+  'Chain Laser': fireChainLaser,
+  'Ion Burst': fireIonBurst,
+  'Spread Shot': fireSpreadShot,
+  'Helix Blaster': fireHelixBlaster,
+  'Orbital Drones': fireOrbitalDrones,
+  'Rotary Disc Launcher': fireRotaryDiscLauncher,
+  'Energy Shield Projector': fireEnergyShieldProjector,
+  'Reflector Pulse': fireReflectorPulse,
+  'Time Distortion Pulse': fireTimeDistortionPulse,
+  'Attack Drone': fireAttackDrone,
+  'Interceptor Drone': fireInterceptorDrone,
+  'Salvage Drone': fireSalvageDrone,
+  'Prism Splitter': firePrismSplitter,
+  'Polygon Shredder': firePolygonShredder,
+  'Vector Beam': fireVectorBeam
+};

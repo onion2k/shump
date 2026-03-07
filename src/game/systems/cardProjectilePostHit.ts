@@ -1,5 +1,6 @@
 import { EntityType, Faction } from '../ecs/entityTypes';
 import { applyDamage } from './damageSystem';
+import { createField } from '../factories/createField';
 import type { CardProjectilePostHitContext, CardProjectilePostHitResult } from './cardProjectileTypes';
 import {
   DELAYED_DETONATION_EFFECT_ID,
@@ -62,6 +63,17 @@ export function runCardProjectilePostHitHooks(context: CardProjectilePostHitCont
 
     if (bullet.faction !== Faction.Player || target.type !== EntityType.Enemy) {
       continue;
+    }
+
+    if (bullet.sourceWeaponTag === 'proximity-mine') {
+      context.entityManager.create(
+        createField(target.position.x, target.position.y, 'shrapnel-cloud', Faction.Player, {
+          radius: bullet.splashRadius ?? 1.5,
+          fieldRadius: bullet.splashRadius ?? 1.5,
+          damage: Math.max(1, (bullet.damage ?? 1) * 1.1),
+          lifetimeMs: 450
+        })
+      );
     }
 
     playerHits += 1;

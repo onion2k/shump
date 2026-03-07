@@ -143,7 +143,7 @@ export function Hud3D({ snapshot }: Hud3DProps) {
         color="#f7f7f7"
         material-depthTest={false}
       >
-        {`WEAPON ${snapshot.weaponMode} L${snapshot.weaponLevel}`}
+        {`WEAPON ${snapshot.weaponSlotIndex}/${snapshot.weaponUnlockedCount} ${snapshot.weaponMode} L${snapshot.weaponLevel}`}
       </Text>
 
       <Text

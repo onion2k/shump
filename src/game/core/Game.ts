@@ -4,6 +4,8 @@ import { createPlayer } from '../factories/createPlayer';
 import { SpawnSystem } from '../systems/spawnSystem';
 import { movementSystem } from '../systems/movementSystem';
 import { shootingSystem } from '../systems/shootingSystem';
+import { weaponEffectSystem } from '../systems/weaponEffectSystem';
+import { projectileInteractionSystem } from '../systems/projectileInteractionSystem';
 import { collisionSystem } from '../systems/collisionSystem';
 import type { CollisionPair } from '../systems/collisionSystem';
 import { damageSystem } from '../systems/damageSystem';
@@ -27,7 +29,7 @@ import { createPickup } from '../factories/createPickup';
 import { ParticleSystem } from '../particles/particleSystem';
 import type { ParticleEmitterConfig } from '../particles/particleSystem';
 import { gameSettings } from '../config/gameSettings';
-import { getPlayerWeaponMaxLevel, PLAYER_WEAPON_ORDER, type PlayerWeaponMode } from '../weapons/playerWeapons';
+import { getPlayerWeaponMaxLevel, isPlayerWeaponMode, PLAYER_WEAPON_ORDER, type PlayerWeaponMode } from '../weapons/playerWeapons';
 import { enemyDropTuning, playerTuning, podTuning } from './gameTuning';
 import type { EnemyArchetypeId } from '../content/enemyArchetypes';
 import type { MovementPatternId } from '../movement/patterns';
@@ -104,6 +106,8 @@ export interface GameSnapshot {
   playerHealth: number;
   playerMaxHealth: number;
   weaponMode: string;
+  weaponSlotIndex: number;
+  weaponUnlockedCount: number;
   weaponLevel: number;
   weaponLevels: Record<PlayerWeaponMode, number>;
   weaponEnergyCurrent: number;
@@ -659,6 +663,8 @@ export class Game {
     this.syncPodsWithPlayer(deltaSeconds);
     this.handlePodWeapons(deltaSeconds, cardBonuses);
     this.emitMissileThrusterParticles(deltaSeconds);
+    this.score += weaponEffectSystem(this.entities, this.playerId, deltaSeconds, this.elapsedMs);
+    projectileInteractionSystem(this.entities, deltaSeconds);
     const collisions = collisionSystem(this.entities.values());
     this.applyCardDefenseBeforeDamage(collisions, cardBonuses);
     const collisionScoreDelta = damageSystem(collisions);
@@ -775,6 +781,10 @@ export class Game {
     const player = this.entities.get(this.playerId);
     const runProgress = this.runProgress;
     const playerWeaponLevels = player?.weaponLevels ?? {};
+    const unlockedWeaponModes = player?.unlockedWeaponModes ?? [];
+    const activeWeaponMode: PlayerWeaponMode | undefined =
+      player && isPlayerWeaponMode(player.weaponMode ?? '') ? (player.weaponMode as PlayerWeaponMode) : undefined;
+    const weaponSlotIndex = activeWeaponMode ? Math.max(0, unlockedWeaponModes.indexOf(activeWeaponMode)) + 1 : 0;
     const snapshotWeaponLevels = Object.fromEntries(
       PLAYER_WEAPON_ORDER.map((mode) => [mode, Math.max(1, playerWeaponLevels[mode] ?? 1)])
     ) as Record<PlayerWeaponMode, number>;
@@ -791,6 +801,8 @@ export class Game {
       playerHealth: player?.health ?? 0,
       playerMaxHealth: player?.maxHealth ?? 0,
       weaponMode: player?.weaponMode ?? 'Unknown',
+      weaponSlotIndex,
+      weaponUnlockedCount: unlockedWeaponModes.length,
       weaponLevel: player?.weaponLevel ?? 0,
       weaponLevels: snapshotWeaponLevels,
       weaponEnergyCurrent: player?.weaponEnergy ?? 0,
@@ -875,6 +887,9 @@ export class Game {
         pickupCardId: entity.pickupCardId,
         projectileKind: entity.projectileKind,
         projectileSpeed: entity.projectileSpeed,
+        fieldKind: entity.fieldKind,
+        fieldRadius: entity.fieldRadius,
+        droneKind: entity.droneKind,
         radius: entity.radius,
         vx: entity.velocity.x,
         vy: entity.velocity.y,
@@ -976,6 +991,43 @@ export class Game {
     player.fireCooldownMs = 0;
     player.weaponLevels = levels;
     player.weaponLevel = Math.min(currentLevel, maxLevel);
+    this.notify();
+    return true;
+  }
+
+  selectNextWeapon(): boolean {
+    return this.stepWeaponSelection(1);
+  }
+
+  selectPreviousWeapon(): boolean {
+    return this.stepWeaponSelection(-1);
+  }
+
+  private stepWeaponSelection(direction: -1 | 1): boolean {
+    const player = this.entities.get(this.playerId);
+    if (!player) {
+      return false;
+    }
+    const unlocked = player.unlockedWeaponModes ?? [];
+    if (unlocked.length === 0) {
+      return false;
+    }
+    const fallback = unlocked[0];
+    if (!fallback) {
+      return false;
+    }
+    const current: PlayerWeaponMode = isPlayerWeaponMode(player.weaponMode ?? '')
+      ? (player.weaponMode as PlayerWeaponMode)
+      : fallback;
+    const currentIndex = Math.max(0, unlocked.indexOf(current));
+    const nextIndex = (currentIndex + direction + unlocked.length) % unlocked.length;
+    const next = unlocked[nextIndex];
+    if (!next) {
+      return false;
+    }
+    player.weaponMode = next;
+    player.weaponLevel = player.weaponLevels?.[next] ?? 1;
+    player.fireCooldownMs = 0;
     this.notify();
     return true;
   }
@@ -1215,6 +1267,15 @@ export class Game {
   }
 
   private pickWeaponPickupMode(seed: number): PlayerWeaponMode {
+    const player = this.entities.get(this.playerId);
+    const unlocked = player?.unlockedWeaponModes ?? [];
+    const locked = PLAYER_WEAPON_ORDER.filter((mode) => !unlocked.includes(mode));
+    if (locked.length > 0) {
+      return locked[seed % locked.length];
+    }
+    if (player?.weaponMode && isPlayerWeaponMode(player.weaponMode)) {
+      return player.weaponMode;
+    }
     return pickWeaponPickupModeBySeed(seed);
   }
 

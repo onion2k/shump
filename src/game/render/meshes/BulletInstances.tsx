@@ -48,7 +48,7 @@ export function BulletInstances({ bullets }: BulletInstancesProps) {
     let laserCount = 0;
 
     for (const bullet of bullets) {
-      if (bullet.projectileKind === 'laser') {
+      if (bullet.projectileKind === 'laser' || bullet.projectileKind === 'vector') {
         if (laserCount >= MAX_BULLET_INSTANCES) {
           continue;
         }

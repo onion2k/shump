@@ -3,7 +3,7 @@ import { gameSettings } from '../../config/gameSettings';
 
 interface BulletMeshProps {
   enemy: boolean;
-  projectileKind?: 'standard' | 'missile' | 'laser';
+  projectileKind?: 'standard' | 'missile' | 'laser' | 'vector';
   projectileSpeed?: number;
   radius?: number;
   vx?: number;
@@ -11,18 +11,23 @@ interface BulletMeshProps {
 }
 
 export function BulletMesh({ enemy, projectileKind, projectileSpeed, radius, vx, vy }: BulletMeshProps) {
-  if (projectileKind === 'laser') {
+  if (projectileKind === 'laser' || projectileKind === 'vector') {
     const beamLength = Math.max(8, projectileSpeed ?? 24);
     const beamWidth = Math.max(0.07, (radius ?? 0.3) * 0.325);
     return (
       <group position={[0, beamLength * 0.5, 0]}>
         <mesh>
           <boxGeometry args={[beamWidth, beamLength, 0.06]} />
-          <meshBasicMaterial color="#7cffaa" toneMapped={false} />
+          <meshBasicMaterial color={projectileKind === 'vector' ? '#9cf7ff' : '#7cffaa'} toneMapped={false} />
         </mesh>
         <mesh scale={[1.4, 1, 1]}>
           <boxGeometry args={[beamWidth, beamLength, 0.06]} />
-          <meshBasicMaterial color="#b8ffcf" transparent opacity={0.45} toneMapped={false} />
+          <meshBasicMaterial
+            color={projectileKind === 'vector' ? '#dffcff' : '#b8ffcf'}
+            transparent
+            opacity={0.45}
+            toneMapped={false}
+          />
         </mesh>
       </group>
     );

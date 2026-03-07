@@ -8,7 +8,7 @@ export function PickupMesh({
   kind,
   weaponMode
 }: {
-  kind: 'score' | 'health' | 'energy' | 'weapon' | 'money' | 'card';
+  kind: 'score' | 'health' | 'energy' | 'weapon' | 'money' | 'card' | 'prism';
   weaponMode?: PlayerWeaponMode;
 }) {
   const meshRef = useRef<Mesh>(null);
@@ -24,6 +24,8 @@ export function PickupMesh({
             ? '#ffd166'
             : kind === 'card'
               ? '#ffd84d'
+              : kind === 'prism'
+                ? '#d8f5ff'
           : gameSettings.visuals.pickups.scoreColor;
 
   const isCard = kind === 'card';

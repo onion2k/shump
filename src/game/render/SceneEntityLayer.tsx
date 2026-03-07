@@ -52,10 +52,29 @@ export function SceneEntityLayer({ entities }: SceneEntityLayerProps) {
           );
         }
 
+        if (entity.type === EntityType.Drone) {
+          return (
+            <group key={entity.id} position={position} scale={0.85}>
+              <PodMesh />
+            </group>
+          );
+        }
+
         if (entity.type === EntityType.Pickup) {
           return (
             <group key={entity.id} position={position}>
               <PickupMesh kind={entity.pickupKind ?? 'score'} weaponMode={entity.pickupWeaponMode as PlayerWeaponMode | undefined} />
+            </group>
+          );
+        }
+
+        if (entity.type === EntityType.Field) {
+          return (
+            <group key={entity.id} position={position}>
+              <mesh>
+                <ringGeometry args={[Math.max(0.1, (entity.fieldRadius ?? entity.radius) * 0.55), Math.max(0.2, entity.fieldRadius ?? entity.radius), 24]} />
+                <meshBasicMaterial color="#8ed6ff" transparent opacity={0.45} toneMapped={false} />
+              </mesh>
             </group>
           );
         }

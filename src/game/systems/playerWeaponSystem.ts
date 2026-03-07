@@ -8,11 +8,7 @@ import {
 } from '../weapons/playerWeapons';
 import { resolveConditionalBonuses } from './playerWeaponConditionals';
 import {
-  fireAutoPulse,
-  fireContinuousLaser,
-  fireHeavyCannon,
-  fireSineSmg,
-  spawnLaserBeam
+  WEAPON_MODE_HANDLERS
 } from './playerWeaponFireModes';
 import type { FireOutcome, PlayerEntity, PlayerWeaponResult, PlayerWeaponSystemOptions } from './playerWeaponTypes';
 
@@ -56,48 +52,15 @@ export function playerWeaponSystem(
     return { fired, scoreDelta };
   }
 
-  if (activeWeapon === 'Continuous Laser') {
-    const laserResult = fireContinuousLaser(entityManager, player, weaponLevel, options, conditionalBonuses);
-    if (!laserResult.fired) {
-      return { fired, scoreDelta };
-    }
-
-    applyFireOutcome(player, laserResult);
-    spawnLaserBeam(entityManager, player, laserResult.intervalMs, laserResult.range, laserResult.halfWidth);
-    fired.push({ weaponMode: activeWeapon });
-    scoreDelta += laserResult.scoreDelta;
+  const modeHandler = WEAPON_MODE_HANDLERS[activeWeapon];
+  const modeResult = modeHandler(entityManager, player, weaponLevel, options, conditionalBonuses);
+  if (!modeResult.fired) {
     return { fired, scoreDelta };
   }
 
-  if (activeWeapon === 'Heavy Cannon') {
-    const cannonResult = fireHeavyCannon(entityManager, player, weaponLevel, options, conditionalBonuses);
-    if (!cannonResult.fired) {
-      return { fired, scoreDelta };
-    }
-
-    applyFireOutcome(player, cannonResult);
-    fired.push(...cannonResult.firedRecords);
-    return { fired, scoreDelta };
-  }
-
-  if (activeWeapon === 'Sine SMG') {
-    const smgResult = fireSineSmg(entityManager, player, weaponLevel, options, conditionalBonuses);
-    if (!smgResult.fired) {
-      return { fired, scoreDelta };
-    }
-
-    applyFireOutcome(player, smgResult);
-    fired.push(...smgResult.firedRecords);
-    return { fired, scoreDelta };
-  }
-
-  const pulseResult = fireAutoPulse(entityManager, player, weaponLevel, options, conditionalBonuses);
-  if (!pulseResult.fired) {
-    return { fired, scoreDelta };
-  }
-
-  applyFireOutcome(player, pulseResult);
-  fired.push(...pulseResult.firedRecords);
+  applyFireOutcome(player, modeResult);
+  fired.push(...modeResult.firedRecords);
+  scoreDelta += modeResult.scoreDelta;
   return { fired, scoreDelta };
 }
 

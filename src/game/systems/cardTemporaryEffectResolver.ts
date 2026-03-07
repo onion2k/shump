@@ -6,6 +6,9 @@ import { applyDamage } from './damageSystem';
 
 const THERMAL_BURN_EFFECT_ID = 'thermal-rounds-burn';
 const DRILL_BORE_EFFECT_ID = 'drill-rounds-bore';
+const NAPALM_BURN_EFFECT_ID = 'napalm-burn';
+const TIME_SLOWED_EFFECT_ID = 'time-slowed';
+const GRAVITY_PULLED_EFFECT_ID = 'gravity-pulled';
 
 export interface CardTemporaryEffectTickContext {
   runtimeState: CardRuntimeState;
@@ -42,9 +45,17 @@ export function tickCardTemporaryEffectHooks(context: CardTemporaryEffectTickCon
         pendingDamage += Math.max(0.15, 0.85 * Math.max(1, effect.stacks ?? 1) * context.deltaSeconds);
       } else if (effect.effectId === DRILL_BORE_EFFECT_ID) {
         pendingDamage += Math.max(0.2, 1.1 * Math.max(1, effect.stacks ?? 1) * context.deltaSeconds);
+      } else if (effect.effectId === NAPALM_BURN_EFFECT_ID) {
+        pendingDamage += Math.max(0.2, 1.2 * Math.max(1, effect.stacks ?? 1) * context.deltaSeconds);
       } else if (effect.effectId === 'emp-disabled') {
         entity.velocity.x *= 0.4;
         entity.velocity.y *= 0.4;
+      } else if (effect.effectId === TIME_SLOWED_EFFECT_ID) {
+        entity.velocity.x *= 0.7;
+        entity.velocity.y *= 0.7;
+      } else if (effect.effectId === GRAVITY_PULLED_EFFECT_ID) {
+        entity.velocity.x *= 0.82;
+        entity.velocity.y *= 0.82;
       }
       effect.remainingMs -= deltaMs;
     }

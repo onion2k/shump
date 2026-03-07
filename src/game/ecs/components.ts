@@ -65,7 +65,7 @@ export interface Entity {
   podWeaponMode?: 'Auto Pulse' | 'Homing Missile';
   podIndex?: number;
   damage?: number;
-  projectileKind?: 'standard' | 'missile' | 'laser';
+  projectileKind?: 'standard' | 'missile' | 'laser' | 'mine' | 'disc' | 'arc' | 'barrier' | 'vector' | 'shrapnel';
   projectileSpeed?: number;
   homingTargetId?: number;
   homingTurnRate?: number;
@@ -78,9 +78,20 @@ export interface Entity {
   knockbackScale?: number;
   sourceWeaponTag?: string;
   sourceCardIds?: string[];
-  pickupKind?: 'score' | 'health' | 'energy' | 'weapon' | 'money' | 'card';
+  pickupKind?: 'score' | 'health' | 'energy' | 'weapon' | 'money' | 'card' | 'prism';
   pickupWeaponMode?: PlayerWeaponMode;
   pickupCardId?: string;
   pickupValue?: number;
   particleType?: string;
+  fieldKind?: 'shrapnel-cloud' | 'gravity-well' | 'napalm-field' | 'time-distortion' | 'shield-barrier' | 'polygon-shredder';
+  fieldRadius?: number;
+  fieldStrength?: number;
+  slowPercent?: number;
+  triggerRadius?: number;
+  armDelayMs?: number;
+  ownerId?: number;
+  droneKind?: 'orbital-attack' | 'attack' | 'interceptor' | 'salvage';
+  orbitRadius?: number;
+  orbitAngularSpeed?: number;
+  orbitAngle?: number;
 }

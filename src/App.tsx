@@ -54,12 +54,16 @@ export function App() {
           return;
         }
 
-        if (/^[1-4]$/.test(event.key)) {
-          game.selectWeaponBySlot(Number(event.key));
-        } else if (event.key === '5') {
+        if (event.key === 'z' || event.key === 'Z') {
           game.cyclePods();
-        } else if (event.key === '6') {
+        } else if (event.key === 'x' || event.key === 'X') {
           game.togglePodWeaponMode();
+        } else if (/^[1-9]$/.test(event.key)) {
+          game.selectWeaponBySlot(Number(event.key));
+        } else if (event.key === 'q' || event.key === 'Q') {
+          game.selectPreviousWeapon();
+        } else if (event.key === 'e' || event.key === 'E') {
+          game.selectNextWeapon();
         }
         return;
       }
