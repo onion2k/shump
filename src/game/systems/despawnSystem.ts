@@ -41,7 +41,7 @@ export function despawnSystem(
 ): DespawnedEntity[] {
   const despawned: DespawnedEntity[] = [];
 
-  for (const entity of entityManager.all()) {
+  for (const entity of entityManager.values()) {
     if (typeof entity.lifetimeMs === 'number') {
       entity.lifetimeMs -= deltaSeconds * 1000;
     }

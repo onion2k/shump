@@ -2,7 +2,7 @@ import type { Entity } from '../ecs/components';
 import { EntityType } from '../ecs/entityTypes';
 import { movementControllerRegistry } from '../movement/controllers';
 
-export function movementSystem(entities: Entity[], deltaSeconds: number) {
+export function movementSystem(entities: Iterable<Entity>, deltaSeconds: number) {
   for (const entity of entities) {
     entity.ageMs = (entity.ageMs ?? 0) + deltaSeconds * 1000;
 

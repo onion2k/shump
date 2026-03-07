@@ -147,9 +147,13 @@ export class SpawnSystem {
   }
 
   private countActiveEnemies(entityManager: EntityManager): number {
-    return entityManager
-      .all()
-      .filter((entity) => entity.type === EntityType.Enemy && entity.health > 0).length;
+    let count = 0;
+    for (const entity of entityManager.values()) {
+      if (entity.type === EntityType.Enemy && entity.health > 0) {
+        count += 1;
+      }
+    }
+    return count;
   }
 
   private withSpreadSpawnX(spawn: WaveSpawnDef, seed: number): WaveSpawnDef {

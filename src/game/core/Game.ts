@@ -1,5 +1,5 @@
 import { EntityManager } from '../ecs/EntityManager';
-import { EntityType, Faction } from '../ecs/entityTypes';
+import { EntityType } from '../ecs/entityTypes';
 import { createPlayer } from '../factories/createPlayer';
 import { SpawnSystem } from '../systems/spawnSystem';
 import { movementSystem } from '../systems/movementSystem';
@@ -8,7 +8,6 @@ import { collisionSystem } from '../systems/collisionSystem';
 import type { CollisionPair } from '../systems/collisionSystem';
 import { damageSystem } from '../systems/damageSystem';
 import { despawnSystem } from '../systems/despawnSystem';
-import { playerWeaponSystem } from '../systems/playerWeaponSystem';
 import { homingSystem } from '../systems/homingSystem';
 import { pickupSystem } from '../systems/pickupSystem';
 import { pickupAttractionSystem } from '../systems/pickupAttractionSystem';
@@ -56,7 +55,6 @@ import {
   captureRunProgress as captureRunProgressFromPlayer,
   syncPlayerWithRunProgressCards as syncPlayerWithRunProgressCardsFromState
 } from './playerProgress';
-import { applyPlayerInput as applyPointerInputVelocity } from './playerMovement';
 import {
   handlePodWeapons as handlePodWeaponFire,
   syncPodsWithPlayer as syncPodsWithPlayerOrbit
@@ -87,6 +85,11 @@ import {
   clearRoundTemporaryCardEffects,
   tickCardTemporaryEffectHooks
 } from '../systems/cardTemporaryEffectResolver';
+import {
+  applyCardDefenseBeforeDamageRuntime,
+  applyPlayerInputRuntime,
+  handlePlayerWeaponsRuntime
+} from './gameCombatRuntime';
 
 export interface GameSnapshot {
   state: GameState;
@@ -192,6 +195,8 @@ export class Game {
   private enemyDensityScale = 1;
   private runProgress?: RunProgress;
   private cardRuntimeState: CardRuntimeState = createCardRuntimeState(0);
+  private cachedCardBonuses: CardBonuses = computeCardBonuses([]);
+  private cachedCardBonusesKey = '';
   private levelDirector = new LevelDirector();
 
   constructor() {
@@ -200,6 +205,7 @@ export class Game {
 
   bootstrap() {
     this.runProgress = undefined;
+    this.invalidateCardBonusCache();
     this.resetCardRuntimeState(0);
     this.syncLevelDirectorModifiersWithCards();
     this.resetWorld();
@@ -211,6 +217,7 @@ export class Game {
     this.resetWorld();
     const player = this.entities.get(this.playerId);
     this.runProgress = createDefaultRunProgress(seed, createRunPlayerStateFromPlayerEntity(player));
+    this.invalidateCardBonusCache();
     this.resetCardRuntimeState(this.runProgress.seed);
     this.levelDirector.configure(this.runProgress.levelId, this.runProgress.roundIndex);
     this.runProgress.levelId = this.levelDirector.currentLevelId();
@@ -223,6 +230,7 @@ export class Game {
 
   startFromRunProgress(runProgress: RunProgress) {
     this.runProgress = cloneRunProgress(runProgress);
+    this.invalidateCardBonusCache();
     this.resetCardRuntimeState(this.runProgress.seed);
     this.levelDirector.configure(this.runProgress.levelId, this.runProgress.roundIndex);
     this.runProgress.levelId = this.levelDirector.currentLevelId();
@@ -248,6 +256,7 @@ export class Game {
 
   clearRunProgress() {
     this.runProgress = undefined;
+    this.invalidateCardBonusCache();
     this.resetCardRuntimeState(0);
     this.syncLevelDirectorModifiersWithCards();
   }
@@ -437,6 +446,7 @@ export class Game {
       this.runProgress.consumedCards = [...(this.runProgress.consumedCards ?? []), card.id];
     } else {
       this.runProgress.activeCards = [...this.runProgress.activeCards, cardId];
+      this.invalidateCardBonusCache();
     }
     this.syncPlayerWithRunProgressCards();
     this.captureRunProgress();
@@ -471,6 +481,7 @@ export class Game {
     }
 
     this.runProgress.activeCards.splice(activeIndex, 1);
+    this.invalidateCardBonusCache();
     this.syncPlayerWithRunProgressCards();
     this.captureRunProgress();
     this.notify();
@@ -596,7 +607,7 @@ export class Game {
     });
     this.updateTrailSources(deltaSeconds);
     this.applyPlayerInput(pointer, deltaSeconds, cardBonuses);
-    shieldSystem(this.entities.all(), deltaSeconds);
+    shieldSystem(this.entities.values(), deltaSeconds);
     this.cardRuntimeState = runCardProjectilePrefireHooks({
       entityManager: this.entities,
       playerId: this.playerId,
@@ -643,12 +654,12 @@ export class Game {
     shootingSystem(this.entities, deltaSeconds);
     homingSystem(this.entities, deltaSeconds);
     pickupAttractionSystem(this.entities, this.playerId);
-    movementSystem(this.entities.all(), deltaSeconds);
+    movementSystem(this.entities.values(), deltaSeconds);
     this.clampPlayerToBounds();
     this.syncPodsWithPlayer(deltaSeconds);
     this.handlePodWeapons(deltaSeconds, cardBonuses);
     this.emitMissileThrusterParticles(deltaSeconds);
-    const collisions = collisionSystem(this.entities.all());
+    const collisions = collisionSystem(this.entities.values());
     this.applyCardDefenseBeforeDamage(collisions, cardBonuses);
     const collisionScoreDelta = damageSystem(collisions);
     const postHitResult = runCardProjectilePostHitHooks({
@@ -666,7 +677,7 @@ export class Game {
     const pickupResult = pickupSystem(this.entities, this.playerId);
     this.score += pickupResult.scoreDelta;
     for (const collection of pickupResult.collections) {
-      this.handleProgressCollection(collection.pickupKind, collection.pickupValue, collection.pickupCardId);
+      this.handleProgressCollection(collection.pickupKind, collection.pickupValue, cardBonuses, collection.pickupCardId);
       const pickupEvent = {
         type: 'PickupCollected',
         atMs: this.elapsedMs,
@@ -693,7 +704,7 @@ export class Game {
         const weaponDropModulo = this.adjustDropModulo(enemyDropTuning.weaponDropModulo, salvageProtocols, 2);
         const moneyDropModulo = this.adjustDropModulo(3, salvageProtocols, 1);
         const cardDropModulo = this.adjustDropModulo(11, salvageProtocols, 2);
-        this.addRunMoney(ENEMY_MONEY_REWARD, 'kill');
+        this.addRunMoney(ENEMY_MONEY_REWARD, 'kill', cardBonuses);
         this.spawnEnemyExplosion(entity.position.x, entity.position.y);
         if (this.shouldSpawnDropPickup(entity.id, healthDropModulo, activePickups, 17)) {
           this.entities.create(
@@ -756,7 +767,7 @@ export class Game {
       this.enterBetweenRounds();
     }
 
-    this.captureRunProgress();
+    this.refreshRunProgressMeta();
     this.notify();
   }
 
@@ -775,8 +786,8 @@ export class Game {
       totalRounds: this.levelDirector.totalRounds(),
       activeCardLimit: ACTIVE_CARD_LIMIT,
       inRunMoney: runProgress?.inRunMoney ?? 0,
-      foundCards: runProgress ? [...runProgress.foundCards] : [],
-      activeCards: runProgress ? [...runProgress.activeCards] : [],
+      foundCards: runProgress?.foundCards ?? [],
+      activeCards: runProgress?.activeCards ?? [],
       playerHealth: player?.health ?? 0,
       playerMaxHealth: player?.maxHealth ?? 0,
       weaponMode: player?.weaponMode ?? 'Unknown',
@@ -807,7 +818,18 @@ export class Game {
     syncPlayerWithRunProgressCardsFromState(this.entities, this.playerId, this.runProgress);
   }
 
+  private refreshRunProgressMeta() {
+    if (!this.runProgress) {
+      return;
+    }
+
+    this.runProgress.elapsedMs = this.elapsedMs;
+    this.runProgress.distanceTraveled = this.distanceTraveled;
+    this.runProgress.score = this.score;
+  }
+
   private captureRunProgress() {
+    this.refreshRunProgressMeta();
     captureRunProgressFromPlayer(
       this.entities,
       this.playerId,
@@ -819,153 +841,59 @@ export class Game {
   }
 
   private applyPlayerInput(pointer: PointerState, deltaSeconds: number, cardBonuses: CardBonuses) {
-    const player = this.entities.get(this.playerId);
-    if (!player) {
-      return;
-    }
-
-    const cooldowns = this.cardRuntimeState.perCardProcCooldownUntilMs;
-    let nextCooldowns: Map<string, number> | undefined;
-    const getTrackedValue = (key: string): number => (nextCooldowns ?? cooldowns).get(key) ?? 0;
-    const setTrackedValue = (key: string, value: number) => {
-      if (!nextCooldowns) {
-        nextCooldowns = new Map(cooldowns);
-      }
-      nextCooldowns.set(key, value);
-    };
-
-    const overclockedThrusters = cardBonuses.mobilityModifierBonus['overclocked-thrusters'] ?? 0;
-    const stabilisedFlight = cardBonuses.mobilityModifierBonus['stabilised-flight'] ?? 0;
-    const slipstreamDrive = cardBonuses.mobilityModifierBonus['slipstream-drive'] ?? 0;
-    const microDash = cardBonuses.mobilityModifierBonus['micro-dash-system'] ?? 0;
-    const chainMomentum = cardBonuses.conditionalModifierBonus['chain-momentum'] ?? 0;
-
-    const baseMaxSpeed = Math.max(1, player.moveMaxSpeed ?? gameSettings.player.maxSpeed);
-    const baseFollowGain = Math.max(0, player.moveFollowGain ?? gameSettings.player.followGain);
-    const deltaMs = deltaSeconds * 1000;
-
-    const intendsToMove = pointer.hasPosition && Math.hypot(pointer.x - player.position.x, pointer.y - player.position.y) > 0.45;
-    const movingMsKey = '__condition-moving-ms';
-    const stillMsKey = '__condition-still-ms';
-    const movingMs = intendsToMove ? Math.min(7000, getTrackedValue(movingMsKey) + deltaMs) : Math.max(0, getTrackedValue(movingMsKey) - deltaMs * 1.2);
-    const stillMs = intendsToMove ? 0 : Math.min(7000, getTrackedValue(stillMsKey) + deltaMs);
-    setTrackedValue(movingMsKey, movingMs);
-    setTrackedValue(stillMsKey, stillMs);
-
-    const slipstreamKey = '__mobility-slipstream-ms';
-    let slipstreamMs = getTrackedValue(slipstreamKey);
-    if (slipstreamDrive > 0 && intendsToMove) {
-      slipstreamMs = Math.min(5000, slipstreamMs + deltaMs);
-    } else {
-      slipstreamMs = Math.max(0, slipstreamMs - deltaMs * 1.6);
-    }
-    setTrackedValue(slipstreamKey, slipstreamMs);
-    const slipstreamPercent = slipstreamDrive > 0 ? Math.min(34, (slipstreamMs / 1000) * 6 * slipstreamDrive) : 0;
-    const chainMomentumSpeedPercent = chainMomentum > 0
-      ? Math.min(30, this.cardRuntimeState.chainKillStreak * chainMomentum * 0.5)
-      : 0;
-
-    player.moveMaxSpeed = baseMaxSpeed * Math.max(
-      0.25,
-      1 + (overclockedThrusters + slipstreamPercent + chainMomentumSpeedPercent) / 100
-    );
-    player.moveFollowGain = baseFollowGain * Math.max(0, 1 + stabilisedFlight / 100);
-
-    if (microDash > 0 && pointer.rightButtonDown && pointer.hasPosition) {
-      const dashReadyAtKey = '__mobility-micro-dash-ready-ms';
-      const dashReadyAt = getTrackedValue(dashReadyAtKey);
-      if (this.elapsedMs >= dashReadyAt) {
-        const dx = pointer.x - player.position.x;
-        const dy = pointer.y - player.position.y;
-        const mag = Math.hypot(dx, dy) || 1;
-        const nx = dx / mag;
-        const ny = dy / mag;
-        const dashDistance = 1.5 + microDash * 0.45;
-        player.position.x += nx * dashDistance;
-        player.position.y += ny * dashDistance;
-        player.velocity.x += nx * baseMaxSpeed * 1.6;
-        player.velocity.y += ny * baseMaxSpeed * 1.6;
-        const dashCooldownMs = Math.max(420, 1200 - microDash * 180);
-        setTrackedValue(dashReadyAtKey, this.elapsedMs + dashCooldownMs);
-      }
-    }
-
-    applyPointerInputVelocity(player, pointer, deltaSeconds);
-    player.moveMaxSpeed = baseMaxSpeed;
-    player.moveFollowGain = baseFollowGain;
-
-    if (nextCooldowns) {
-      this.cardRuntimeState = {
-        ...this.cardRuntimeState,
-        perCardProcCooldownUntilMs: nextCooldowns
-      };
-    }
+    this.cardRuntimeState = applyPlayerInputRuntime({
+      entities: this.entities,
+      playerId: this.playerId,
+      pointer,
+      deltaSeconds,
+      elapsedMs: this.elapsedMs,
+      bonuses: cardBonuses,
+      runtimeState: this.cardRuntimeState
+    });
   }
 
   private applyCardDefenseBeforeDamage(collisions: CollisionPair[], cardBonuses: CardBonuses): void {
-    if (collisions.length === 0) {
-      return;
-    }
-
-    const player = this.entities.get(this.playerId);
-    if (!player) {
-      return;
-    }
-
-    const emergencyShieldActive = (player.statusEffects ?? []).some(
-      (effect) => effect.effectId === 'emergency-shield-active' && effect.remainingMs > 0
-    );
-    const dampenerPercent = Math.max(0, cardBonuses.defenseModifierBonus['kinetic-dampeners'] ?? 0);
-    const dampenerScale = Math.max(0.15, 1 - dampenerPercent / 100);
-
-    for (const pair of collisions) {
-      if (pair.b.id !== this.playerId || pair.a.faction !== Faction.Enemy) {
-        continue;
-      }
-
-      if (emergencyShieldActive) {
-        pair.a.damage = 0;
-        continue;
-      }
-
-      if (dampenerPercent > 0) {
-        pair.a.damage = (pair.a.damage ?? 1) * dampenerScale;
-      }
-    }
+    applyCardDefenseBeforeDamageRuntime(collisions, this.entities, this.playerId, cardBonuses);
   }
 
   entitiesForRender() {
-    return this.entities.all().map((entity) => ({
-      id: entity.id,
-      type: entity.type,
-      faction: entity.faction,
-      health: entity.health,
-      maxHealth: entity.maxHealth,
-      enemyArchetype: entity.enemyArchetype as EnemyArchetypeId | undefined,
-      movementPattern: entity.movementPattern as MovementPatternId | undefined,
-      patternAmplitude: entity.patternAmplitude,
-      patternFrequency: entity.patternFrequency,
-      movementParams: entity.movementParams,
-      spawnX: entity.spawnX,
-      spawnY: entity.spawnY,
-      pickupKind: entity.pickupKind,
-      pickupWeaponMode: entity.pickupWeaponMode,
-      pickupCardId: entity.pickupCardId,
-      projectileKind: entity.projectileKind,
-      projectileSpeed: entity.projectileSpeed,
-      radius: entity.radius,
-      vx: entity.velocity.x,
-      vy: entity.velocity.y,
-      particleType: entity.particleType,
-      ageMs: entity.ageMs,
-      lifetimeMs: entity.lifetimeMs,
-      x: entity.position.x,
-      y: entity.position.y
-    }));
+    return Array.from(this.entities.values(), (entity) => ({
+        id: entity.id,
+        type: entity.type,
+        faction: entity.faction,
+        health: entity.health,
+        maxHealth: entity.maxHealth,
+        enemyArchetype: entity.enemyArchetype as EnemyArchetypeId | undefined,
+        movementPattern: entity.movementPattern as MovementPatternId | undefined,
+        patternAmplitude: entity.patternAmplitude,
+        patternFrequency: entity.patternFrequency,
+        movementParams: entity.movementParams,
+        spawnX: entity.spawnX,
+        spawnY: entity.spawnY,
+        pickupKind: entity.pickupKind,
+        pickupWeaponMode: entity.pickupWeaponMode,
+        pickupCardId: entity.pickupCardId,
+        projectileKind: entity.projectileKind,
+        projectileSpeed: entity.projectileSpeed,
+        radius: entity.radius,
+        vx: entity.velocity.x,
+        vy: entity.velocity.y,
+        particleType: entity.particleType,
+        ageMs: entity.ageMs,
+        lifetimeMs: entity.lifetimeMs,
+        x: entity.position.x,
+        y: entity.position.y
+      }));
   }
 
   countByType(type: EntityType): number {
-    return this.entities.all().filter((entity) => entity.type === type).length;
+    let count = 0;
+    for (const entity of this.entities.values()) {
+      if (entity.type === type) {
+        count += 1;
+      }
+    }
+    return count;
   }
 
   setPlayableBounds(bounds: WorldBounds) {
@@ -985,7 +913,7 @@ export class Game {
   setUseGpuParticles(enabled: boolean) {
     this.useGpuParticles = enabled;
     if (enabled) {
-      for (const entity of this.entities.all()) {
+      for (const entity of this.entities.values()) {
         if (entity.type === EntityType.Particle) {
           this.entities.remove(entity.id);
         }
@@ -1084,43 +1012,19 @@ export class Game {
   }
 
   private handlePlayerWeapons(deltaSeconds: number, bonuses: CardBonuses) {
-    const movingMs = this.cardRuntimeState.perCardProcCooldownUntilMs.get('__condition-moving-ms') ?? 0;
-    const stillMs = this.cardRuntimeState.perCardProcCooldownUntilMs.get('__condition-still-ms') ?? 0;
-    const volatileMisfire = bonuses.conditionalModifierBonus['volatile-ammunition-misfire'] ?? 0;
-    let volatileMisfireRoll: number | undefined;
-    const player = this.entities.get(this.playerId);
-    if (player && volatileMisfire > 0 && (player.fireCooldownMs ?? 0) <= 0) {
-      volatileMisfireRoll = this.cardRuntimeState.rng.nextFloat('conditional:volatile-ammunition', Math.floor(this.elapsedMs));
-    }
-
-    const result = playerWeaponSystem(this.entities, this.playerId, deltaSeconds, {
-      weaponTuningBonuses: bonuses.weaponTuningBonuses,
-      weaponAmplifierBonus: bonuses.weaponAmplifierBonus,
-      projectileModifierBonus: bonuses.projectileModifierBonus,
-      patternModifierBonus: bonuses.patternModifierBonus,
-      triggerModifierBonus: bonuses.triggerModifierBonus,
-      conditionalModifierBonus: bonuses.conditionalModifierBonus,
-      temporaryRoundEffects: this.cardRuntimeState.temporaryRoundEffects,
-      movingMs,
-      stillMs,
-      consecutiveShootingMs: this.cardRuntimeState.consecutiveShootingMs,
-      chainKillStreak: this.cardRuntimeState.chainKillStreak,
-      shotCounter: this.cardRuntimeState.shotCounter,
-      rapidVentingUntilMs: this.cardRuntimeState.rapidVentingUntilMs,
+    const result = handlePlayerWeaponsRuntime({
+      entities: this.entities,
+      playerId: this.playerId,
+      deltaSeconds,
+      bonuses,
+      runtimeState: this.cardRuntimeState,
       elapsedMs: this.elapsedMs,
-      volatileMisfireRoll,
-      hitStreak: this.cardRuntimeState.hitStreak
+      emitWeaponFiredEvent: (shooter, weaponMode, projectileEntityId) => {
+        this.emitWeaponFiredEvent(shooter, weaponMode, bonuses, projectileEntityId);
+      }
     });
+    this.cardRuntimeState = result.runtimeState;
     this.score += result.scoreDelta;
-
-    const nextPlayer = this.entities.get(this.playerId);
-    if (!nextPlayer) {
-      return;
-    }
-
-    for (const shot of result.fired) {
-      this.emitWeaponFiredEvent(nextPlayer, shot.weaponMode, shot.projectileEntityId);
-    }
   }
 
   private getEnemyDensityScale(): number {
@@ -1133,8 +1037,20 @@ export class Game {
     return clamp(0.35 + densityScale * 0.65, 0.35, 1);
   }
 
+  private invalidateCardBonusCache() {
+    this.cachedCardBonusesKey = '';
+  }
+
   private currentCardBonuses(): CardBonuses {
-    return computeCardBonuses(this.runProgress?.activeCards ?? []);
+    const activeCards = this.runProgress?.activeCards ?? [];
+    const key = activeCards.join('|');
+    if (key === this.cachedCardBonusesKey) {
+      return this.cachedCardBonuses;
+    }
+
+    this.cachedCardBonuses = computeCardBonuses(activeCards);
+    this.cachedCardBonusesKey = key;
+    return this.cachedCardBonuses;
   }
 
   private syncLevelDirectorModifiersWithCards() {
@@ -1159,9 +1075,13 @@ export class Game {
   }
 
   private countLiveEnemies(): number {
-    return this.entities
-      .all()
-      .filter((entity) => entity.type === EntityType.Enemy && entity.health > 0).length;
+    let count = 0;
+    for (const entity of this.entities.values()) {
+      if (entity.type === EntityType.Enemy && entity.health > 0) {
+        count += 1;
+      }
+    }
+    return count;
   }
 
   enterBetweenRounds(): boolean {
@@ -1177,30 +1097,31 @@ export class Game {
     }
 
     this.cardRuntimeState = clearRoundTemporaryCardEffects(this.cardRuntimeState);
+    this.captureRunProgress();
     this.state = GameState.BetweenRounds;
     return true;
   }
 
-  private addRunMoney(amount: number, source: 'kill' | 'pickup' = 'pickup') {
+  private addRunMoney(amount: number, source: 'kill' | 'pickup' = 'pickup', bonuses?: CardBonuses) {
     if (!this.runProgress || amount <= 0) {
       return;
     }
 
-    const bonuses = computeCardBonuses(this.runProgress.activeCards);
-    const salvageProtocols = bonuses.economyModifierBonus['salvage-protocols'] ?? 0;
-    const economyScale = 1 + bonuses.moneyMultiplierPercent / 100 + salvageProtocols * 0.2;
+    const effectiveBonuses = bonuses ?? this.currentCardBonuses();
+    const salvageProtocols = effectiveBonuses.economyModifierBonus['salvage-protocols'] ?? 0;
+    const economyScale = 1 + effectiveBonuses.moneyMultiplierPercent / 100 + salvageProtocols * 0.2;
     const scaled = Math.round(amount * economyScale);
-    const killBonus = source === 'kill' ? bonuses.killMoneyFlatBonus : 0;
+    const killBonus = source === 'kill' ? effectiveBonuses.killMoneyFlatBonus : 0;
     this.runProgress.inRunMoney += Math.max(1, scaled + killBonus);
   }
 
-  private handleProgressCollection(kind: string, value: number, pickupCardId?: string) {
+  private handleProgressCollection(kind: string, value: number, bonuses: CardBonuses, pickupCardId?: string) {
     if (!this.runProgress) {
       return;
     }
 
     if (kind === 'money') {
-      this.addRunMoney(Math.max(0, value), 'pickup');
+      this.addRunMoney(Math.max(0, value), 'pickup', bonuses);
       return;
     }
 
@@ -1211,7 +1132,7 @@ export class Game {
       && canAcquireCard(pickupCardId, this.runProgress.foundCards, this.runProgress.activeCards, this.runProgress.consumedCards ?? [])
     ) {
       this.runProgress.foundCards = [...this.runProgress.foundCards, pickupCardId];
-      const duplicateChance = Math.max(0, this.currentCardBonuses().economyModifierBonus['duplicate-systems'] ?? 0);
+      const duplicateChance = Math.max(0, bonuses.economyModifierBonus['duplicate-systems'] ?? 0);
       if (
         duplicateChance > 0
         && canAcquireCard(
@@ -1238,7 +1159,13 @@ export class Game {
   }
 
   private countActivePickups(): number {
-    return this.entities.all().filter((entity) => entity.type === EntityType.Pickup).length;
+    let count = 0;
+    for (const entity of this.entities.values()) {
+      if (entity.type === EntityType.Pickup) {
+        count += 1;
+      }
+    }
+    return count;
   }
 
   private shouldSpawnDropPickup(entityId: number, modulo: number, activePickups: number, salt: number): boolean {
@@ -1263,7 +1190,7 @@ export class Game {
       this.playerId,
       deltaSeconds,
       (shooter, weaponMode, projectileEntityId) => {
-        this.emitWeaponFiredEvent(shooter, weaponMode, projectileEntityId);
+        this.emitWeaponFiredEvent(shooter, weaponMode, cardBonuses, projectileEntityId);
       },
       { missileModifierBonus: cardBonuses.missileModifierBonus }
     );
@@ -1421,6 +1348,7 @@ export class Game {
   private emitWeaponFiredEvent(
     shooter: Pick<Entity, 'id' | 'faction'>,
     weaponMode: string,
+    bonuses: CardBonuses,
     projectileEntityId?: number
   ) {
     const weaponFiredEvent = {
@@ -1433,7 +1361,7 @@ export class Game {
     } as const;
     this.cardRuntimeState = runCardWeaponFiredTriggerHooks({
       event: weaponFiredEvent,
-      bonuses: this.currentCardBonuses(),
+      bonuses,
       runtimeState: this.cardRuntimeState
     });
     this.events.emit(weaponFiredEvent);

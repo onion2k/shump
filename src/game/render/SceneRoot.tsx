@@ -1,13 +1,7 @@
 import { useFrame, useThree } from '@react-three/fiber';
-import { Stats } from '@react-three/drei';
-import { EntityType, Faction } from '../ecs/entityTypes';
+import { EntityType } from '../ecs/entityTypes';
 import { GameLoop } from '../core/GameLoop';
 import { useEffect, useMemo, useRef } from 'react';
-import { PlayerMesh } from './meshes/PlayerMesh';
-import { EnemyMesh } from './meshes/EnemyMesh';
-import { PodMesh } from './meshes/PodMesh';
-import { BulletMesh } from './meshes/BulletMesh';
-import { PickupMesh } from './meshes/PickupMesh';
 import { ParticleInstances } from './meshes/ParticleInstances';
 import { GpuParticleSystem } from './meshes/GpuParticleSystem';
 import { ParallaxBackground } from './ParallaxBackground';
@@ -15,23 +9,18 @@ import { CameraRig } from './CameraRig';
 import { Game } from '../core/Game';
 import type { PointerController } from '../input/PointerController';
 import type { GameSnapshot } from '../core/Game';
-import { Hud3D } from './Hud3D';
 import { centeredBoundsFromSize } from '../core/playfieldBounds';
 import { Bloom, EffectComposer } from '@react-three/postprocessing';
 import { ShockWaveEffect } from 'postprocessing';
 import { Vector3 } from 'three';
-import type { PlayerWeaponMode } from '../weapons/playerWeapons';
 import type { CardDefinition } from '../content/cards';
-import { BetweenRoundsUi3D } from './ui/BetweenRoundsUi3D';
-import { StartScreen3D } from './ui/StartScreen3D';
-import { PauseScreen3D } from './ui/PauseScreen3D';
-import { GameOverScreen3D } from './ui/GameOverScreen3D';
 import { gameSettings } from '../config/gameSettings';
 import {
   resolveEffectsQualityProfile,
   type EffectsQuality
 } from './effectsQuality';
-import { TitleSettingsScreen3D } from './ui/TitleSettingsScreen3D';
+import { SceneEntityLayer } from './SceneEntityLayer';
+import { SceneUiLayer } from './SceneUiLayer';
 
 interface SceneRootProps {
   game: Game;
@@ -170,9 +159,20 @@ export function SceneRoot({
   });
 
   const renderEntities = game.entitiesForRender();
-  const nonParticleEntities = renderEntities.filter((entity) => entity.type !== EntityType.Particle);
-  const particles = renderEntities.filter((entity) => entity.type === EntityType.Particle);
-  const playerEntity = renderEntities.find((entity) => entity.type === EntityType.Player);
+  const nonParticleEntities: typeof renderEntities = [];
+  const particles: typeof renderEntities = [];
+  let playerEntity: (typeof renderEntities)[number] | undefined;
+  for (const entity of renderEntities) {
+    if (entity.type === EntityType.Particle) {
+      particles.push(entity);
+      continue;
+    }
+
+    nonParticleEntities.push(entity);
+    if (!playerEntity && entity.type === EntityType.Player) {
+      playerEntity = entity;
+    }
+  }
   const playerX = playerEntity?.x ?? 0;
   const particleScale = size.width <= PARTICLE_MOBILE_BREAKPOINT_PX
     ? qualityProfile.particleScale * 0.94
@@ -188,38 +188,19 @@ export function SceneRoot({
       <CameraRig game={game} />
       <ambientLight intensity={0.75} />
       <directionalLight intensity={1.1} position={[3, 8, 8]} />
-      {showStats && <Stats showPanel={0} className="fps-stats" />}
-      <Hud3D snapshot={snapshot} />
-      {!titleSettingsOpen && (
-        <StartScreen3D
-          state={snapshot.state}
-          hasSavedRun={hasSavedRun}
-          effectsQuality={effectsQuality}
-          onStart={onStart}
-          onStartFresh={onStartFresh}
-          onOpenSettings={onOpenTitleSettings}
-        />
-      )}
-      <TitleSettingsScreen3D
-        state={snapshot.state}
-        open={titleSettingsOpen}
+      <SceneUiLayer
+        showStats={showStats}
+        snapshot={snapshot}
+        hasSavedRun={hasSavedRun}
         effectsQuality={effectsQuality}
+        titleSettingsOpen={titleSettingsOpen}
+        onStart={onStart}
+        onStartFresh={onStartFresh}
+        onOpenTitleSettings={onOpenTitleSettings}
+        onCloseTitleSettings={onCloseTitleSettings}
         onSelectEffectsQuality={onSelectEffectsQuality}
-        onClose={onCloseTitleSettings}
-      />
-      <PauseScreen3D state={snapshot.state} onResume={onResume} />
-      <GameOverScreen3D state={snapshot.state} onRestart={onRestart} />
-      <BetweenRoundsUi3D
-        state={snapshot.state}
-        levelId={snapshot.levelId}
-        roundIndex={snapshot.roundIndex}
-        totalRounds={snapshot.totalRounds}
-        activeCardLimit={snapshot.activeCardLimit}
-        money={snapshot.inRunMoney}
-        weaponLevels={snapshot.weaponLevels}
-        weaponEnergyMax={snapshot.weaponEnergyMax}
-        podCount={snapshot.podCount}
-        podWeaponMode={snapshot.podWeaponMode}
+        onResume={onResume}
+        onRestart={onRestart}
         foundCards={foundCards}
         activeCards={activeCards}
         shopCards={shopCards}
@@ -237,55 +218,7 @@ export function SceneRoot({
         playerX={playerX}
         scrollDistance={snapshot.distanceTraveled}
       />
-      {nonParticleEntities.map((entity) => {
-        const position: [number, number, number] = [entity.x, entity.y, 0];
-
-        if (entity.type === EntityType.Player) {
-          return (
-            <group key={entity.id} position={position}>
-              <PlayerMesh />
-            </group>
-          );
-        }
-
-        if (entity.type === EntityType.Enemy) {
-          const healthRatio = entity.maxHealth > 0 ? entity.health / entity.maxHealth : 1;
-          return (
-            <group key={entity.id} position={position}>
-              <EnemyMesh archetype={entity.enemyArchetype} healthRatio={healthRatio} ageMs={entity.ageMs} />
-            </group>
-          );
-        }
-
-        if (entity.type === EntityType.Pod) {
-          return (
-            <group key={entity.id} position={position}>
-              <PodMesh />
-            </group>
-          );
-        }
-
-        if (entity.type === EntityType.Pickup) {
-          return (
-            <group key={entity.id} position={position}>
-              <PickupMesh kind={entity.pickupKind ?? 'score'} weaponMode={entity.pickupWeaponMode as PlayerWeaponMode | undefined} />
-            </group>
-          );
-        }
-
-        return (
-          <group key={entity.id} position={position}>
-            <BulletMesh
-              enemy={entity.faction === Faction.Enemy}
-              projectileKind={entity.projectileKind}
-              projectileSpeed={entity.projectileSpeed}
-              radius={entity.radius}
-              vx={entity.vx}
-              vy={entity.vy}
-            />
-          </group>
-        );
-      })}
+      <SceneEntityLayer entities={nonParticleEntities} />
       {USE_GPU_PARTICLES ? (
         <GpuParticleSystem game={game} particleScale={particleScale} maxParticles={gpuParticleCap} />
       ) : (

@@ -17,7 +17,7 @@ export function pickupAttractionSystem(entityManager: EntityManager, playerId: n
 
   const rangeSquared = range * range;
 
-  for (const entity of entityManager.all()) {
+  for (const entity of entityManager.values()) {
     if (entity.type !== EntityType.Pickup) {
       continue;
     }

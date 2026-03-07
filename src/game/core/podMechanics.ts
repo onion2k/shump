@@ -10,7 +10,13 @@ import { findNearestEnemy, normalizeDirection } from './gameEntityHelpers';
 import { clamp } from '../util/math';
 
 function getEntitiesByType(entityManager: EntityManager, type: EntityType): Entity[] {
-  return entityManager.all().filter((entity) => entity.type === type);
+  const entities: Entity[] = [];
+  for (const entity of entityManager.values()) {
+    if (entity.type === type) {
+      entities.push(entity);
+    }
+  }
+  return entities;
 }
 
 function getPodsSortedByIndex(entityManager: EntityManager): Entity[] {
@@ -90,6 +96,7 @@ export function handlePodWeapons(
   const podWeaponMode = player.podWeaponMode ?? 'Auto Pulse';
   const missileBonuses = options.missileModifierBonus ?? {};
   const pods = getEntitiesByType(entityManager, EntityType.Pod);
+  const enemies = getEntitiesByType(entityManager, EntityType.Enemy);
   if (pods.length === 0) {
     return;
   }
@@ -99,7 +106,7 @@ export function handlePodWeapons(
       continue;
     }
 
-    const target = findNearestEnemy(entityManager.all(), pod.position.x, pod.position.y);
+    const target = findNearestEnemy(enemies, pod.position.x, pod.position.y);
     const direction = normalizeDirection(
       target ? target.position.x - pod.position.x : 0,
       target ? target.position.y - pod.position.y : 1

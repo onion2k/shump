@@ -18,6 +18,10 @@ export class EntityManager {
     return this.entities.get(id);
   }
 
+  values(): IterableIterator<Entity> {
+    return this.entities.values();
+  }
+
   all(): Entity[] {
     return [...this.entities.values()];
   }

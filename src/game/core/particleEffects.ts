@@ -130,11 +130,11 @@ export function emitMissileThrusterParticles(
   }
   accumulator -= spawnSteps;
 
-  const missiles = entityManager
-    .all()
-    .filter((entity) => entity.type === EntityType.Bullet && entity.projectileKind === 'missile' && entity.faction === Faction.Player);
+  for (const missile of entityManager.values()) {
+    if (missile.type !== EntityType.Bullet || missile.projectileKind !== 'missile' || missile.faction !== Faction.Player) {
+      continue;
+    }
 
-  for (const missile of missiles) {
     const velocity = normalizeDirection(missile.velocity.x, missile.velocity.y);
     for (let i = 0; i < spawnSteps; i += 1) {
       const spread = randomRange(missileThruster.spreadMin, missileThruster.spreadMax);

@@ -11,11 +11,11 @@ import {
 } from '../content/cards';
 import { gameSettings } from '../config/gameSettings';
 import {
-  PLAYER_STAT_TO_MODIFIER_KEY,
   addGameplayModifier,
-  type GameplayModifierKey,
   type GameplayModifierMap
 } from '../content/gameplayModifiers';
+import { applyModifierToLegacyFields } from './cardEffectLegacyAdapter';
+import { applyDirectCardEffect } from './cardEffectReducers';
 
 const DEFAULT_PLAYER_STAT_VALUES: Record<PlayerStatCardStat, number> = {
   moveMaxSpeed: Math.max(1, gameSettings.player.maxSpeed),
@@ -26,10 +26,6 @@ const DEFAULT_PLAYER_STAT_VALUES: Record<PlayerStatCardStat, number> = {
   shieldRechargeDelayMs: Math.max(0, gameSettings.player.shield.rechargeDelayMs),
   shieldRechargeTimeMs: Math.max(1, gameSettings.player.shield.rechargeTimeMs)
 };
-
-const MODIFIER_KEY_TO_PLAYER_STAT: Partial<Record<GameplayModifierKey, PlayerStatCardStat>> = Object.fromEntries(
-  Object.entries(PLAYER_STAT_TO_MODIFIER_KEY).map(([stat, key]) => [key, stat as PlayerStatCardStat])
-) as Partial<Record<GameplayModifierKey, PlayerStatCardStat>>;
 
 function clampPlayerStat(stat: PlayerStatCardStat, value: number): number {
   if (stat === 'moveMaxSpeed') {
@@ -244,137 +240,13 @@ export function captureBaseStateFromPlayer(
 }
 
 function applyCardEffect(bonuses: CardBonuses, effect: CardEffect): void {
-  if (effect.kind === 'maxHealth') {
-    bonuses.maxHealthBonus += effect.amount;
-    addGameplayModifier(bonuses.gameplayModifiers, 'player.maxHealth', effect.amount);
-    return;
-  }
-
-  if (effect.kind === 'weaponLevel') {
-    bonuses.weaponLevelBonus[effect.weaponMode] = (bonuses.weaponLevelBonus[effect.weaponMode] ?? 0) + effect.amount;
-    return;
-  }
-
-  if (effect.kind === 'moneyMultiplier') {
-    bonuses.moneyMultiplierPercent += effect.percent;
-    addGameplayModifier(bonuses.gameplayModifiers, 'economy.moneyMultiplierPercent', effect.percent);
-    return;
-  }
-
-  if (effect.kind === 'killMoneyFlat') {
-    bonuses.killMoneyFlatBonus += effect.amount;
-    addGameplayModifier(bonuses.gameplayModifiers, 'economy.killMoneyFlat', effect.amount);
-    return;
-  }
-
-  if (effect.kind === 'podCount') {
-    bonuses.podCountBonus += effect.amount;
-    addGameplayModifier(bonuses.gameplayModifiers, 'player.podCount', effect.amount);
-    return;
-  }
-
-  if (effect.kind === 'playerStat') {
-    bonuses.playerStatBonus[effect.stat] = (bonuses.playerStatBonus[effect.stat] ?? 0) + effect.amount;
-    addGameplayModifier(bonuses.gameplayModifiers, PLAYER_STAT_TO_MODIFIER_KEY[effect.stat], effect.amount);
-    return;
-  }
-
-  if (effect.kind === 'podWeaponMode') {
-    bonuses.podWeaponModeOverride = effect.mode;
-    return;
-  }
-
-  if (effect.kind === 'weaponTuning') {
-    const modeBonuses = bonuses.weaponTuningBonuses[effect.weaponMode] ?? {};
-    modeBonuses[effect.stat] = (modeBonuses[effect.stat] ?? 0) + effect.amount;
-    bonuses.weaponTuningBonuses[effect.weaponMode] = modeBonuses;
-    return;
-  }
-
-  if (effect.kind === 'weaponAmplifier') {
-    bonuses.weaponAmplifierBonus[effect.effectId] = (bonuses.weaponAmplifierBonus[effect.effectId] ?? 0) + effect.amount;
-    return;
-  }
-
-  if (effect.kind === 'projectileModifier') {
-    bonuses.projectileModifierBonus[effect.effectId] = (bonuses.projectileModifierBonus[effect.effectId] ?? 0) + effect.amount;
-    return;
-  }
-
-  if (effect.kind === 'missileModifier') {
-    bonuses.missileModifierBonus[effect.effectId] = (bonuses.missileModifierBonus[effect.effectId] ?? 0) + effect.amount;
-    return;
-  }
-
-  if (effect.kind === 'patternModifier') {
-    bonuses.patternModifierBonus[effect.effectId] = (bonuses.patternModifierBonus[effect.effectId] ?? 0) + effect.amount;
-    return;
-  }
-
-  if (effect.kind === 'defenseModifier') {
-    bonuses.defenseModifierBonus[effect.effectId] = (bonuses.defenseModifierBonus[effect.effectId] ?? 0) + effect.amount;
-    return;
-  }
-
-  if (effect.kind === 'mobilityModifier') {
-    bonuses.mobilityModifierBonus[effect.effectId] = (bonuses.mobilityModifierBonus[effect.effectId] ?? 0) + effect.amount;
-    return;
-  }
-
-  if (effect.kind === 'droneModifier') {
-    bonuses.droneModifierBonus[effect.effectId] = (bonuses.droneModifierBonus[effect.effectId] ?? 0) + effect.amount;
-    return;
-  }
-
-  if (effect.kind === 'economyModifier') {
-    bonuses.economyModifierBonus[effect.effectId] = (bonuses.economyModifierBonus[effect.effectId] ?? 0) + effect.amount;
-    return;
-  }
-
-  if (effect.kind === 'conditionalModifier') {
-    bonuses.conditionalModifierBonus[effect.effectId] = (bonuses.conditionalModifierBonus[effect.effectId] ?? 0) + effect.amount;
-    return;
-  }
-
-  if (effect.kind === 'triggerModifier') {
-    bonuses.triggerModifierBonus[effect.effectId] = (bonuses.triggerModifierBonus[effect.effectId] ?? 0) + effect.amount;
-    return;
-  }
-
-  if (effect.kind === 'temporaryRoundModifier') {
+  if (applyDirectCardEffect(bonuses, effect)) {
     return;
   }
 
   if (effect.kind === 'modifier') {
     addGameplayModifier(bonuses.gameplayModifiers, effect.key, effect.amount);
     applyModifierToLegacyFields(bonuses, effect.key, effect.amount);
-  }
-}
-
-function applyModifierToLegacyFields(bonuses: CardBonuses, key: GameplayModifierKey, amount: number): void {
-  if (key === 'player.maxHealth') {
-    bonuses.maxHealthBonus += amount;
-    return;
-  }
-
-  if (key === 'economy.moneyMultiplierPercent') {
-    bonuses.moneyMultiplierPercent += amount;
-    return;
-  }
-
-  if (key === 'economy.killMoneyFlat') {
-    bonuses.killMoneyFlatBonus += amount;
-    return;
-  }
-
-  if (key === 'player.podCount') {
-    bonuses.podCountBonus += amount;
-    return;
-  }
-
-  const playerStat = MODIFIER_KEY_TO_PLAYER_STAT[key];
-  if (playerStat) {
-    bonuses.playerStatBonus[playerStat] = (bonuses.playerStatBonus[playerStat] ?? 0) + amount;
   }
 }
 

@@ -5,7 +5,7 @@ function rechargePerSecond(shieldMax: number, rechargeTimeMs: number): number {
   return shieldMax / rechargeSeconds;
 }
 
-export function shieldSystem(entities: Entity[], deltaSeconds: number): void {
+export function shieldSystem(entities: Iterable<Entity>, deltaSeconds: number): void {
   if (deltaSeconds <= 0) {
     return;
   }

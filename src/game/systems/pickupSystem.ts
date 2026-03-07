@@ -25,7 +25,7 @@ export function pickupSystem(entityManager: EntityManager, playerId: number): Pi
   let scoreDelta = 0;
   const collections: PickupCollection[] = [];
 
-  for (const entity of entityManager.all()) {
+  for (const entity of entityManager.values()) {
     if (entity.type !== EntityType.Pickup) {
       continue;
     }

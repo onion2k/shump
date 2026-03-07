@@ -5,9 +5,7 @@ import { createBullet } from '../factories/createBullet';
 import { gameSettings } from '../config/gameSettings';
 
 export function shootingSystem(entityManager: EntityManager, deltaSeconds: number) {
-  const entities = entityManager.all();
-
-  for (const entity of entities) {
+  for (const entity of entityManager.values()) {
     if (entity.type !== EntityType.Enemy) {
       continue;
     }

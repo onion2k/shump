@@ -31,7 +31,7 @@ export function tickCardTemporaryEffectHooks(context: CardTemporaryEffectTickCon
       .filter((effect) => effect.remainingMs > 0);
   }
 
-  for (const entity of context.entityManager.all()) {
+  for (const entity of context.entityManager.values()) {
     if (entity.type !== EntityType.Enemy || !entity.statusEffects || entity.statusEffects.length === 0) {
       continue;
     }
@@ -72,7 +72,7 @@ export function tickCardTemporaryEffectHooks(context: CardTemporaryEffectTickCon
   if (salvageDrone > 0) {
     const attractRange = 3.8 + salvageDrone * 1.4;
     const attractPower = 12 + salvageDrone * 5;
-    for (const entity of context.entityManager.all()) {
+    for (const entity of context.entityManager.values()) {
       if (entity.type !== EntityType.Pickup) {
         continue;
       }

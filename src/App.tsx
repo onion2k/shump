@@ -176,13 +176,29 @@ export function App() {
     game.closeShop();
   }
 
-  const foundCards = snapshot.foundCards
-    .map((cardId) => resolveCard(cardId))
-    .filter((card): card is NonNullable<typeof card> => Boolean(card));
-  const activeCards = snapshot.activeCards
-    .map((cardId) => resolveCard(cardId))
-    .filter((card): card is NonNullable<typeof card> => Boolean(card));
-  const shopCards = game.shopOffers();
+  const foundCardsKey = snapshot.foundCards.join('|');
+  const activeCardsKey = snapshot.activeCards.join('|');
+
+  const foundCards = useMemo(
+    () =>
+      snapshot.foundCards
+        .map((cardId) => resolveCard(cardId))
+        .filter((card): card is NonNullable<typeof card> => Boolean(card)),
+    [foundCardsKey, snapshot.foundCards]
+  );
+  const activeCards = useMemo(
+    () =>
+      snapshot.activeCards
+        .map((cardId) => resolveCard(cardId))
+        .filter((card): card is NonNullable<typeof card> => Boolean(card)),
+    [activeCardsKey, snapshot.activeCards]
+  );
+  const shopCards = useMemo(() => {
+    if (snapshot.state !== GameState.Shop && snapshot.state !== GameState.BetweenRounds) {
+      return [];
+    }
+    return game.shopOffers();
+  }, [activeCardsKey, foundCardsKey, game, snapshot.roundIndex, snapshot.state]);
 
   return (
     <main className="app-shell" data-game-state={snapshot.state}>
