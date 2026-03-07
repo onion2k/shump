@@ -325,13 +325,22 @@ describe('Game between-round flow', () => {
     expect(game.selectPrimaryWeaponLoadout('Vector Beam')).toBe(false);
 
     expect(game.enterBetweenRounds()).toBe(true);
+    expect(game.selectPrimaryWeaponLoadout('Vector Beam')).toBe(false);
+
+    const player = game.entities.all().find((entity) => entity.type === EntityType.Player);
+    if (!player) {
+      return;
+    }
+    player.weaponLevels = {
+      ...(player.weaponLevels ?? {}),
+      'Vector Beam': 1
+    };
     expect(game.selectPrimaryWeaponLoadout('Vector Beam')).toBe(true);
 
     const betweenRoundsSnapshot = game.snapshot();
     expect(betweenRoundsSnapshot.selectedPrimaryWeaponMode).toBe('Vector Beam');
     expect(betweenRoundsSnapshot.weaponMode).toBe('Vector Beam');
 
-    const player = game.entities.all().find((entity) => entity.type === EntityType.Player);
     expect(player?.unlockedWeaponModes).toContain('Vector Beam');
     expect(player?.unlockedWeaponModes).toEqual(
       PLAYER_WEAPON_ORDER.filter((mode) => (player?.unlockedWeaponModes ?? []).includes(mode))

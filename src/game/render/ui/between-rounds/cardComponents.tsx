@@ -3,7 +3,12 @@ import { useMemo, useRef, useState } from 'react';
 import { Box, Flex } from '../layout/FlexLayout';
 import type { Group } from 'three';
 import { isConsumableUpgradeCard, type CardDefinition } from '../../../content/cards';
-import { PLAYER_WEAPON_ORDER, getPlayerWeaponMaxLevel, type PlayerWeaponMode } from '../../../weapons/playerWeapons';
+import {
+  PLAYER_WEAPON_ORDER,
+  getPlayerWeaponMaxLevel,
+  getPlayerWeaponMinimumLevel,
+  type PlayerWeaponMode
+} from '../../../weapons/playerWeapons';
 import { MOBILE_TEXT_BREAKPOINT_PX } from './constants';
 import type { CardRenderModel } from './types';
 import { cardColorByRarity, cardIcon, weaponModeTag, weaponShortLabel } from './utils';
@@ -378,7 +383,7 @@ export function ShipStatsPanel({
   const cards: CardRenderModel[] = PLAYER_WEAPON_ORDER.map((mode) => ({
     id: `ship-${mode}`,
     name: weaponShortLabel(mode),
-    description: `Level ${weaponLevels[mode] ?? 1}/${getPlayerWeaponMaxLevel(mode)}`,
+    description: `Level ${weaponLevels[mode] ?? getPlayerWeaponMinimumLevel(mode)}/${getPlayerWeaponMaxLevel(mode)}`,
     rarity: 'common',
     tags: [weaponModeTag(mode), 'weapon']
   }));
@@ -394,15 +399,18 @@ export function ShipStatsPanel({
           const row = Math.floor(index / columns);
           const rightGap = col < columns - 1 ? gapX : 0;
           const bottomGap = row < rows - 1 ? gapY : 0;
+          const mode = PLAYER_WEAPON_ORDER[index] ?? 'Auto Pulse';
+          const level = weaponLevels[mode] ?? getPlayerWeaponMinimumLevel(mode);
           return (
             <Box key={card.id} width={cardWidth} height={cardHeight} mr={rightGap} mb={bottomGap} centerAnchor>
               <ShipLoadoutCard
                 card={card}
-                weaponMode={PLAYER_WEAPON_ORDER[index] ?? 'Auto Pulse'}
+                weaponMode={mode}
                 width={cardWidth}
                 height={cardHeight}
                 textScale={textScale}
-                selected={selectedPrimaryWeapon === (PLAYER_WEAPON_ORDER[index] ?? 'Auto Pulse')}
+                selected={selectedPrimaryWeapon === mode}
+                selectable={level >= 1}
                 onSelect={onSelectPrimaryWeapon}
               />
             </Box>
@@ -420,6 +428,7 @@ export function ShipLoadoutCard({
   height,
   textScale,
   selected,
+  selectable,
   onSelect
 }: {
   card: CardRenderModel;
@@ -428,17 +437,18 @@ export function ShipLoadoutCard({
   height: number;
   textScale: number;
   selected: boolean;
+  selectable: boolean;
   onSelect: (mode: PlayerWeaponMode) => void;
 }) {
   return (
     <group>
       <CardFrame card={card} width={width} height={height} textScale={textScale} />
       <ActionButton
-        label={selected ? 'Selected' : 'Set Primary'}
+        label={selected ? 'Selected' : selectable ? 'Set Primary' : 'Locked (L0)'}
         width={width * 0.62}
         y={-height * 0.39}
         onClick={() => onSelect(weaponMode)}
-        disabled={selected}
+        disabled={selected || !selectable}
         color={selected ? '#1f6f4a' : '#2b6f92'}
         textScale={textScale}
       />

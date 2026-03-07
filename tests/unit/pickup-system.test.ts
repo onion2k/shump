@@ -78,7 +78,7 @@ describe('pickupSystem', () => {
     expect(result.collections).toHaveLength(1);
   });
 
-  it('unlocks weapon on pickup without force-switching and powers up only when pickup matches current weapon', () => {
+  it('does not unlock level-0 weapons from pickups and only powers up matching active weapons', () => {
     const entityManager = new EntityManager();
     const player = createPlayer(entityManager);
 
@@ -97,7 +97,7 @@ describe('pickupSystem', () => {
     pickupSystem(entityManager, player.id);
 
     expect(player.weaponMode).toBe('Auto Pulse');
-    expect(player.unlockedWeaponModes).toContain('Heavy Cannon');
+    expect(player.unlockedWeaponModes).not.toContain('Heavy Cannon');
     expect(player.weaponLevels?.['Heavy Cannon']).toBe(1);
 
     entityManager.create({

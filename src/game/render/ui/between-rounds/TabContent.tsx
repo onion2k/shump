@@ -15,7 +15,7 @@ import {
   ShipStatsPanel
 } from './cardComponents';
 import { renderTagSummary } from './utils';
-import type { PlayerWeaponMode } from '../../../weapons/playerWeapons';
+import { getPlayerWeaponMinimumLevel, type PlayerWeaponMode } from '../../../weapons/playerWeapons';
 
 interface BetweenRoundsTabContentProps {
   activeTab: { screen: string; label: string };
@@ -354,17 +354,22 @@ export function BetweenRoundsTabContent({
                 cardHeight={mobileContentCarouselCardHeight}
                 trackWidth={contentWidth}
                 gap={mobileContentCarouselGap}
-                renderItem={(card) => (
+                renderItem={(card) => {
+                  const mode = card.id.replace('ship-', '') as PlayerWeaponMode;
+                  const level = weaponLevels[mode] ?? getPlayerWeaponMinimumLevel(mode);
+                  return (
                   <ShipLoadoutCard
                     card={card}
-                    weaponMode={card.id.replace('ship-', '') as PlayerWeaponMode}
+                    weaponMode={mode}
                     width={mobileContentCarouselCardWidth}
                     height={mobileContentCarouselCardHeight}
                     textScale={textScaleBoost}
-                    selected={selectedPrimaryWeapon === (card.id.replace('ship-', '') as PlayerWeaponMode)}
+                    selected={selectedPrimaryWeapon === mode}
+                    selectable={level >= 1}
                     onSelect={onSelectPrimaryWeapon}
                   />
-                )}
+                  );
+                }}
               />
             ) : (
               <ShipStatsPanel

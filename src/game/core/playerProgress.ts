@@ -3,7 +3,12 @@ import type { Entity } from '../ecs/components';
 import type { RunPlayerState, RunProgress } from './RunProgress';
 import { applyCardsToPlayer, captureBaseStateFromPlayer } from '../systems/cardEffectSystem';
 import { clamp } from '../util/math';
-import { getPlayerWeaponMaxLevel, type PlayerWeaponMode } from '../weapons/playerWeapons';
+import {
+  deriveUnlockedWeaponModesFromLevels,
+  getPlayerWeaponMaxLevel,
+  getPlayerWeaponMinimumLevel,
+  type PlayerWeaponMode
+} from '../weapons/playerWeapons';
 import type { CardDefinition } from '../content/cards';
 
 export function applyRunPlayerState(player: Entity, playerState: RunPlayerState): void {
@@ -16,8 +21,10 @@ export function applyRunPlayerState(player: Entity, playerState: RunPlayerState)
     ...playerState.weaponLevels
   };
   player.weaponLevels = mergedWeaponLevels;
+  player.unlockedWeaponModes = deriveUnlockedWeaponModesFromLevels(mergedWeaponLevels);
   if (player.weaponMode) {
-    player.weaponLevel = mergedWeaponLevels[player.weaponMode as PlayerWeaponMode] ?? player.weaponLevel ?? 1;
+    const mode = player.weaponMode as PlayerWeaponMode;
+    player.weaponLevel = mergedWeaponLevels[mode] ?? player.weaponLevel ?? getPlayerWeaponMinimumLevel(mode);
   }
 
   player.podCount = Math.max(0, playerState.podCount);
@@ -99,10 +106,10 @@ export function applyConsumableCardUpgrade(runProgress: RunProgress | undefined,
     }
 
     if (effect.kind === 'weaponLevel') {
-      const currentLevel = nextPlayerState.weaponLevels[effect.weaponMode] ?? 1;
+      const currentLevel = nextPlayerState.weaponLevels[effect.weaponMode] ?? getPlayerWeaponMinimumLevel(effect.weaponMode);
       nextPlayerState.weaponLevels[effect.weaponMode] = Math.min(
         getPlayerWeaponMaxLevel(effect.weaponMode),
-        Math.max(1, currentLevel + effect.amount)
+        Math.max(getPlayerWeaponMinimumLevel(effect.weaponMode), currentLevel + effect.amount)
       );
     }
   }

@@ -22,6 +22,10 @@ function setupMode(game: Game, mode: PlayerWeaponMode) {
   if (!player) {
     return undefined;
   }
+  player.weaponLevels = {
+    ...(player.weaponLevels ?? {}),
+    [mode]: 1
+  };
   player.unlockedWeaponModes = [mode];
   player.weaponMode = mode;
   player.weaponEnergy = 250;

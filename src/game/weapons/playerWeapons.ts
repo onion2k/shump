@@ -26,6 +26,7 @@ export const PLAYER_WEAPON_ORDER = [
 ] as const;
 
 export type PlayerWeaponMode = (typeof PLAYER_WEAPON_ORDER)[number];
+const STARTER_WEAPON: PlayerWeaponMode = 'Auto Pulse';
 
 export interface PlayerWeaponDefinition {
   id: PlayerWeaponMode;
@@ -261,12 +262,8 @@ export const PLAYER_WEAPON_MAX_LEVELS: Record<PlayerWeaponMode, number> = Object
 ) as Record<PlayerWeaponMode, number>;
 
 const defaultLevels: Record<PlayerWeaponMode, number> = Object.fromEntries(
-  PLAYER_WEAPON_ORDER.map((mode) => [mode, PLAYER_WEAPON_DEFINITIONS[mode].defaultLevel])
+  PLAYER_WEAPON_ORDER.map((mode) => [mode, mode === STARTER_WEAPON ? 1 : 0])
 ) as Record<PlayerWeaponMode, number>;
-
-const defaultUnlocked: PlayerWeaponMode[] = PLAYER_WEAPON_ORDER.filter(
-  (mode) => PLAYER_WEAPON_DEFINITIONS[mode].defaultUnlocked
-);
 
 export function isPlayerWeaponMode(value: string): value is PlayerWeaponMode {
   return PLAYER_WEAPON_ORDER.includes(value as PlayerWeaponMode);
@@ -277,11 +274,19 @@ export function createDefaultWeaponLevels(): Record<PlayerWeaponMode, number> {
 }
 
 export function createDefaultUnlockedWeapons(): PlayerWeaponMode[] {
-  return [...defaultUnlocked];
+  return deriveUnlockedWeaponModesFromLevels(defaultLevels);
 }
 
 export function getPlayerWeaponMaxLevel(mode: PlayerWeaponMode): number {
   return PLAYER_WEAPON_MAX_LEVELS[mode];
+}
+
+export function getPlayerWeaponMinimumLevel(mode: PlayerWeaponMode): number {
+  return mode === STARTER_WEAPON ? 1 : 0;
+}
+
+export function deriveUnlockedWeaponModesFromLevels(levels: Partial<Record<PlayerWeaponMode, number>>): PlayerWeaponMode[] {
+  return PLAYER_WEAPON_ORDER.filter((mode) => (levels[mode] ?? getPlayerWeaponMinimumLevel(mode)) >= 1);
 }
 
 export function resolvePlayerWeaponDefinition(mode: PlayerWeaponMode): PlayerWeaponDefinition {

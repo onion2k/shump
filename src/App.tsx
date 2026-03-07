@@ -68,11 +68,16 @@ export function App() {
             }
           } else if (event.key === 'q' || event.key === 'Q' || event.key === 'e' || event.key === 'E') {
             const direction = event.key === 'q' || event.key === 'Q' ? -1 : 1;
-            const current = game.snapshot().selectedPrimaryWeaponMode;
+            const stateSnapshot = game.snapshot();
+            const selectableModes = PLAYER_WEAPON_ORDER.filter((mode) => (stateSnapshot.weaponLevels[mode] ?? 0) >= 1);
+            if (selectableModes.length === 0) {
+              return;
+            }
+            const current = stateSnapshot.selectedPrimaryWeaponMode;
             const currentMode: PlayerWeaponMode = isPlayerWeaponMode(current) ? current : PLAYER_WEAPON_ORDER[0];
-            const currentIndex = Math.max(0, PLAYER_WEAPON_ORDER.indexOf(currentMode));
-            const nextMode = PLAYER_WEAPON_ORDER[
-              (currentIndex + direction + PLAYER_WEAPON_ORDER.length) % PLAYER_WEAPON_ORDER.length
+            const currentIndex = Math.max(0, selectableModes.indexOf(currentMode));
+            const nextMode = selectableModes[
+              (currentIndex + direction + selectableModes.length) % selectableModes.length
             ];
             if (nextMode) {
               game.selectPrimaryWeaponLoadout(nextMode);

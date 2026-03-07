@@ -1,8 +1,9 @@
 import type { EntityManager } from '../ecs/EntityManager';
 import { clamp } from '../util/math';
 import {
-  createDefaultUnlockedWeapons,
   createDefaultWeaponLevels,
+  deriveUnlockedWeaponModesFromLevels,
+  getPlayerWeaponMinimumLevel,
   isPlayerWeaponMode,
   type PlayerWeaponMode
 } from '../weapons/playerWeapons';
@@ -35,7 +36,7 @@ export function playerWeaponSystem(
   player.fireCooldownMs = (player.fireCooldownMs ?? 0) - deltaSeconds * 1000;
 
   const activeWeapon = ensurePlayerWeaponState(player);
-  const weaponLevel = player.weaponLevels?.[activeWeapon] ?? 1;
+  const weaponLevel = player.weaponLevels?.[activeWeapon] ?? getPlayerWeaponMinimumLevel(activeWeapon);
   player.weaponLevel = weaponLevel;
   const conditionalBonuses = resolveConditionalBonuses(player, options);
 
@@ -75,7 +76,7 @@ function ensurePlayerWeaponState(player: PlayerEntity): PlayerWeaponMode {
   const levels = player.weaponLevels ?? createDefaultWeaponLevels();
   player.weaponLevels = levels;
 
-  const unlocked = player.unlockedWeaponModes ?? createDefaultUnlockedWeapons();
+  const unlocked = deriveUnlockedWeaponModesFromLevels(levels);
   player.unlockedWeaponModes = unlocked;
 
   const requested = player.weaponMode;

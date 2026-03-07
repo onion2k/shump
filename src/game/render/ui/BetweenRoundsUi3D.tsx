@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Box, Flex } from './layout/FlexLayout';
 import type { CardDefinition } from '../../content/cards';
 import { GameState } from '../../core/GameState';
-import { PLAYER_WEAPON_ORDER, getPlayerWeaponMaxLevel, type PlayerWeaponMode } from '../../weapons/playerWeapons';
+import { PLAYER_WEAPON_ORDER, getPlayerWeaponMaxLevel, getPlayerWeaponMinimumLevel, type PlayerWeaponMode } from '../../weapons/playerWeapons';
 import {
   BETWEEN_ROUND_TABS,
   MOBILE_TEXT_BREAKPOINT_PX,
@@ -166,7 +166,7 @@ export function BetweenRoundsUi3D({
       PLAYER_WEAPON_ORDER.map((mode) => ({
         id: `ship-${mode}`,
         name: weaponShortLabel(mode),
-        description: `Level ${weaponLevels[mode] ?? 1}/${getPlayerWeaponMaxLevel(mode)}`,
+        description: `Level ${weaponLevels[mode] ?? getPlayerWeaponMinimumLevel(mode)}/${getPlayerWeaponMaxLevel(mode)}`,
         rarity: 'common',
         tags: [weaponModeTag(mode), 'weapon']
       })),

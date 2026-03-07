@@ -115,6 +115,10 @@ describe('Game player controls', () => {
     }
 
     player.unlockedWeaponModes = ['Auto Pulse', 'Continuous Laser'];
+    player.weaponLevels = {
+      ...(player.weaponLevels ?? {}),
+      'Continuous Laser': 1
+    };
     const selectedUnlocked = game.selectWeaponBySlot(2);
     const selectedLocked = game.selectWeaponBySlot(4);
 
@@ -237,6 +241,10 @@ describe('Game player controls', () => {
     }
 
     player.unlockedWeaponModes = ['Auto Pulse', 'Heavy Cannon'];
+    player.weaponLevels = {
+      ...(player.weaponLevels ?? {}),
+      'Heavy Cannon': 1
+    };
     player.weaponMode = 'Heavy Cannon';
     player.weaponEnergy = 100;
     player.weaponEnergyRegenPerSecond = 0;
@@ -613,7 +621,7 @@ describe('Game player controls', () => {
     expect(game.snapshot().score).toBe(scoreBefore + 40);
   });
 
-  it('unlocks weapon when collecting a weapon pickup without switching active mode', () => {
+  it('does not unlock level-0 weapons when collecting a weapon pickup', () => {
     const game = new Game();
     game.start();
 
@@ -634,8 +642,8 @@ describe('Game player controls', () => {
     });
 
     expect(player.weaponMode).toBe('Auto Pulse');
-    expect(player.unlockedWeaponModes).toContain('Heavy Cannon');
-    expect(player.weaponLevels?.['Heavy Cannon']).toBe(1);
+    expect(player.unlockedWeaponModes).not.toContain('Heavy Cannon');
+    expect(player.weaponLevels?.['Heavy Cannon']).toBe(0);
   });
 
   it('powers up currently selected weapon when collecting matching weapon pickup', () => {

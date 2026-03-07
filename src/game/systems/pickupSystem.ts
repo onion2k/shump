@@ -2,9 +2,9 @@ import type { EntityManager } from '../ecs/EntityManager';
 import { EntityType } from '../ecs/entityTypes';
 import { distanceSquared } from '../util/math';
 import {
+  getPlayerWeaponMinimumLevel,
   getPlayerWeaponMaxLevel,
   isPlayerWeaponMode,
-  PLAYER_WEAPON_ORDER,
   type PlayerWeaponMode
 } from '../weapons/playerWeapons';
 
@@ -55,45 +55,27 @@ export function pickupSystem(entityManager: EntityManager, playerId: number): Pi
       player.weaponEnergy = Math.min(maxEnergy, currentEnergy + value);
     } else if (kind === 'weapon') {
       const pickupWeaponMode = entity.pickupWeaponMode;
-      const unlockedWeaponModes = player.unlockedWeaponModes ?? [];
-      const lockedModes = PLAYER_WEAPON_ORDER.filter((mode) => !unlockedWeaponModes.includes(mode));
       const levels = player.weaponLevels ?? {};
-      const currentMode = isPlayerWeaponMode(player.weaponMode ?? '') ? player.weaponMode : undefined;
+      const currentMode = isPlayerWeaponMode(player.weaponMode ?? '') ? (player.weaponMode as PlayerWeaponMode) : undefined;
 
       let selectedMode: PlayerWeaponMode | undefined;
-      let unlockedThisPickup = false;
       if (pickupWeaponMode && isPlayerWeaponMode(pickupWeaponMode)) {
         selectedMode = pickupWeaponMode;
-        if (!unlockedWeaponModes.includes(selectedMode)) {
-          player.unlockedWeaponModes = PLAYER_WEAPON_ORDER.filter(
-            (mode) => unlockedWeaponModes.includes(mode) || mode === selectedMode
-          );
-          unlockedThisPickup = true;
-        }
-      } else if (lockedModes.length > 0) {
-        selectedMode = lockedModes[entity.id % lockedModes.length];
-        player.unlockedWeaponModes = PLAYER_WEAPON_ORDER.filter(
-          (mode) => unlockedWeaponModes.includes(mode) || mode === selectedMode
-        );
-        unlockedThisPickup = true;
       } else {
-        selectedMode = isPlayerWeaponMode(player.weaponMode ?? '')
-          ? (player.weaponMode as PlayerWeaponMode)
-          : undefined;
+        selectedMode = currentMode;
       }
 
       if (selectedMode) {
-        const currentLevel = levels[selectedMode] ?? 1;
-        if (unlockedThisPickup) {
-          levels[selectedMode] = Math.max(1, currentLevel);
-        } else if (currentMode === selectedMode) {
+        const minLevel = getPlayerWeaponMinimumLevel(selectedMode);
+        const currentLevel = levels[selectedMode] ?? minLevel;
+        if (currentMode === selectedMode && currentLevel >= 1) {
           levels[selectedMode] = Math.min(getPlayerWeaponMaxLevel(selectedMode), currentLevel + Math.max(1, value));
         } else {
-          levels[selectedMode] = Math.max(1, currentLevel);
+          levels[selectedMode] = Math.max(minLevel, currentLevel);
         }
         player.weaponLevels = levels;
         if (currentMode === selectedMode) {
-          player.weaponLevel = levels[selectedMode] ?? 1;
+          player.weaponLevel = levels[selectedMode] ?? minLevel;
           player.fireCooldownMs = 0;
         }
       }

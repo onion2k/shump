@@ -59,7 +59,7 @@ describe('playerProgress card upgrades', () => {
     expect(runProgress.playerState.weaponLevels['Heavy Cannon']).toBe(getPlayerWeaponMaxLevel('Heavy Cannon'));
   });
 
-  it('defaults weapon level from 1 when applying consumable weapon upgrades', () => {
+  it('defaults non-starter weapon level from 0 when applying consumable weapon upgrades', () => {
     const runProgress: RunProgress = {
       seed: 2,
       levelId: 'level-1',
@@ -103,7 +103,7 @@ describe('playerProgress card upgrades', () => {
       effects: [{ kind: 'weaponLevel', weaponMode: 'Sine SMG', amount: 1 }]
     });
 
-    expect(runProgress.playerState.weaponLevels['Sine SMG']).toBe(2);
+    expect(runProgress.playerState.weaponLevels['Sine SMG']).toBe(1);
   });
 
   it('no-ops when run progress is undefined', () => {

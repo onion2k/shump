@@ -29,7 +29,14 @@ import { createPickup } from '../factories/createPickup';
 import { ParticleSystem } from '../particles/particleSystem';
 import type { ParticleEmitterConfig } from '../particles/particleSystem';
 import { gameSettings } from '../config/gameSettings';
-import { getPlayerWeaponMaxLevel, isPlayerWeaponMode, PLAYER_WEAPON_ORDER, type PlayerWeaponMode } from '../weapons/playerWeapons';
+import {
+  deriveUnlockedWeaponModesFromLevels,
+  getPlayerWeaponMaxLevel,
+  getPlayerWeaponMinimumLevel,
+  isPlayerWeaponMode,
+  PLAYER_WEAPON_ORDER,
+  type PlayerWeaponMode
+} from '../weapons/playerWeapons';
 import { enemyDropTuning, playerTuning, podTuning } from './gameTuning';
 import type { EnemyArchetypeId } from '../content/enemyArchetypes';
 import type { MovementPatternId } from '../movement/patterns';
@@ -782,12 +789,12 @@ export class Game {
     const player = this.entities.get(this.playerId);
     const runProgress = this.runProgress;
     const playerWeaponLevels = player?.weaponLevels ?? {};
-    const unlockedWeaponModes = player?.unlockedWeaponModes ?? [];
+    const unlockedWeaponModes = player ? deriveUnlockedWeaponModesFromLevels(playerWeaponLevels) : [];
     const activeWeaponMode: PlayerWeaponMode | undefined =
       player && isPlayerWeaponMode(player.weaponMode ?? '') ? (player.weaponMode as PlayerWeaponMode) : undefined;
     const weaponSlotIndex = activeWeaponMode ? Math.max(0, unlockedWeaponModes.indexOf(activeWeaponMode)) + 1 : 0;
     const snapshotWeaponLevels = Object.fromEntries(
-      PLAYER_WEAPON_ORDER.map((mode) => [mode, Math.max(1, playerWeaponLevels[mode] ?? 1)])
+      PLAYER_WEAPON_ORDER.map((mode) => [mode, Math.max(getPlayerWeaponMinimumLevel(mode), playerWeaponLevels[mode] ?? getPlayerWeaponMinimumLevel(mode))])
     ) as Record<PlayerWeaponMode, number>;
     return {
       state: this.state,
@@ -970,17 +977,21 @@ export class Game {
       return false;
     }
 
-    const unlocked = player.unlockedWeaponModes ?? [];
+    const levels = player.weaponLevels ?? {};
+    const unlocked = deriveUnlockedWeaponModesFromLevels(levels);
+    player.unlockedWeaponModes = unlocked;
     if (!unlocked.includes(selectedMode)) {
       return false;
     }
 
-    const levels = player.weaponLevels ?? {};
     const maxLevel = getPlayerWeaponMaxLevel(selectedMode);
-    const currentLevel = levels[selectedMode] ?? 1;
+    const currentLevel = levels[selectedMode] ?? getPlayerWeaponMinimumLevel(selectedMode);
+    if (currentLevel < 1) {
+      return false;
+    }
 
     if (player.weaponMode === selectedMode) {
-      const nextLevel = currentLevel >= maxLevel ? 1 : currentLevel + 1;
+      const nextLevel = currentLevel >= maxLevel ? getPlayerWeaponMinimumLevel(selectedMode) : currentLevel + 1;
       levels[selectedMode] = nextLevel;
       player.weaponLevels = levels;
       player.weaponLevel = nextLevel;
@@ -992,7 +1003,7 @@ export class Game {
     player.weaponMode = selectedMode;
     player.fireCooldownMs = 0;
     player.weaponLevels = levels;
-    player.weaponLevel = Math.min(currentLevel, maxLevel);
+    player.weaponLevel = Math.min(Math.max(getPlayerWeaponMinimumLevel(selectedMode), currentLevel), maxLevel);
     this.notify();
     return true;
   }
@@ -1009,13 +1020,13 @@ export class Game {
 
     const levels = player.weaponLevels ?? {};
     const maxLevel = getPlayerWeaponMaxLevel(mode);
-    const currentLevel = Math.max(1, Math.min(maxLevel, levels[mode] ?? 1));
+    const currentLevel = Math.max(getPlayerWeaponMinimumLevel(mode), Math.min(maxLevel, levels[mode] ?? getPlayerWeaponMinimumLevel(mode)));
+    if (currentLevel < 1) {
+      return false;
+    }
     levels[mode] = currentLevel;
 
-    const unlocked = player.unlockedWeaponModes ?? [];
-    if (!unlocked.includes(mode)) {
-      player.unlockedWeaponModes = PLAYER_WEAPON_ORDER.filter((candidate) => unlocked.includes(candidate) || candidate === mode);
-    }
+    player.unlockedWeaponModes = deriveUnlockedWeaponModesFromLevels(levels);
 
     player.weaponMode = mode;
     player.weaponLevel = currentLevel;
@@ -1038,7 +1049,9 @@ export class Game {
     if (!player) {
       return false;
     }
-    const unlocked = player.unlockedWeaponModes ?? [];
+    const levels = player.weaponLevels ?? {};
+    const unlocked = deriveUnlockedWeaponModesFromLevels(levels);
+    player.unlockedWeaponModes = unlocked;
     if (unlocked.length === 0) {
       return false;
     }
@@ -1056,7 +1069,7 @@ export class Game {
       return false;
     }
     player.weaponMode = next;
-    player.weaponLevel = player.weaponLevels?.[next] ?? 1;
+    player.weaponLevel = player.weaponLevels?.[next] ?? getPlayerWeaponMinimumLevel(next);
     player.fireCooldownMs = 0;
     this.notify();
     return true;

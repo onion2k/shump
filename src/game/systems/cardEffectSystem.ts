@@ -1,5 +1,10 @@
 import type { Entity } from '../ecs/components';
-import { PLAYER_WEAPON_ORDER } from '../weapons/playerWeapons';
+import {
+  PLAYER_WEAPON_ORDER,
+  deriveUnlockedWeaponModesFromLevels,
+  getPlayerWeaponMinimumLevel,
+  type PlayerWeaponMode
+} from '../weapons/playerWeapons';
 import type { RunPlayerState } from '../core/RunProgress';
 import {
   cardCatalogById,
@@ -127,13 +132,15 @@ export function applyCardsToPlayer(player: Entity, baseState: RunPlayerState, ac
 
   const nextLevels = { ...baseState.weaponLevels };
   for (const weapon of PLAYER_WEAPON_ORDER) {
-    const baseLevel = nextLevels[weapon] ?? 1;
+    const baseLevel = nextLevels[weapon] ?? getPlayerWeaponMinimumLevel(weapon);
     const bonus = bonuses.weaponLevelBonus[weapon] ?? 0;
-    nextLevels[weapon] = Math.max(1, baseLevel + bonus);
+    nextLevels[weapon] = Math.max(getPlayerWeaponMinimumLevel(weapon), baseLevel + bonus);
   }
   player.weaponLevels = nextLevels;
+  player.unlockedWeaponModes = deriveUnlockedWeaponModesFromLevels(nextLevels);
   if (player.weaponMode) {
-    player.weaponLevel = nextLevels[player.weaponMode] ?? player.weaponLevel ?? 1;
+    const mode = player.weaponMode as PlayerWeaponMode;
+    player.weaponLevel = nextLevels[mode] ?? player.weaponLevel ?? getPlayerWeaponMinimumLevel(mode);
   }
 
   player.podCount = Math.max(0, baseState.podCount + bonuses.podCountBonus);
@@ -165,7 +172,10 @@ export function captureBaseStateFromPlayer(
   const baseLevels: Record<string, number> = {};
   for (const [weapon, effectiveLevel] of Object.entries(effectiveLevels)) {
     const bonus = bonuses.weaponLevelBonus[weapon] ?? 0;
-    baseLevels[weapon] = Math.max(1, effectiveLevel - bonus);
+    baseLevels[weapon] = Math.max(
+      getPlayerWeaponMinimumLevel(weapon as PlayerWeaponMode),
+      effectiveLevel - bonus
+    );
   }
 
   const effectivePodCount = Math.max(0, player.podCount ?? 0);
