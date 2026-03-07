@@ -1,6 +1,6 @@
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import type { InstancedMesh } from 'three';
-import { BackSide, Object3D } from 'three';
+import { AdditiveBlending, BackSide, Object3D } from 'three';
 import type { Game } from '../../core/Game';
 import { Faction } from '../../ecs/entityTypes';
 import { gameSettings } from '../../config/gameSettings';
@@ -21,6 +21,7 @@ interface ProjectileProfile {
 }
 
 const MAX_BULLET_INSTANCES = 12000;
+const MAX_BEAM_PARTICLES = 28000;
 const STANDARD_BULLET_RADIUS = 0.2;
 
 const PROJECTILE_PROFILES: ProjectileProfile[] = [
@@ -129,43 +130,70 @@ function ProjectileBatch({
 }
 
 function BeamBatch({ bullets, color }: { bullets: RenderBullet[]; color: string }) {
-  const beamRef = useRef<InstancedMesh>(null);
+  const coreRef = useRef<InstancedMesh>(null);
+  const glowRef = useRef<InstancedMesh>(null);
   const dummy = useMemo(() => new Object3D(), []);
 
   useLayoutEffect(() => {
-    const mesh = beamRef.current;
-    if (!mesh) {
+    const core = coreRef.current;
+    const glow = glowRef.current;
+    if (!core || !glow) {
       return;
     }
 
     let count = 0;
     for (const bullet of bullets) {
-      if (count >= MAX_BULLET_INSTANCES) {
+      if (count >= MAX_BEAM_PARTICLES) {
         break;
       }
 
       const beamLength = Math.max(0.6, bullet.projectileSpeed ?? 6);
-      const beamWidth = Math.max(0.05, (bullet.radius ?? 0.3) * 0.35);
       const vx = bullet.vx ?? 0;
       const vy = bullet.vy ?? 1;
-      const angle = Math.atan2(vx, vy);
-      dummy.position.set(bullet.x + vx * beamLength * 0.5, bullet.y + vy * beamLength * 0.5, 0);
-      dummy.rotation.set(0, 0, -angle);
-      dummy.scale.set(beamWidth, beamLength, 1);
-      dummy.updateMatrix();
-      mesh.setMatrixAt(count, dummy.matrix);
-      count += 1;
+      const magnitude = Math.hypot(vx, vy) || 1;
+      const nx = vx / magnitude;
+      const ny = vy / magnitude;
+      const particlesPerBeam = Math.max(6, Math.min(22, Math.round(beamLength * 1.8)));
+      const flow = ((bullet.ageMs ?? 0) % 240) / 240;
+      const baseScale = Math.max(0.04, (bullet.radius ?? 0.12) * 0.26);
+
+      for (let i = 0; i < particlesPerBeam; i += 1) {
+        if (count >= MAX_BEAM_PARTICLES) {
+          break;
+        }
+        const t = (i / particlesPerBeam + flow) % 1;
+        const px = bullet.x + nx * beamLength * t;
+        const py = bullet.y + ny * beamLength * t;
+        const pulse = 0.86 + Math.sin((bullet.ageMs ?? 0) * 0.03 + i * 0.8) * 0.14;
+        dummy.position.set(px, py, 0);
+        dummy.rotation.set(0, 0, 0);
+        dummy.scale.setScalar(baseScale * pulse);
+        dummy.updateMatrix();
+        core.setMatrixAt(count, dummy.matrix);
+        dummy.scale.setScalar(baseScale * pulse * 2.15);
+        dummy.updateMatrix();
+        glow.setMatrixAt(count, dummy.matrix);
+        count += 1;
+      }
     }
 
-    mesh.count = count;
-    mesh.instanceMatrix.needsUpdate = true;
+    core.count = count;
+    glow.count = count;
+    core.instanceMatrix.needsUpdate = true;
+    glow.instanceMatrix.needsUpdate = true;
   }, [bullets, dummy]);
 
   return (
-    <instancedMesh ref={beamRef} args={[undefined, undefined, MAX_BULLET_INSTANCES]} frustumCulled={false}>
-      <boxGeometry args={[1, 1, 0.06]} />
-      <meshBasicMaterial color={color} toneMapped={false} />
-    </instancedMesh>
+    <>
+      <instancedMesh ref={coreRef} args={[undefined, undefined, MAX_BEAM_PARTICLES]} frustumCulled={false}>
+        <sphereGeometry args={[0.11, 6, 6]} />
+        <meshBasicMaterial color={color} transparent opacity={0.94} toneMapped={false} />
+      </instancedMesh>
+      <instancedMesh ref={glowRef} args={[undefined, undefined, MAX_BEAM_PARTICLES]} frustumCulled={false}>
+        <sphereGeometry args={[0.11, 6, 6]} />
+        <meshBasicMaterial color={color} transparent opacity={0.26} blending={AdditiveBlending} depthWrite={false} toneMapped={false} />
+      </instancedMesh>
+    </>
   );
 }
 
