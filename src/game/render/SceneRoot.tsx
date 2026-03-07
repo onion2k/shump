@@ -27,10 +27,18 @@ import { StartScreen3D } from './ui/StartScreen3D';
 import { PauseScreen3D } from './ui/PauseScreen3D';
 import { GameOverScreen3D } from './ui/GameOverScreen3D';
 import { gameSettings } from '../config/gameSettings';
+import {
+  resolveEffectsQualityProfile,
+  type EffectsQuality
+} from './effectsQuality';
+import { TitleSettingsScreen3D } from './ui/TitleSettingsScreen3D';
 
 interface SceneRootProps {
   game: Game;
   pointer: PointerController;
+  isMobile: boolean;
+  effectsQuality: EffectsQuality;
+  titleSettingsOpen: boolean;
   snapshot: GameSnapshot;
   foundCards: CardDefinition[];
   activeCards: CardDefinition[];
@@ -44,6 +52,9 @@ interface SceneRootProps {
   onContinue: () => void;
   onStart: () => void;
   onStartFresh?: () => void;
+  onOpenTitleSettings: () => void;
+  onCloseTitleSettings: () => void;
+  onSelectEffectsQuality: (quality: EffectsQuality) => void;
   onResume: () => void;
   onRestart: () => void;
   hasSavedRun: boolean;
@@ -51,12 +62,13 @@ interface SceneRootProps {
 
 const USE_GPU_PARTICLES = true;
 const PARTICLE_MOBILE_BREAKPOINT_PX = 768;
-const MOBILE_PARTICLE_SCALE = 0.8;
-const SHOCK_WAVE_LAYERS = 3;
 
 export function SceneRoot({
   game,
   pointer,
+  isMobile,
+  effectsQuality,
+  titleSettingsOpen,
   snapshot,
   foundCards,
   activeCards,
@@ -70,6 +82,9 @@ export function SceneRoot({
   onContinue,
   onStart,
   onStartFresh,
+  onOpenTitleSettings,
+  onCloseTitleSettings,
+  onSelectEffectsQuality,
   onResume,
   onRestart,
   hasSavedRun
@@ -82,11 +97,18 @@ export function SceneRoot({
   const backgroundViewport = viewport.getCurrentViewport(camera, [0, 0, -2]);
   const canUsePostProcessing = Boolean(gl.getContext()?.getContextAttributes());
   const explosionWarp = gameSettings.visuals.explosionWarp;
-  const lastExplosionWarpAtMs = useRef(Number.NEGATIVE_INFINITY);
-  const shockWaveEffects = useMemo(
-    () => Array.from({ length: SHOCK_WAVE_LAYERS }, () => new ShockWaveEffect(camera, new Vector3(0, 0, 0), explosionWarp)),
-    [camera, explosionWarp]
+  const qualityProfile = useMemo(
+    () => resolveEffectsQualityProfile(effectsQuality, isMobile, explosionWarp.minIntervalMs),
+    [effectsQuality, explosionWarp.minIntervalMs, isMobile]
   );
+  const lastExplosionWarpAtMs = useRef(Number.NEGATIVE_INFINITY);
+  const shockWaveEffects = useMemo(() => {
+    if (!canUsePostProcessing) {
+      return [];
+    }
+
+    return Array.from({ length: qualityProfile.shockWaveLayers }, () => new ShockWaveEffect(camera, new Vector3(0, 0, 0), explosionWarp));
+  }, [camera, canUsePostProcessing, explosionWarp, qualityProfile.shockWaveLayers]);
   const nextShockWaveIndex = useRef(0);
 
   useEffect(() => {
@@ -122,7 +144,7 @@ export function SceneRoot({
         return;
       }
 
-      if (event.atMs - lastExplosionWarpAtMs.current < explosionWarp.minIntervalMs) {
+      if (event.atMs - lastExplosionWarpAtMs.current < qualityProfile.shockWaveMinIntervalMs) {
         return;
       }
       lastExplosionWarpAtMs.current = event.atMs;
@@ -132,7 +154,7 @@ export function SceneRoot({
       effect.position.set(event.positionX ?? 0, event.positionY ?? 0, 0);
       effect.explode();
     });
-  }, [canUsePostProcessing, explosionWarp.minIntervalMs, game, shockWaveEffects]);
+  }, [canUsePostProcessing, game, qualityProfile.shockWaveMinIntervalMs, shockWaveEffects]);
 
   useFrame(({ clock }, deltaSeconds) => {
     game.reportFrameDelta(deltaSeconds);
@@ -152,16 +174,39 @@ export function SceneRoot({
   const particles = renderEntities.filter((entity) => entity.type === EntityType.Particle);
   const playerEntity = renderEntities.find((entity) => entity.type === EntityType.Player);
   const playerX = playerEntity?.x ?? 0;
-  const particleScale = size.width <= PARTICLE_MOBILE_BREAKPOINT_PX ? MOBILE_PARTICLE_SCALE : 1;
+  const particleScale = size.width <= PARTICLE_MOBILE_BREAKPOINT_PX
+    ? qualityProfile.particleScale * 0.94
+    : qualityProfile.particleScale;
+  const gpuParticleCap = qualityProfile.maxGpuParticles;
+  const showStats =
+    !isMobile
+    && typeof window !== 'undefined'
+    && new URLSearchParams(window.location.search).has('stats');
 
   return (
     <>
       <CameraRig game={game} />
       <ambientLight intensity={0.75} />
       <directionalLight intensity={1.1} position={[3, 8, 8]} />
-      <Stats showPanel={0} className="fps-stats" />
+      {showStats && <Stats showPanel={0} className="fps-stats" />}
       <Hud3D snapshot={snapshot} />
-      <StartScreen3D state={snapshot.state} hasSavedRun={hasSavedRun} onStart={onStart} onStartFresh={onStartFresh} />
+      {!titleSettingsOpen && (
+        <StartScreen3D
+          state={snapshot.state}
+          hasSavedRun={hasSavedRun}
+          effectsQuality={effectsQuality}
+          onStart={onStart}
+          onStartFresh={onStartFresh}
+          onOpenSettings={onOpenTitleSettings}
+        />
+      )}
+      <TitleSettingsScreen3D
+        state={snapshot.state}
+        open={titleSettingsOpen}
+        effectsQuality={effectsQuality}
+        onSelectEffectsQuality={onSelectEffectsQuality}
+        onClose={onCloseTitleSettings}
+      />
       <PauseScreen3D state={snapshot.state} onResume={onResume} />
       <GameOverScreen3D state={snapshot.state} onRestart={onRestart} />
       <BetweenRoundsUi3D
@@ -242,13 +287,17 @@ export function SceneRoot({
         );
       })}
       {USE_GPU_PARTICLES ? (
-        <GpuParticleSystem game={game} particleScale={particleScale} />
+        <GpuParticleSystem game={game} particleScale={particleScale} maxParticles={gpuParticleCap} />
       ) : (
         <ParticleInstances particles={particles} particleScale={particleScale} />
       )}
       {canUsePostProcessing && (
-        <EffectComposer multisampling={4}>
-          <Bloom intensity={0.7} luminanceThreshold={0.15} luminanceSmoothing={0.4} />
+        <EffectComposer multisampling={qualityProfile.composerMultisampling}>
+          <Bloom
+            intensity={qualityProfile.bloomIntensity}
+            luminanceThreshold={qualityProfile.bloomThreshold}
+            luminanceSmoothing={qualityProfile.bloomSmoothing}
+          />
           <>
             {shockWaveEffects.map((effect, index) => (
               <primitive key={`shock-wave-${index}`} object={effect} />

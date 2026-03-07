@@ -23,6 +23,10 @@ const WARP_SPHERE_UNLOCK_LEVEL = 2;
 
 export interface SpawnTickOptions {
   enemyDensityScale?: number;
+  enemyHealthScale?: number;
+  enemySpeedScale?: number;
+  enemyFireIntervalScale?: number;
+  enemyScoreScale?: number;
 }
 
 export class SpawnSystem {
@@ -82,7 +86,13 @@ export class SpawnSystem {
           spawn.patternAmplitude,
           spawn.patternFrequency,
           spawn.movementParams,
-          enemyArchetype
+          enemyArchetype,
+          {
+            healthScale: options.enemyHealthScale,
+            speedScale: options.enemySpeedScale,
+            fireIntervalScale: options.enemyFireIntervalScale,
+            scoreScale: options.enemyScoreScale
+          }
         )
       );
       this.cursor += 1;
@@ -175,7 +185,7 @@ function clampDensityScale(value: number): number {
     return 1;
   }
 
-  return Math.max(0.2, Math.min(1, value));
+  return Math.max(0.2, Math.min(2.4, value));
 }
 
 function deterministicUnit(seed: number): number {

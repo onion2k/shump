@@ -10,6 +10,8 @@ import {
   isPlayerWeaponMode,
   type PlayerWeaponMode
 } from '../weapons/playerWeapons';
+import type { WeaponTuningStat } from '../content/cards';
+import type { WeaponTuningBonuses } from './cardEffectSystem';
 
 interface WeaponFireRecord {
   weaponMode: string;
@@ -27,6 +29,10 @@ interface FireOutcome {
   intervalMs: number;
 }
 
+export interface PlayerWeaponSystemOptions {
+  weaponTuningBonuses?: WeaponTuningBonuses;
+}
+
 const AUTO_PULSE_BASE_INTERVAL_MS = PLAYER_MACHINE_GUN_INTERVAL_MS;
 const AUTO_PULSE_BASE_COST = 4;
 
@@ -41,7 +47,14 @@ const CANNON_BASE_COST = 14;
 const SINE_SMG_BASE_INTERVAL_MS = 58;
 const SINE_SMG_BASE_COST = 2;
 
-export function playerWeaponSystem(entityManager: EntityManager, playerId: number, deltaSeconds: number): PlayerWeaponResult {
+const MIN_SCALE = 0.15;
+
+export function playerWeaponSystem(
+  entityManager: EntityManager,
+  playerId: number,
+  deltaSeconds: number,
+  options: PlayerWeaponSystemOptions = {}
+): PlayerWeaponResult {
   const player = entityManager.get(playerId);
   if (!player) {
     return { fired: [], scoreDelta: 0 };
@@ -65,7 +78,7 @@ export function playerWeaponSystem(entityManager: EntityManager, playerId: numbe
   }
 
   if (activeWeapon === 'Continuous Laser') {
-    const laserResult = fireContinuousLaser(entityManager, player, weaponLevel);
+    const laserResult = fireContinuousLaser(entityManager, player, weaponLevel, options.weaponTuningBonuses);
     if (!laserResult.fired) {
       return { fired, scoreDelta };
     }
@@ -86,7 +99,7 @@ export function playerWeaponSystem(entityManager: EntityManager, playerId: numbe
   }
 
   if (activeWeapon === 'Heavy Cannon') {
-    const cannonResult = fireHeavyCannon(entityManager, player, weaponLevel);
+    const cannonResult = fireHeavyCannon(entityManager, player, weaponLevel, options.weaponTuningBonuses);
     if (!cannonResult.fired) {
       return { fired, scoreDelta };
     }
@@ -97,7 +110,7 @@ export function playerWeaponSystem(entityManager: EntityManager, playerId: numbe
   }
 
   if (activeWeapon === 'Sine SMG') {
-    const smgResult = fireSineSmg(entityManager, player, weaponLevel);
+    const smgResult = fireSineSmg(entityManager, player, weaponLevel, options.weaponTuningBonuses);
     if (!smgResult.fired) {
       return { fired, scoreDelta };
     }
@@ -107,7 +120,7 @@ export function playerWeaponSystem(entityManager: EntityManager, playerId: numbe
     return { fired, scoreDelta };
   }
 
-  const pulseResult = fireAutoPulse(entityManager, player, weaponLevel);
+  const pulseResult = fireAutoPulse(entityManager, player, weaponLevel, options.weaponTuningBonuses);
   if (!pulseResult.fired) {
     return { fired, scoreDelta };
   }
@@ -144,7 +157,8 @@ function ensurePlayerWeaponState(player: NonNullable<ReturnType<EntityManager['g
 function fireAutoPulse(
   entityManager: EntityManager,
   player: NonNullable<ReturnType<EntityManager['get']>>,
-  level: number
+  level: number,
+  tuningBonuses: WeaponTuningBonuses | undefined
 ): { fired: boolean; energyCost: number; intervalMs: number; firedRecords: WeaponFireRecord[] } {
   const streamOffsets =
     level <= 1
@@ -152,10 +166,17 @@ function fireAutoPulse(
       : level === 2
         ? [-0.24, 0.24]
         : [-0.34, 0, 0.34];
-  const intervalMs = Math.max(56, AUTO_PULSE_BASE_INTERVAL_MS - (Math.min(level, 8) - 1) * 5);
-  const energyCost = AUTO_PULSE_BASE_COST + Math.max(0, streamOffsets.length - 1);
-  const damage = level >= 5 ? 2 : 1;
-  const speed = BULLET_SPEED + Math.min(4, level - 1) * 0.7;
+  const baseIntervalMs = Math.max(56, AUTO_PULSE_BASE_INTERVAL_MS - (Math.min(level, 8) - 1) * 5);
+  const intervalMs = Math.max(20, applyFireRate(baseIntervalMs, resolveWeaponPercent(tuningBonuses, 'Auto Pulse', 'fireRatePercent')));
+  const baseEnergyCost = AUTO_PULSE_BASE_COST + Math.max(0, streamOffsets.length - 1);
+  const energyCost = Math.max(
+    1,
+    Math.round(applyPercent(baseEnergyCost, resolveWeaponPercent(tuningBonuses, 'Auto Pulse', 'energyCostPercent')))
+  );
+  const baseDamage = level >= 5 ? 2 : 1;
+  const damage = Math.max(1, Math.round(applyPercent(baseDamage, resolveWeaponPercent(tuningBonuses, 'Auto Pulse', 'damagePercent'))));
+  const baseSpeed = BULLET_SPEED + Math.min(4, level - 1) * 0.7;
+  const speed = applyPercent(baseSpeed, resolveWeaponPercent(tuningBonuses, 'Auto Pulse', 'projectileSpeedPercent'));
 
   if ((player.weaponEnergy ?? 0) < energyCost) {
     return { fired: false, energyCost, intervalMs, firedRecords: [] };
@@ -175,12 +196,25 @@ function fireAutoPulse(
 function fireContinuousLaser(
   entityManager: EntityManager,
   player: NonNullable<ReturnType<EntityManager['get']>>,
-  level: number
+  level: number,
+  tuningBonuses: WeaponTuningBonuses | undefined
 ): { fired: boolean; scoreDelta: number; energyCost: number; intervalMs: number; range: number; halfWidth: number } {
-  const intervalMs = Math.max(34, LASER_BASE_INTERVAL_MS - (Math.min(level, 8) - 1) * 2);
-  const energyCost = LASER_BASE_COST + Math.floor((level - 1) / 2);
-  const damage = 1 + Math.floor((level - 1) / 2);
-  const range = LASER_BASE_RANGE + Math.min(level, 8) * 2;
+  const baseIntervalMs = Math.max(34, LASER_BASE_INTERVAL_MS - (Math.min(level, 8) - 1) * 2);
+  const intervalMs = Math.max(16, applyFireRate(baseIntervalMs, resolveWeaponPercent(tuningBonuses, 'Continuous Laser', 'fireRatePercent')));
+  const baseEnergyCost = LASER_BASE_COST + Math.floor((level - 1) / 2);
+  const energyCost = Math.max(
+    1,
+    Math.round(applyPercent(baseEnergyCost, resolveWeaponPercent(tuningBonuses, 'Continuous Laser', 'energyCostPercent')))
+  );
+  const baseDamage = 1 + Math.floor((level - 1) / 2);
+  const damage = Math.max(
+    1,
+    Math.round(applyPercent(baseDamage, resolveWeaponPercent(tuningBonuses, 'Continuous Laser', 'damagePercent')))
+  );
+  const range = applyPercent(
+    LASER_BASE_RANGE + Math.min(level, 8) * 2,
+    resolveWeaponPercent(tuningBonuses, 'Continuous Laser', 'projectileSpeedPercent')
+  );
   const halfWidth = LASER_BASE_HALF_WIDTH + Math.min(level, 8) * 0.08;
   const targetCount = 1 + Math.floor((level - 1) / 3);
 
@@ -203,12 +237,20 @@ function fireContinuousLaser(
 function fireHeavyCannon(
   entityManager: EntityManager,
   player: NonNullable<ReturnType<EntityManager['get']>>,
-  level: number
+  level: number,
+  tuningBonuses: WeaponTuningBonuses | undefined
 ): { fired: boolean; energyCost: number; intervalMs: number; firedRecords: WeaponFireRecord[] } {
-  const intervalMs = Math.max(180, CANNON_BASE_INTERVAL_MS - (Math.min(level, 8) - 1) * 24);
-  const energyCost = CANNON_BASE_COST + Math.floor((level - 1) / 3);
-  const damage = 6 + (level - 1) * 2;
-  const speed = 13 + Math.min(level, 8) * 0.8;
+  const baseIntervalMs = Math.max(180, CANNON_BASE_INTERVAL_MS - (Math.min(level, 8) - 1) * 24);
+  const intervalMs = Math.max(70, applyFireRate(baseIntervalMs, resolveWeaponPercent(tuningBonuses, 'Heavy Cannon', 'fireRatePercent')));
+  const baseEnergyCost = CANNON_BASE_COST + Math.floor((level - 1) / 3);
+  const energyCost = Math.max(
+    1,
+    Math.round(applyPercent(baseEnergyCost, resolveWeaponPercent(tuningBonuses, 'Heavy Cannon', 'energyCostPercent')))
+  );
+  const baseDamage = 6 + (level - 1) * 2;
+  const damage = Math.max(1, Math.round(applyPercent(baseDamage, resolveWeaponPercent(tuningBonuses, 'Heavy Cannon', 'damagePercent'))));
+  const baseSpeed = 13 + Math.min(level, 8) * 0.8;
+  const speed = applyPercent(baseSpeed, resolveWeaponPercent(tuningBonuses, 'Heavy Cannon', 'projectileSpeedPercent'));
   const offsets = level >= 3 ? [-0.22, 0.22] : [0];
 
   if ((player.weaponEnergy ?? 0) < energyCost) {
@@ -230,12 +272,20 @@ function fireHeavyCannon(
 function fireSineSmg(
   entityManager: EntityManager,
   player: NonNullable<ReturnType<EntityManager['get']>>,
-  level: number
+  level: number,
+  tuningBonuses: WeaponTuningBonuses | undefined
 ): { fired: boolean; energyCost: number; intervalMs: number; firedRecords: WeaponFireRecord[] } {
-  const intervalMs = Math.max(28, SINE_SMG_BASE_INTERVAL_MS - (Math.min(level, 10) - 1) * 3);
-  const energyCost = SINE_SMG_BASE_COST + Math.floor((level - 1) / 4);
-  const damage = 1 + Math.floor((level - 1) / 5);
-  const speed = BULLET_SPEED * 0.9;
+  const baseIntervalMs = Math.max(28, SINE_SMG_BASE_INTERVAL_MS - (Math.min(level, 10) - 1) * 3);
+  const intervalMs = Math.max(14, applyFireRate(baseIntervalMs, resolveWeaponPercent(tuningBonuses, 'Sine SMG', 'fireRatePercent')));
+  const baseEnergyCost = SINE_SMG_BASE_COST + Math.floor((level - 1) / 4);
+  const energyCost = Math.max(
+    1,
+    Math.round(applyPercent(baseEnergyCost, resolveWeaponPercent(tuningBonuses, 'Sine SMG', 'energyCostPercent')))
+  );
+  const baseDamage = 1 + Math.floor((level - 1) / 5);
+  const damage = Math.max(1, Math.round(applyPercent(baseDamage, resolveWeaponPercent(tuningBonuses, 'Sine SMG', 'damagePercent'))));
+  const baseSpeed = BULLET_SPEED * 0.9;
+  const speed = applyPercent(baseSpeed, resolveWeaponPercent(tuningBonuses, 'Sine SMG', 'projectileSpeedPercent'));
   const lateralAmplitude = Math.min(0.95, 0.32 + level * 0.07);
   const streams = level >= 4 ? 2 : 1;
   const basePhase = player.weaponOscillator ?? 0;
@@ -257,6 +307,23 @@ function fireSineSmg(
 
   player.weaponOscillator = (basePhase + 0.46 + level * 0.02) % (Math.PI * 2);
   return { fired: true, energyCost, intervalMs, firedRecords };
+}
+
+function resolveWeaponPercent(
+  tuningBonuses: WeaponTuningBonuses | undefined,
+  mode: PlayerWeaponMode,
+  stat: WeaponTuningStat
+): number {
+  return (tuningBonuses?.all?.[stat] ?? 0) + (tuningBonuses?.[mode]?.[stat] ?? 0);
+}
+
+function applyFireRate(baseIntervalMs: number, fireRatePercent: number): number {
+  const speedScale = Math.max(MIN_SCALE, 1 + fireRatePercent / 100);
+  return Math.round(baseIntervalMs / speedScale);
+}
+
+function applyPercent(baseValue: number, percent: number): number {
+  return baseValue * Math.max(MIN_SCALE, 1 + percent / 100);
 }
 
 function pickLaserTargets(

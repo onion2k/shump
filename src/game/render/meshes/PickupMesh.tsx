@@ -2,14 +2,7 @@ import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import type { Mesh } from 'three';
 import { gameSettings } from '../../config/gameSettings';
-import type { PlayerWeaponMode } from '../../weapons/playerWeapons';
-
-const weaponPickupColors: Record<PlayerWeaponMode, string> = {
-  'Auto Pulse': '#7be5ff',
-  'Continuous Laser': '#7cffaa',
-  'Heavy Cannon': '#ffb347',
-  'Sine SMG': '#ffd66a'
-};
+import { resolvePlayerWeaponDefinition, type PlayerWeaponMode } from '../../weapons/playerWeapons';
 
 export function PickupMesh({
   kind,
@@ -26,7 +19,7 @@ export function PickupMesh({
       : kind === 'energy'
         ? gameSettings.visuals.pickups.energyColor
         : kind === 'weapon'
-          ? weaponPickupColors[weaponMode ?? 'Auto Pulse']
+          ? resolvePlayerWeaponDefinition(weaponMode ?? 'Auto Pulse').pickupColor
           : kind === 'money'
             ? '#ffd166'
             : kind === 'card'

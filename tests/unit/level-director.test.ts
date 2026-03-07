@@ -76,4 +76,22 @@ describe('LevelDirector', () => {
     const level7Spawns = director.currentRound().waves.flatMap((wave) => wave.spawns);
     expect(level7Spawns.some((spawn) => spawn.movementPattern === 'zigzag')).toBe(true);
   });
+
+  it('applies runtime encounter modifiers for card-driven run variety', () => {
+    const director = new LevelDirector();
+    director.configure('level-1', 1);
+
+    const baselineSpawns = director.currentRound().waves.flatMap((wave) => wave.spawns);
+    director.setRuntimeModifiers({
+      enemyCountPercent: 50,
+      enemyArchetypeUnlocks: 1,
+      patternUnlocks: 1
+    });
+
+    const boostedSpawns = director.currentRound().waves.flatMap((wave) => wave.spawns);
+
+    expect(boostedSpawns.length).toBeGreaterThan(baselineSpawns.length);
+    expect(boostedSpawns.some((spawn) => spawn.enemyArchetype === 'striker')).toBe(true);
+    expect(boostedSpawns.some((spawn) => spawn.movementPattern === 'zigzag')).toBe(true);
+  });
 });

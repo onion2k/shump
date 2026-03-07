@@ -282,6 +282,88 @@ describe('Game player controls', () => {
     expect(enemy.health).toBeLessThan(4);
   });
 
+  it('applies weapon tuning cards to firing cadence', () => {
+    const baseline = new Game();
+    baseline.startFromRunProgress({
+      seed: 101,
+      levelId: 'level-1',
+      roundIndex: 1,
+      inRunMoney: 0,
+      foundCards: [],
+      activeCards: [],
+      consumedCards: [],
+      playerState: {
+        health: 10,
+        maxHealth: 10,
+        weaponLevels: { 'Auto Pulse': 1 },
+        podCount: 0,
+        podWeaponMode: 'Auto Pulse',
+        moveMaxSpeed: 24,
+        moveFollowGain: 6,
+        pickupAttractRange: 4.2,
+        pickupAttractPower: 16,
+        shieldCurrent: 10,
+        shieldMax: 10,
+        shieldRechargeDelayMs: 1400,
+        shieldRechargeTimeMs: 3600,
+        shieldRechargeDelayRemainingMs: 0
+      },
+      elapsedMs: 0,
+      distanceTraveled: 0,
+      score: 0
+    });
+
+    baseline.update(0.1, {
+      hasPosition: true,
+      x: 0,
+      y: -9,
+      leftButtonDown: false,
+      rightButtonDown: false
+    });
+    const baselineInterval = baseline.snapshot().weaponFireIntervalMs;
+
+    const tuned = new Game();
+    tuned.startFromRunProgress({
+      seed: 102,
+      levelId: 'level-1',
+      roundIndex: 1,
+      inRunMoney: 0,
+      foundCards: [],
+      activeCards: ['tempo-injector'],
+      consumedCards: [],
+      playerState: {
+        health: 10,
+        maxHealth: 10,
+        weaponLevels: { 'Auto Pulse': 1 },
+        podCount: 0,
+        podWeaponMode: 'Auto Pulse',
+        moveMaxSpeed: 24,
+        moveFollowGain: 6,
+        pickupAttractRange: 4.2,
+        pickupAttractPower: 16,
+        shieldCurrent: 10,
+        shieldMax: 10,
+        shieldRechargeDelayMs: 1400,
+        shieldRechargeTimeMs: 3600,
+        shieldRechargeDelayRemainingMs: 0
+      },
+      elapsedMs: 0,
+      distanceTraveled: 0,
+      score: 0
+    });
+
+    tuned.update(0.1, {
+      hasPosition: true,
+      x: 0,
+      y: -9,
+      leftButtonDown: false,
+      rightButtonDown: false
+    });
+    const tunedInterval = tuned.snapshot().weaponFireIntervalMs;
+
+    expect(tunedInterval).toBeLessThan(baselineInterval);
+  });
+
   it('collects health and score pickups', () => {
     const game = new Game();
     game.start();

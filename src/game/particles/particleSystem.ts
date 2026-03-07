@@ -85,9 +85,11 @@ export class ParticleSystem {
     entityManager: EntityManager,
     deltaSeconds: number,
     onSpawn?: ParticleSpawnHandler,
-    filter?: ParticleEmitterTickFilter
+    filter?: ParticleEmitterTickFilter,
+    emissionScale = 1
   ) {
     const deltaMs = deltaSeconds * 1000;
+    const clampedEmissionScale = clampEmissionScale(emissionScale);
 
     for (const emitter of [...this.emitters.values()]) {
       if (filter && !filter(emitter.id, emitter.config)) {
@@ -96,7 +98,7 @@ export class ParticleSystem {
 
       const remainingMs = emitter.config.lifetimeMs - emitter.ageMs;
       const activeMs = Math.min(deltaMs, Math.max(remainingMs, 0));
-      const spawnExact = activeMs * (emitter.config.emissionRatePerSecond / 1000) + emitter.spawnCarry;
+      const spawnExact = activeMs * (emitter.config.emissionRatePerSecond / 1000) * clampedEmissionScale + emitter.spawnCarry;
       const spawnCount = Math.floor(spawnExact);
       emitter.spawnCarry = spawnExact - spawnCount;
       const inheritedVelocity = emitter.config.velocityProvider?.() ?? { x: 0, y: 0 };
@@ -134,4 +136,12 @@ export class ParticleSystem {
       }
     }
   }
+}
+
+function clampEmissionScale(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 1;
+  }
+
+  return Math.max(0, Math.min(1, value));
 }

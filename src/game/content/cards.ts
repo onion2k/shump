@@ -1,15 +1,18 @@
+import type { PlayerWeaponMode } from '../weapons/playerWeapons';
+import type { GameplayModifierKey, PlayerStatCardStat } from './gameplayModifiers';
+
+export type { PlayerStatCardStat } from './gameplayModifiers';
+
 export type CardRarity = 'common' | 'uncommon' | 'rare';
 
-export type WeaponCardMode = 'Auto Pulse' | 'Continuous Laser' | 'Heavy Cannon' | 'Sine SMG';
+export type WeaponCardMode = PlayerWeaponMode;
+export type WeaponTuningMode = PlayerWeaponMode | 'all';
 
-export type PlayerStatCardStat =
-  | 'moveMaxSpeed'
-  | 'moveFollowGain'
-  | 'pickupAttractRange'
-  | 'pickupAttractPower'
-  | 'shieldMax'
-  | 'shieldRechargeDelayMs'
-  | 'shieldRechargeTimeMs';
+export type WeaponTuningStat =
+  | 'damagePercent'
+  | 'fireRatePercent'
+  | 'energyCostPercent'
+  | 'projectileSpeedPercent';
 
 export type CardEffect =
   | { kind: 'maxHealth'; amount: number }
@@ -18,7 +21,9 @@ export type CardEffect =
   | { kind: 'killMoneyFlat'; amount: number }
   | { kind: 'podCount'; amount: number }
   | { kind: 'podWeaponMode'; mode: 'Auto Pulse' | 'Homing Missile' }
-  | { kind: 'playerStat'; stat: PlayerStatCardStat; amount: number };
+  | { kind: 'playerStat'; stat: PlayerStatCardStat; amount: number }
+  | { kind: 'modifier'; key: GameplayModifierKey; amount: number }
+  | { kind: 'weaponTuning'; weaponMode: WeaponTuningMode; stat: WeaponTuningStat; amount: number };
 
 export interface CardDefinition {
   id: string;
@@ -31,6 +36,17 @@ export interface CardDefinition {
   unlockRound: number;
   shopWeight: number;
   dropWeight: number;
+  effects: CardEffect[];
+}
+
+export interface CardTagRequirement {
+  tag: string;
+  minCount: number;
+}
+
+export interface CardTagSynergyDefinition {
+  id: string;
+  requirements: CardTagRequirement[];
   effects: CardEffect[];
 }
 
@@ -216,6 +232,106 @@ export const cardCatalog: CardDefinition[] = [
     shopWeight: 0.58,
     dropWeight: 0.48,
     effects: [{ kind: 'moneyMultiplier', percent: 40 }]
+  },
+  {
+    id: 'tempo-injector',
+    name: 'Tempo Injector',
+    description: '+14% fire rate across all player weapons.',
+    rarity: 'uncommon',
+    tags: ['weapon', 'utility', 'assault'],
+    cost: 64,
+    maxStacks: 2,
+    unlockRound: 2,
+    shopWeight: 0.92,
+    dropWeight: 0.74,
+    effects: [{ kind: 'weaponTuning', weaponMode: 'all', stat: 'fireRatePercent', amount: 14 }]
+  },
+  {
+    id: 'ballistics-lab',
+    name: 'Ballistics Lab',
+    description: '+20% Auto Pulse projectile speed and +16% Heavy Cannon damage.',
+    rarity: 'uncommon',
+    tags: ['weapon', 'pulse', 'cannon'],
+    cost: 68,
+    maxStacks: 1,
+    unlockRound: 2,
+    shopWeight: 0.84,
+    dropWeight: 0.68,
+    effects: [
+      { kind: 'weaponTuning', weaponMode: 'Auto Pulse', stat: 'projectileSpeedPercent', amount: 20 },
+      { kind: 'weaponTuning', weaponMode: 'Heavy Cannon', stat: 'damagePercent', amount: 16 }
+    ]
+  },
+  {
+    id: 'signal-jammer',
+    name: 'Signal Jammer',
+    description: 'Future rounds unlock one extra enemy archetype and movement pattern.',
+    rarity: 'uncommon',
+    tags: ['utility', 'precision'],
+    cost: 62,
+    maxStacks: 1,
+    unlockRound: 2,
+    shopWeight: 0.88,
+    dropWeight: 0.7,
+    effects: [
+      { kind: 'modifier', key: 'director.enemyArchetypeUnlocks', amount: 1 },
+      { kind: 'modifier', key: 'director.patternUnlocks', amount: 1 }
+    ]
+  },
+  {
+    id: 'danger-hub',
+    name: 'Danger Hub',
+    description: '+25% enemies per round and +35% money from all sources.',
+    rarity: 'rare',
+    tags: ['economy', 'core', 'assault'],
+    cost: 84,
+    maxStacks: 1,
+    unlockRound: 3,
+    shopWeight: 0.5,
+    dropWeight: 0.42,
+    effects: [
+      { kind: 'modifier', key: 'director.enemyCountPercent', amount: 25 },
+      { kind: 'modifier', key: 'economy.moneyMultiplierPercent', amount: 35 }
+    ]
+  },
+  {
+    id: 'hazard-beacon',
+    name: 'Hazard Beacon',
+    description: '+10% live spawn density and +25% enemy score value.',
+    rarity: 'rare',
+    tags: ['utility', 'economy', 'precision'],
+    cost: 80,
+    maxStacks: 1,
+    unlockRound: 3,
+    shopWeight: 0.46,
+    dropWeight: 0.4,
+    effects: [
+      { kind: 'modifier', key: 'spawn.enemyDensityPercent', amount: 10 },
+      { kind: 'modifier', key: 'enemy.scorePercent', amount: 25 }
+    ]
+  }
+];
+
+export const cardTagSynergies: CardTagSynergyDefinition[] = [
+  {
+    id: 'defense-shell',
+    requirements: [{ tag: 'defense', minCount: 2 }],
+    effects: [{ kind: 'maxHealth', amount: 2 }]
+  },
+  {
+    id: 'assault-tempo',
+    requirements: [{ tag: 'assault', minCount: 2 }],
+    effects: [{ kind: 'weaponLevel', weaponMode: 'Auto Pulse', amount: 1 }]
+  },
+  {
+    id: 'precision-lens',
+    requirements: [{ tag: 'precision', minCount: 2 }],
+    effects: [{ kind: 'weaponLevel', weaponMode: 'Continuous Laser', amount: 1 }]
+  },
+  {
+    id: 'economy-chain',
+    requirements: [{ tag: 'economy', minCount: 2 }],
+    effects: [{ kind: 'moneyMultiplier', percent: 15 }]
   }
 ];
 

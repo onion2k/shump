@@ -3,12 +3,15 @@ import { Box, Flex } from './layout/FlexLayout';
 import { GameState } from '../../core/GameState';
 import { clamp } from '../../util/math';
 import { FractionColumnLayout, OverlayActionButton, OverlayBackdrop, OverlayPanelFrame, OverlayText } from './OverlayLayout3D';
+import { effectsQualityLabel, type EffectsQuality } from '../effectsQuality';
 
 interface StartScreen3DProps {
   state: GameState;
   hasSavedRun: boolean;
+  effectsQuality: EffectsQuality;
   onStart: () => void;
   onStartFresh?: () => void;
+  onOpenSettings?: () => void;
 }
 
 const START_SECTION_FRACTIONS = {
@@ -17,7 +20,14 @@ const START_SECTION_FRACTIONS = {
   actions: 0.38
 } as const;
 
-export function StartScreen3D({ state, hasSavedRun, onStart, onStartFresh }: StartScreen3DProps) {
+export function StartScreen3D({
+  state,
+  hasSavedRun,
+  effectsQuality,
+  onStart,
+  onStartFresh,
+  onOpenSettings
+}: StartScreen3DProps) {
   const camera = useThree((instance) => instance.camera);
   const viewportApi = useThree((instance) => instance.viewport);
   const viewport = viewportApi.getCurrentViewport(camera, [0, 0, 1.75]);
@@ -40,6 +50,8 @@ export function StartScreen3D({ state, hasSavedRun, onStart, onStartFresh }: Sta
   const buttonGap = contentWidth * 0.05;
   const singleButtonWidth = Math.min(contentWidth * 0.56, 3.2);
   const dualButtonWidth = (contentWidth - buttonGap) / 2;
+  const settingsButtonWidth = Math.min(contentWidth * 0.46, 2.8);
+  const settingsLabel = `Settings (${effectsQualityLabel(effectsQuality)})`;
 
   return (
     <group position={[0, 0, 1.75]}>
@@ -102,7 +114,7 @@ export function StartScreen3D({ state, hasSavedRun, onStart, onStartFresh }: Sta
                 fraction: 0.33,
                 content: (
                   <OverlayText position={[0, 0, 0.03]} fontSize={0.18 * scale} color="#99b7da" anchorX="center" anchorY="middle">
-                    Survive each wave and upgrade between rounds.
+                    Survive each wave, then upgrade between rounds.
                   </OverlayText>
                 )
               }
@@ -115,15 +127,40 @@ export function StartScreen3D({ state, hasSavedRun, onStart, onStartFresh }: Sta
             <Flex
               size={[contentWidth, actionsHeight, 0]}
               position={[-contentWidth / 2, actionsHeight / 2, 0.03]}
-              flexDirection="row"
+              flexDirection="column"
               alignItems="center"
               justifyContent="center"
             >
-              <Box width={dualButtonWidth} height={actionsHeight} mr={buttonGap} centerAnchor>
-                <OverlayActionButton label="Resume Run" width={dualButtonWidth} onClick={onStart} color="#2b8c56" textScale={scale} />
+              <Box width={contentWidth} height={actionsHeight * 0.62} centerAnchor>
+                <Flex
+                  size={[contentWidth, actionsHeight * 0.62, 0]}
+                  position={[-contentWidth / 2, actionsHeight * 0.31, 0.03]}
+                  flexDirection="row"
+                  alignItems="center"
+                  justifyContent="center"
+                >
+                  <Box width={dualButtonWidth} height={actionsHeight * 0.62} mr={buttonGap} centerAnchor>
+                    <OverlayActionButton label="Resume Run" width={dualButtonWidth} onClick={onStart} color="#2b8c56" textScale={scale} />
+                  </Box>
+                  <Box width={dualButtonWidth} height={actionsHeight * 0.62} centerAnchor>
+                    <OverlayActionButton
+                      label="New Run"
+                      width={dualButtonWidth}
+                      onClick={onStartFresh ?? onStart}
+                      color="#315f91"
+                      textScale={scale}
+                    />
+                  </Box>
+                </Flex>
               </Box>
-              <Box width={dualButtonWidth} height={actionsHeight} centerAnchor>
-                <OverlayActionButton label="New Run" width={dualButtonWidth} onClick={onStartFresh ?? onStart} color="#315f91" textScale={scale} />
+              <Box width={contentWidth} height={actionsHeight * 0.38} centerAnchor>
+                <OverlayActionButton
+                  label={settingsLabel}
+                  width={settingsButtonWidth}
+                  onClick={onOpenSettings ?? (() => undefined)}
+                  color="#334e72"
+                  textScale={scale}
+                />
               </Box>
             </Flex>
           ) : (
@@ -132,9 +169,22 @@ export function StartScreen3D({ state, hasSavedRun, onStart, onStartFresh }: Sta
               height={actionsHeight}
               slots={[
                 {
-                  id: 'start-action',
-                  fraction: 1,
+                  id: 'start-action-main',
+                  fraction: 0.62,
                   content: <OverlayActionButton label="Start Run" width={singleButtonWidth} onClick={onStart} color="#2b8c56" textScale={scale} />
+                },
+                {
+                  id: 'start-action-settings',
+                  fraction: 0.38,
+                  content: (
+                    <OverlayActionButton
+                      label={settingsLabel}
+                      width={settingsButtonWidth}
+                      onClick={onOpenSettings ?? (() => undefined)}
+                      color="#334e72"
+                      textScale={scale}
+                    />
+                  )
                 }
               ]}
             />

@@ -1,42 +1,27 @@
-import type { EnemyArchetypeId } from '../content/enemyArchetypes';
-import type { MovementPatternId } from '../movement/patterns';
 import type { WaveDef, WaveSpawnDef } from '../systems/waveScript';
+import {
+  DEFAULT_ENCOUNTER_DIRECTOR_MODIFIERS,
+  ROUNDS_PER_LEVEL,
+  SPAWN_GAP_MS,
+  WAVE_COUNT,
+  WAVE_GAP_MS,
+  WAVE_START_MS,
+  X_LANES,
+  enemiesForLevelRound,
+  type EncounterDirectorModifiers,
+  unlockedPools
+} from '../content/encounterProgression';
 
 export interface RoundDefinition {
   id: string;
   waves: WaveDef[];
 }
 
-const ROUNDS_PER_LEVEL = 3;
-const BASE_ROUND_ENEMIES = 10;
-const ROUND_ENEMY_STEP = 5;
-const LEVEL_ENEMY_STEP = 5;
-const WAVE_COUNT = 3;
-const WAVE_START_MS = 500;
-const WAVE_GAP_MS = 1200;
-const SPAWN_GAP_MS = 160;
-const X_LANES = [-4.8, -2.4, 0, 2.4, 4.8] as const;
-
-const BASE_ARCHETYPES: EnemyArchetypeId[] = ['scout'];
-const BASE_PATTERNS: MovementPatternId[] = ['straight', 'sine'];
-
-const UNLOCK_SEQUENCE: Array<{ enemy?: EnemyArchetypeId; pattern?: MovementPatternId }> = [
-  { enemy: 'striker' },
-  { pattern: 'zigzag' },
-  { enemy: 'tank' },
-  { pattern: 'curve' },
-  { enemy: 'bruiser' },
-  { pattern: 'spiral' },
-  { enemy: 'juggernaut' },
-  { pattern: 'sweep' },
-  { pattern: 'shallow-zigzag' },
-  { pattern: 'horseshoe' }
-];
-
 export class LevelDirector {
   private levelNumber = 1;
   private levelId = 'level-1';
   private roundIndex = 1;
+  private runtimeModifiers: EncounterDirectorModifiers = { ...DEFAULT_ENCOUNTER_DIRECTOR_MODIFIERS };
 
   configure(levelId: string, requestedRoundIndex = 1) {
     this.levelNumber = parseLevelNumber(levelId);
@@ -44,8 +29,19 @@ export class LevelDirector {
     this.roundIndex = clampRoundIndex(requestedRoundIndex);
   }
 
+  setRuntimeModifiers(modifiers: Partial<EncounterDirectorModifiers>) {
+    this.runtimeModifiers = {
+      enemyCountPercent: sanitizeNumber(modifiers.enemyCountPercent, this.runtimeModifiers.enemyCountPercent),
+      enemyArchetypeUnlocks: Math.max(
+        0,
+        Math.floor(sanitizeNumber(modifiers.enemyArchetypeUnlocks, this.runtimeModifiers.enemyArchetypeUnlocks))
+      ),
+      patternUnlocks: Math.max(0, Math.floor(sanitizeNumber(modifiers.patternUnlocks, this.runtimeModifiers.patternUnlocks)))
+    };
+  }
+
   currentRound(): RoundDefinition {
-    return buildRound(this.levelNumber, this.roundIndex);
+    return buildRound(this.levelNumber, this.roundIndex, this.runtimeModifiers);
   }
 
   currentLevelId(): string {
@@ -71,10 +67,10 @@ export class LevelDirector {
   }
 }
 
-function buildRound(levelNumber: number, roundIndex: number): RoundDefinition {
-  const enemyCount = enemiesForLevelRound(levelNumber, roundIndex);
+function buildRound(levelNumber: number, roundIndex: number, runtimeModifiers: EncounterDirectorModifiers): RoundDefinition {
+  const enemyCount = enemiesForLevelRound(levelNumber, roundIndex, runtimeModifiers);
   const spawnsPerWave = distribute(enemyCount, WAVE_COUNT);
-  const unlocked = unlockedPools(levelNumber);
+  const unlocked = unlockedPools(levelNumber, runtimeModifiers);
   let spawnCursor = 0;
 
   const waves: WaveDef[] = spawnsPerWave
@@ -109,29 +105,6 @@ function buildRound(levelNumber: number, roundIndex: number): RoundDefinition {
     id: `l${levelNumber}-r${roundIndex}`,
     waves
   };
-}
-
-function enemiesForLevelRound(levelNumber: number, roundIndex: number): number {
-  const levelBase = BASE_ROUND_ENEMIES + (levelNumber - 1) * LEVEL_ENEMY_STEP;
-  return levelBase + (roundIndex - 1) * ROUND_ENEMY_STEP;
-}
-
-function unlockedPools(levelNumber: number): { archetypes: EnemyArchetypeId[]; patterns: MovementPatternId[] } {
-  const unlocks = Math.max(0, Math.floor((levelNumber - 1) / 3));
-  const archetypes = [...BASE_ARCHETYPES];
-  const patterns = [...BASE_PATTERNS];
-
-  for (let i = 0; i < unlocks && i < UNLOCK_SEQUENCE.length; i += 1) {
-    const unlock = UNLOCK_SEQUENCE[i];
-    if (unlock.enemy && !archetypes.includes(unlock.enemy)) {
-      archetypes.push(unlock.enemy);
-    }
-    if (unlock.pattern && !patterns.includes(unlock.pattern)) {
-      patterns.push(unlock.pattern);
-    }
-  }
-
-  return { archetypes, patterns };
 }
 
 function parseLevelNumber(levelId: string): number {
@@ -173,4 +146,12 @@ function distribute(total: number, buckets: number): number[] {
     distributed[i] += 1;
   }
   return distributed;
+}
+
+function sanitizeNumber(value: number | undefined, fallback: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return fallback;
+  }
+
+  return value;
 }

@@ -177,4 +177,36 @@ describe('cardEffectSystem', () => {
       delete cardCatalogById[cardId];
     }
   });
+
+  it('aggregates gameplay and weapon tuning modifiers for systems to consume', () => {
+    const cardId = 'test-runtime-modifiers';
+    cardCatalogById[cardId] = {
+      id: cardId,
+      name: 'Runtime Test',
+      description: 'Runtime tuning.',
+      rarity: 'rare',
+      tags: ['utility'],
+      cost: 0,
+      maxStacks: 1,
+      unlockRound: 1,
+      shopWeight: 0,
+      dropWeight: 0,
+      effects: [
+        { kind: 'modifier', key: 'director.enemyCountPercent', amount: 25 },
+        { kind: 'modifier', key: 'enemy.healthPercent', amount: 30 },
+        { kind: 'weaponTuning', weaponMode: 'all', stat: 'fireRatePercent', amount: 12 },
+        { kind: 'weaponTuning', weaponMode: 'Heavy Cannon', stat: 'damagePercent', amount: 18 }
+      ]
+    };
+
+    try {
+      const bonuses = computeCardBonuses([cardId]);
+      expect(bonuses.gameplayModifiers['director.enemyCountPercent']).toBe(25);
+      expect(bonuses.gameplayModifiers['enemy.healthPercent']).toBe(30);
+      expect(bonuses.weaponTuningBonuses.all?.fireRatePercent).toBe(12);
+      expect(bonuses.weaponTuningBonuses['Heavy Cannon']?.damagePercent).toBe(18);
+    } finally {
+      delete cardCatalogById[cardId];
+    }
+  });
 });

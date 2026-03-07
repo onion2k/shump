@@ -47,7 +47,8 @@ import {
   type CardDefinition
 } from '../content/cards';
 import { LevelDirector } from './LevelDirector';
-import { computeCardBonuses } from '../systems/cardEffectSystem';
+import { computeCardBonuses, type CardBonuses } from '../systems/cardEffectSystem';
+import { getGameplayModifier } from '../content/gameplayModifiers';
 import {
   applyConsumableCardUpgrade as applyConsumableCardUpgradeToRunProgress,
   applyRunPlayerState as applyRunPlayerStateToEntity,
@@ -184,6 +185,7 @@ export class Game {
 
   bootstrap() {
     this.runProgress = undefined;
+    this.syncLevelDirectorModifiersWithCards();
     this.resetWorld();
     this.state = GameState.Boot;
     this.notify();
@@ -196,8 +198,8 @@ export class Game {
     this.levelDirector.configure(this.runProgress.levelId, this.runProgress.roundIndex);
     this.runProgress.levelId = this.levelDirector.currentLevelId();
     this.runProgress.roundIndex = this.levelDirector.currentRoundIndex();
-    this.spawner.setScriptedWaves(this.levelDirector.currentRound().waves);
     this.syncPlayerWithRunProgressCards();
+    this.spawner.setScriptedWaves(this.levelDirector.currentRound().waves);
     this.state = GameState.Playing;
     this.notify();
   }
@@ -208,8 +210,8 @@ export class Game {
     this.runProgress.levelId = this.levelDirector.currentLevelId();
     this.runProgress.roundIndex = this.levelDirector.currentRoundIndex();
     this.resetWorld(this.runProgress.playerState);
-    this.spawner.setScriptedWaves(this.levelDirector.currentRound().waves);
     this.syncPlayerWithRunProgressCards();
+    this.spawner.setScriptedWaves(this.levelDirector.currentRound().waves);
     this.elapsedMs = this.runProgress.elapsedMs;
     this.distanceTraveled = this.runProgress.distanceTraveled;
     this.score = this.runProgress.score;
@@ -228,6 +230,7 @@ export class Game {
 
   clearRunProgress() {
     this.runProgress = undefined;
+    this.syncLevelDirectorModifiersWithCards();
   }
 
   start() {
@@ -340,6 +343,7 @@ export class Game {
     }
 
     if (this.runProgress) {
+      this.syncLevelDirectorModifiersWithCards();
       const nextRoundIndex = this.levelDirector.advanceRound();
       this.runProgress.levelId = this.levelDirector.currentLevelId();
       this.runProgress.roundIndex = nextRoundIndex;
@@ -548,18 +552,39 @@ export class Game {
       return;
     }
 
+    const cardBonuses = this.currentCardBonuses();
+    const spawnDensityScale = this.withCardPercentScale(
+      this.getEnemyDensityScale(),
+      getGameplayModifier(cardBonuses.gameplayModifiers, 'spawn.enemyDensityPercent'),
+      0.25,
+      2.4
+    );
+
     this.elapsedMs += deltaSeconds * 1000;
     this.distanceTraveled += WORLD_SCROLL_SPEED * deltaSeconds;
     this.updateTrailSources(deltaSeconds);
     this.applyPlayerInput(pointer, deltaSeconds);
     shieldSystem(this.entities.all(), deltaSeconds);
-    this.handlePlayerWeapons(deltaSeconds);
+    this.handlePlayerWeapons(deltaSeconds, cardBonuses);
     this.spawner.tick(this.entities, deltaSeconds, this.playableBounds, this.distanceTraveled, {
-      enemyDensityScale: this.getEnemyDensityScale()
+      enemyDensityScale: spawnDensityScale,
+      enemyHealthScale: this.cardPercentToScale(getGameplayModifier(cardBonuses.gameplayModifiers, 'enemy.healthPercent')),
+      enemySpeedScale: this.cardPercentToScale(getGameplayModifier(cardBonuses.gameplayModifiers, 'enemy.speedPercent')),
+      enemyFireIntervalScale: this.cardPercentToInverseScale(
+        getGameplayModifier(cardBonuses.gameplayModifiers, 'enemy.fireRatePercent')
+      ),
+      enemyScoreScale: this.cardPercentToScale(getGameplayModifier(cardBonuses.gameplayModifiers, 'enemy.scorePercent'))
     });
     this.flushScheduledEmitters();
     this.syncDebugEmitter();
-    this.particles.tick(this.entities, deltaSeconds, this.useGpuParticles ? this.handleParticleSpawn : undefined);
+    const particleEmissionScale = this.getParticleEmissionScale();
+    this.particles.tick(
+      this.entities,
+      deltaSeconds,
+      this.useGpuParticles ? this.handleParticleSpawn : undefined,
+      undefined,
+      particleEmissionScale
+    );
     shootingSystem(this.entities, deltaSeconds);
     homingSystem(this.entities, deltaSeconds);
     pickupAttractionSystem(this.entities, this.playerId);
@@ -688,6 +713,7 @@ export class Game {
   }
 
   private syncPlayerWithRunProgressCards() {
+    this.syncLevelDirectorModifiersWithCards();
     syncPlayerWithRunProgressCardsFromState(this.entities, this.playerId, this.runProgress);
   }
 
@@ -855,8 +881,10 @@ export class Game {
     this.syncDebugEmitter();
   }
 
-  private handlePlayerWeapons(deltaSeconds: number) {
-    const result = playerWeaponSystem(this.entities, this.playerId, deltaSeconds);
+  private handlePlayerWeapons(deltaSeconds: number, bonuses: CardBonuses) {
+    const result = playerWeaponSystem(this.entities, this.playerId, deltaSeconds, {
+      weaponTuningBonuses: bonuses.weaponTuningBonuses
+    });
     this.score += result.scoreDelta;
 
     const player = this.entities.get(this.playerId);
@@ -875,6 +903,37 @@ export class Game {
 
   private getEnemyDensityScale(): number {
     return this.adaptiveDensityEnabled ? this.enemyDensityScale : 1;
+  }
+
+  private getParticleEmissionScale(): number {
+    const densityScale = this.getEnemyDensityScale();
+    // Keep particles from overwhelming mobile/low-end devices during sustained load.
+    return clamp(0.35 + densityScale * 0.65, 0.35, 1);
+  }
+
+  private currentCardBonuses(): CardBonuses {
+    return computeCardBonuses(this.runProgress?.activeCards ?? []);
+  }
+
+  private syncLevelDirectorModifiersWithCards() {
+    const bonuses = this.currentCardBonuses();
+    this.levelDirector.setRuntimeModifiers({
+      enemyCountPercent: getGameplayModifier(bonuses.gameplayModifiers, 'director.enemyCountPercent'),
+      enemyArchetypeUnlocks: getGameplayModifier(bonuses.gameplayModifiers, 'director.enemyArchetypeUnlocks'),
+      patternUnlocks: getGameplayModifier(bonuses.gameplayModifiers, 'director.patternUnlocks')
+    });
+  }
+
+  private cardPercentToScale(percent: number, minScale = 0.2): number {
+    return Math.max(minScale, 1 + percent / 100);
+  }
+
+  private cardPercentToInverseScale(percent: number, minScale = 0.2): number {
+    return Math.max(minScale, 1 / Math.max(0.1, 1 + percent / 100));
+  }
+
+  private withCardPercentScale(baseScale: number, percent: number, minScale: number, maxScale: number): number {
+    return clamp(baseScale * this.cardPercentToScale(percent, minScale), minScale, maxScale);
   }
 
   private countLiveEnemies(): number {

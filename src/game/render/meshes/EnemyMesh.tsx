@@ -15,12 +15,16 @@ export function EnemyMesh({ archetype, healthRatio = 1, ageMs = 0 }: EnemyMeshPr
   const spinBase =
     enemy.id === 'juggernaut'
       ? 0.45
+      : enemy.id === 'sentinel'
+        ? 0.54
       : enemy.id === 'bruiser'
         ? 0.62
-        : enemy.id === 'tank'
-          ? 0.8
-          : enemy.id === 'warp-sphere'
-            ? 1.05
+      : enemy.id === 'tank'
+        ? 0.8
+      : enemy.id === 'warp-sphere'
+        ? 1.05
+        : enemy.id === 'raider'
+          ? 1.75
           : enemy.id === 'striker'
             ? 1.35
             : 1.9;
@@ -33,8 +37,12 @@ export function EnemyMesh({ archetype, healthRatio = 1, ageMs = 0 }: EnemyMeshPr
       <mesh>
         {enemy.id === 'juggernaut' ? (
           <icosahedronGeometry args={[0.86, 0]} />
+        ) : enemy.id === 'sentinel' ? (
+          <cylinderGeometry args={[0.64, 0.8, 1.2, 6]} />
         ) : enemy.id === 'warp-sphere' ? (
           <sphereGeometry args={[0.66, 20, 20]} />
+        ) : enemy.id === 'raider' ? (
+          <tetrahedronGeometry args={[0.74, 0]} />
         ) : enemy.id === 'bruiser' ? (
           <boxGeometry args={[1.28, 1.04, 1.28]} />
         ) : enemy.id === 'tank' ? (
@@ -54,8 +62,12 @@ export function EnemyMesh({ archetype, healthRatio = 1, ageMs = 0 }: EnemyMeshPr
       <mesh scale={1.1}>
         {enemy.id === 'juggernaut' ? (
           <icosahedronGeometry args={[0.86, 0]} />
+        ) : enemy.id === 'sentinel' ? (
+          <cylinderGeometry args={[0.64, 0.8, 1.2, 6]} />
         ) : enemy.id === 'warp-sphere' ? (
           <sphereGeometry args={[0.66, 20, 20]} />
+        ) : enemy.id === 'raider' ? (
+          <tetrahedronGeometry args={[0.74, 0]} />
         ) : enemy.id === 'bruiser' ? (
           <boxGeometry args={[1.28, 1.04, 1.28]} />
         ) : enemy.id === 'tank' ? (

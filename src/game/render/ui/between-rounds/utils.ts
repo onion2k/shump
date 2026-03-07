@@ -1,5 +1,5 @@
 import type { CardDefinition } from '../../../content/cards';
-import type { PlayerWeaponMode } from '../../../weapons/playerWeapons';
+import { resolvePlayerWeaponDefinition, type PlayerWeaponMode } from '../../../weapons/playerWeapons';
 
 const TAG_ICON_BY_NAME: Record<string, string> = {
   weapon: '[W]',
@@ -64,29 +64,11 @@ export function cardColorByRarity(rarity: CardDefinition['rarity']): string {
 }
 
 export function weaponShortLabel(mode: PlayerWeaponMode): string {
-  if (mode === 'Auto Pulse') {
-    return 'Pulse';
-  }
-  if (mode === 'Continuous Laser') {
-    return 'Laser';
-  }
-  if (mode === 'Heavy Cannon') {
-    return 'Cannon';
-  }
-  return 'Sine';
+  return resolvePlayerWeaponDefinition(mode).shortLabel;
 }
 
 export function weaponModeTag(mode: PlayerWeaponMode): string {
-  if (mode === 'Auto Pulse') {
-    return 'pulse';
-  }
-  if (mode === 'Continuous Laser') {
-    return 'laser';
-  }
-  if (mode === 'Heavy Cannon') {
-    return 'cannon';
-  }
-  return 'sine';
+  return resolvePlayerWeaponDefinition(mode).tag;
 }
 
 export function resolveNextRoundDisplay(levelId: string, roundIndex: number, totalRounds: number): { level: number | string; round: number } {

@@ -151,4 +151,41 @@ describe('SpawnSystem wave scripting', () => {
     const enemies = entityManager.all().filter((entity) => entity.type === EntityType.Enemy);
     expect(enemies.length).toBe(1);
   });
+
+  it('applies enemy stat scales passed through spawn options', () => {
+    const waves: WaveDef[] = [
+      {
+        startMs: 0,
+        spawns: [{ offsetMs: 0, x: 0, movementPattern: 'straight', enemyArchetype: 'scout' }]
+      }
+    ];
+
+    const baseManager = new EntityManager();
+    const baseSystem = new SpawnSystem(waves);
+    baseSystem.tick(baseManager, 0.05, WORLD_BOUNDS, 0);
+    const baseEnemy = baseManager.all().find((entity) => entity.type === EntityType.Enemy);
+    expect(baseEnemy).toBeTruthy();
+
+    const scaledManager = new EntityManager();
+    const scaledSystem = new SpawnSystem(waves);
+    scaledSystem.tick(scaledManager, 0.05, WORLD_BOUNDS, 0, {
+      enemyHealthScale: 2,
+      enemySpeedScale: 1.5,
+      enemyFireIntervalScale: 0.75,
+      enemyScoreScale: 1.8
+    });
+    const scaledEnemy = scaledManager.all().find((entity) => entity.type === EntityType.Enemy);
+    expect(scaledEnemy).toBeTruthy();
+
+    if (!baseEnemy || !scaledEnemy) {
+      return;
+    }
+
+    expect(scaledEnemy.maxHealth).toBeGreaterThan(baseEnemy.maxHealth);
+    expect(Math.abs(scaledEnemy.velocity.y)).toBeGreaterThan(Math.abs(baseEnemy.velocity.y));
+    expect(scaledEnemy.enemyFireIntervalMs ?? Number.POSITIVE_INFINITY).toBeLessThan(
+      baseEnemy.enemyFireIntervalMs ?? Number.POSITIVE_INFINITY
+    );
+    expect(scaledEnemy.scoreValue ?? 0).toBeGreaterThan(baseEnemy.scoreValue ?? 0);
+  });
 });

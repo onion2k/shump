@@ -1,8 +1,21 @@
 import type { Entity } from '../ecs/components';
 import { PLAYER_WEAPON_ORDER } from '../weapons/playerWeapons';
 import type { RunPlayerState } from '../core/RunProgress';
-import { cardCatalogById, type PlayerStatCardStat } from '../content/cards';
+import {
+  cardCatalogById,
+  cardTagSynergies,
+  type PlayerStatCardStat,
+  type WeaponTuningMode,
+  type WeaponTuningStat,
+  type CardEffect
+} from '../content/cards';
 import { gameSettings } from '../config/gameSettings';
+import {
+  PLAYER_STAT_TO_MODIFIER_KEY,
+  addGameplayModifier,
+  type GameplayModifierKey,
+  type GameplayModifierMap
+} from '../content/gameplayModifiers';
 
 const DEFAULT_PLAYER_STAT_VALUES: Record<PlayerStatCardStat, number> = {
   moveMaxSpeed: Math.max(1, gameSettings.player.maxSpeed),
@@ -14,12 +27,22 @@ const DEFAULT_PLAYER_STAT_VALUES: Record<PlayerStatCardStat, number> = {
   shieldRechargeTimeMs: Math.max(1, gameSettings.player.shield.rechargeTimeMs)
 };
 
+const MODIFIER_KEY_TO_PLAYER_STAT: Partial<Record<GameplayModifierKey, PlayerStatCardStat>> = Object.fromEntries(
+  Object.entries(PLAYER_STAT_TO_MODIFIER_KEY).map(([stat, key]) => [key, stat as PlayerStatCardStat])
+) as Partial<Record<GameplayModifierKey, PlayerStatCardStat>>;
+
 function clampPlayerStat(stat: PlayerStatCardStat, value: number): number {
   if (stat === 'moveMaxSpeed') {
     return Math.max(1, value);
   }
 
-  if (stat === 'moveFollowGain' || stat === 'pickupAttractRange' || stat === 'pickupAttractPower' || stat === 'shieldMax' || stat === 'shieldRechargeDelayMs') {
+  if (
+    stat === 'moveFollowGain'
+    || stat === 'pickupAttractRange'
+    || stat === 'pickupAttractPower'
+    || stat === 'shieldMax'
+    || stat === 'shieldRechargeDelayMs'
+  ) {
     return Math.max(0, value);
   }
 
@@ -30,6 +53,10 @@ function playerStatWithBonus(baseValue: number, bonuses: CardBonuses, stat: Play
   return clampPlayerStat(stat, baseValue + (bonuses.playerStatBonus[stat] ?? 0));
 }
 
+export type WeaponTuningBonuses = Partial<
+  Record<WeaponTuningMode, Partial<Record<WeaponTuningStat, number>>>
+>;
+
 export interface CardBonuses {
   maxHealthBonus: number;
   weaponLevelBonus: Record<string, number>;
@@ -39,6 +66,8 @@ export interface CardBonuses {
   podWeaponModeOverride?: 'Auto Pulse' | 'Homing Missile';
   playerStatBonus: Partial<Record<PlayerStatCardStat, number>>;
   tagCounts: Record<string, number>;
+  gameplayModifiers: GameplayModifierMap;
+  weaponTuningBonuses: WeaponTuningBonuses;
 }
 
 export function computeCardBonuses(activeCards: string[]): CardBonuses {
@@ -50,7 +79,9 @@ export function computeCardBonuses(activeCards: string[]): CardBonuses {
     podCountBonus: 0,
     podWeaponModeOverride: undefined,
     playerStatBonus: {},
-    tagCounts: {}
+    tagCounts: {},
+    gameplayModifiers: {},
+    weaponTuningBonuses: {}
   };
 
   for (const cardId of activeCards) {
@@ -64,37 +95,7 @@ export function computeCardBonuses(activeCards: string[]): CardBonuses {
     }
 
     for (const effect of card.effects) {
-      if (effect.kind === 'maxHealth') {
-        bonuses.maxHealthBonus += effect.amount;
-        continue;
-      }
-
-      if (effect.kind === 'weaponLevel') {
-        bonuses.weaponLevelBonus[effect.weaponMode] = (bonuses.weaponLevelBonus[effect.weaponMode] ?? 0) + effect.amount;
-        continue;
-      }
-
-      if (effect.kind === 'moneyMultiplier') {
-        bonuses.moneyMultiplierPercent += effect.percent;
-        continue;
-      }
-
-      if (effect.kind === 'killMoneyFlat') {
-        bonuses.killMoneyFlatBonus += effect.amount;
-        continue;
-      }
-
-      if (effect.kind === 'podCount') {
-        bonuses.podCountBonus += effect.amount;
-        continue;
-      }
-
-      if (effect.kind === 'playerStat') {
-        bonuses.playerStatBonus[effect.stat] = (bonuses.playerStatBonus[effect.stat] ?? 0) + effect.amount;
-        continue;
-      }
-
-      bonuses.podWeaponModeOverride = effect.mode;
+      applyCardEffect(bonuses, effect);
     }
   }
 
@@ -160,8 +161,14 @@ export function captureBaseStateFromPlayer(
 
   const effectiveMoveMaxSpeed = Math.max(1, player.moveMaxSpeed ?? DEFAULT_PLAYER_STAT_VALUES.moveMaxSpeed);
   const effectiveMoveFollowGain = Math.max(0, player.moveFollowGain ?? DEFAULT_PLAYER_STAT_VALUES.moveFollowGain);
-  const effectivePickupAttractRange = Math.max(0, player.pickupAttractRange ?? DEFAULT_PLAYER_STAT_VALUES.pickupAttractRange);
-  const effectivePickupAttractPower = Math.max(0, player.pickupAttractPower ?? DEFAULT_PLAYER_STAT_VALUES.pickupAttractPower);
+  const effectivePickupAttractRange = Math.max(
+    0,
+    player.pickupAttractRange ?? DEFAULT_PLAYER_STAT_VALUES.pickupAttractRange
+  );
+  const effectivePickupAttractPower = Math.max(
+    0,
+    player.pickupAttractPower ?? DEFAULT_PLAYER_STAT_VALUES.pickupAttractPower
+  );
   const effectiveShieldMax = Math.max(0, player.shieldMax ?? DEFAULT_PLAYER_STAT_VALUES.shieldMax);
   const effectiveShieldCurrent = Math.max(0, Math.min(effectiveShieldMax, player.shieldCurrent ?? effectiveShieldMax));
   const effectiveShieldRechargeDelayMs = Math.max(
@@ -216,25 +223,94 @@ export function captureBaseStateFromPlayer(
   };
 }
 
+function applyCardEffect(bonuses: CardBonuses, effect: CardEffect): void {
+  if (effect.kind === 'maxHealth') {
+    bonuses.maxHealthBonus += effect.amount;
+    addGameplayModifier(bonuses.gameplayModifiers, 'player.maxHealth', effect.amount);
+    return;
+  }
+
+  if (effect.kind === 'weaponLevel') {
+    bonuses.weaponLevelBonus[effect.weaponMode] = (bonuses.weaponLevelBonus[effect.weaponMode] ?? 0) + effect.amount;
+    return;
+  }
+
+  if (effect.kind === 'moneyMultiplier') {
+    bonuses.moneyMultiplierPercent += effect.percent;
+    addGameplayModifier(bonuses.gameplayModifiers, 'economy.moneyMultiplierPercent', effect.percent);
+    return;
+  }
+
+  if (effect.kind === 'killMoneyFlat') {
+    bonuses.killMoneyFlatBonus += effect.amount;
+    addGameplayModifier(bonuses.gameplayModifiers, 'economy.killMoneyFlat', effect.amount);
+    return;
+  }
+
+  if (effect.kind === 'podCount') {
+    bonuses.podCountBonus += effect.amount;
+    addGameplayModifier(bonuses.gameplayModifiers, 'player.podCount', effect.amount);
+    return;
+  }
+
+  if (effect.kind === 'playerStat') {
+    bonuses.playerStatBonus[effect.stat] = (bonuses.playerStatBonus[effect.stat] ?? 0) + effect.amount;
+    addGameplayModifier(bonuses.gameplayModifiers, PLAYER_STAT_TO_MODIFIER_KEY[effect.stat], effect.amount);
+    return;
+  }
+
+  if (effect.kind === 'podWeaponMode') {
+    bonuses.podWeaponModeOverride = effect.mode;
+    return;
+  }
+
+  if (effect.kind === 'weaponTuning') {
+    const modeBonuses = bonuses.weaponTuningBonuses[effect.weaponMode] ?? {};
+    modeBonuses[effect.stat] = (modeBonuses[effect.stat] ?? 0) + effect.amount;
+    bonuses.weaponTuningBonuses[effect.weaponMode] = modeBonuses;
+    return;
+  }
+
+  addGameplayModifier(bonuses.gameplayModifiers, effect.key, effect.amount);
+  applyModifierToLegacyFields(bonuses, effect.key, effect.amount);
+}
+
+function applyModifierToLegacyFields(bonuses: CardBonuses, key: GameplayModifierKey, amount: number): void {
+  if (key === 'player.maxHealth') {
+    bonuses.maxHealthBonus += amount;
+    return;
+  }
+
+  if (key === 'economy.moneyMultiplierPercent') {
+    bonuses.moneyMultiplierPercent += amount;
+    return;
+  }
+
+  if (key === 'economy.killMoneyFlat') {
+    bonuses.killMoneyFlatBonus += amount;
+    return;
+  }
+
+  if (key === 'player.podCount') {
+    bonuses.podCountBonus += amount;
+    return;
+  }
+
+  const playerStat = MODIFIER_KEY_TO_PLAYER_STAT[key];
+  if (playerStat) {
+    bonuses.playerStatBonus[playerStat] = (bonuses.playerStatBonus[playerStat] ?? 0) + amount;
+  }
+}
+
 function applySynergyBonuses(bonuses: CardBonuses): void {
-  const defenseCount = bonuses.tagCounts.defense ?? 0;
-  const assaultCount = bonuses.tagCounts.assault ?? 0;
-  const precisionCount = bonuses.tagCounts.precision ?? 0;
-  const economyCount = bonuses.tagCounts.economy ?? 0;
+  for (const synergy of cardTagSynergies) {
+    const triggered = synergy.requirements.every((requirement) => (bonuses.tagCounts[requirement.tag] ?? 0) >= requirement.minCount);
+    if (!triggered) {
+      continue;
+    }
 
-  if (defenseCount >= 2) {
-    bonuses.maxHealthBonus += 2;
-  }
-
-  if (assaultCount >= 2) {
-    bonuses.weaponLevelBonus['Auto Pulse'] = (bonuses.weaponLevelBonus['Auto Pulse'] ?? 0) + 1;
-  }
-
-  if (precisionCount >= 2) {
-    bonuses.weaponLevelBonus['Continuous Laser'] = (bonuses.weaponLevelBonus['Continuous Laser'] ?? 0) + 1;
-  }
-
-  if (economyCount >= 2) {
-    bonuses.moneyMultiplierPercent += 15;
+    for (const effect of synergy.effects) {
+      applyCardEffect(bonuses, effect);
+    }
   }
 }

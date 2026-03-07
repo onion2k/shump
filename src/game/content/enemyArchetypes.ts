@@ -1,4 +1,12 @@
-export type EnemyArchetypeId = 'scout' | 'striker' | 'tank' | 'bruiser' | 'juggernaut' | 'warp-sphere';
+export type EnemyArchetypeId =
+  | 'scout'
+  | 'striker'
+  | 'tank'
+  | 'bruiser'
+  | 'juggernaut'
+  | 'warp-sphere'
+  | 'raider'
+  | 'sentinel';
 
 export interface EnemyArchetypeDef {
   id: EnemyArchetypeId;
@@ -78,6 +86,28 @@ const ENEMY_ARCHETYPES: Record<EnemyArchetypeId, EnemyArchetypeDef> = {
     color: '#8d46ff',
     accentColor: '#e9b3ff',
     meshScale: 1.12
+  },
+  raider: {
+    id: 'raider',
+    health: 3,
+    radius: 0.66,
+    speedYMultiplier: 1.28,
+    scoreValue: 165,
+    fireIntervalMultiplier: 0.84,
+    color: '#ff9d39',
+    accentColor: '#ffe6b3',
+    meshScale: 0.96
+  },
+  sentinel: {
+    id: 'sentinel',
+    health: 8,
+    radius: 1.08,
+    speedYMultiplier: 0.56,
+    scoreValue: 360,
+    fireIntervalMultiplier: 0.7,
+    color: '#39c8ff',
+    accentColor: '#d3f3ff',
+    meshScale: 1.36
   }
 };
 

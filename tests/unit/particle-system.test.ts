@@ -92,4 +92,28 @@ describe('ParticleSystem', () => {
     expect(spawned.velocity.x).toBeCloseTo(Math.cos(2.5) * 8);
     expect(spawned.velocity.y).toBeCloseTo(Math.sin(2.5) * 8);
   });
+
+  it('supports emission scaling for adaptive performance throttling', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+
+    const fullManager = new EntityManager();
+    const scaledManager = new EntityManager();
+    const particles = new ParticleSystem();
+    particles.addEmitter({
+      position: { x: 0, y: 0 },
+      direction: 0,
+      spread: 0,
+      lifetimeMs: 1000,
+      particleType: 'spark',
+      emissionRatePerSecond: 20,
+      particleLifetimeMs: 250,
+      particleSpeed: 1
+    });
+
+    particles.tick(fullManager, 0.5, undefined, undefined, 1);
+    particles.tick(scaledManager, 0.5, undefined, undefined, 0.5);
+
+    expect(fullManager.all()).toHaveLength(10);
+    expect(scaledManager.all()).toHaveLength(5);
+  });
 });
