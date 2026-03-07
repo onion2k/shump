@@ -613,7 +613,7 @@ describe('Game player controls', () => {
     expect(game.snapshot().score).toBe(scoreBefore + 40);
   });
 
-  it('changes weapon when collecting a weapon pickup', () => {
+  it('unlocks weapon when collecting a weapon pickup without switching active mode', () => {
     const game = new Game();
     game.start();
 
@@ -633,8 +633,9 @@ describe('Game player controls', () => {
       rightButtonDown: false
     });
 
-    expect(player.weaponMode).toBe('Heavy Cannon');
+    expect(player.weaponMode).toBe('Auto Pulse');
     expect(player.unlockedWeaponModes).toContain('Heavy Cannon');
+    expect(player.weaponLevels?.['Heavy Cannon']).toBe(1);
   });
 
   it('powers up currently selected weapon when collecting matching weapon pickup', () => {
