@@ -13,6 +13,8 @@ export function computeBetweenRoundsPageCounts(args: {
   shipCardsCount: number;
   deckCardsPerPage: number;
   shopCardsPerPage: number;
+  shipCardsPerPage: number;
+  activeCardsPerPage: number;
 }): BetweenRoundsPageCounts {
   const {
     isMobile,
@@ -21,13 +23,17 @@ export function computeBetweenRoundsPageCounts(args: {
     activeCardsCount,
     shipCardsCount,
     deckCardsPerPage,
-    shopCardsPerPage
+    shopCardsPerPage,
+    shipCardsPerPage,
+    activeCardsPerPage
   } = args;
 
+  const slidingPageCount = (count: number, perPage: number) => Math.max(1, count - Math.max(1, perPage) + 1);
+
   return {
-    deckPageCount: isMobile ? Math.max(1, foundCardsCount) : Math.max(1, Math.ceil(foundCardsCount / deckCardsPerPage)),
-    shopPageCount: isMobile ? Math.max(1, shopCardsCount) : Math.max(1, Math.ceil(shopCardsCount / shopCardsPerPage)),
-    activePageCount: Math.max(1, activeCardsCount),
-    shipPageCount: Math.max(1, shipCardsCount)
+    deckPageCount: isMobile ? Math.max(1, foundCardsCount) : slidingPageCount(foundCardsCount, deckCardsPerPage),
+    shopPageCount: isMobile ? Math.max(1, shopCardsCount) : slidingPageCount(shopCardsCount, shopCardsPerPage),
+    activePageCount: isMobile ? Math.max(1, activeCardsCount) : slidingPageCount(activeCardsCount, activeCardsPerPage),
+    shipPageCount: isMobile ? Math.max(1, shipCardsCount) : slidingPageCount(shipCardsCount, shipCardsPerPage)
   };
 }

@@ -1,6 +1,6 @@
 import { Text } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
-import { useRef, useState, type ComponentProps, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import { Box, Flex } from '../layout/FlexLayout';
 import type { Group, Mesh } from 'three';
 import { clamp } from '../../../util/math';
@@ -168,16 +168,16 @@ export function FractionColumn({ width, height, slots, z = 0 }: { width: number;
 }
 
 export function PageControls({
-  page,
   pageCount,
+  totalCount,
   width,
   y,
   textScale,
   onPrev,
   onNext
 }: {
-  page: number;
   pageCount: number;
+  totalCount: number;
   width: number;
   y: number;
   textScale: number;
@@ -216,7 +216,7 @@ export function PageControls({
         </Box>
       </Flex>
       <UiText position={[0, -buttonSize * 0.95, 0.02]} fontSize={0.12 * textScale} color="#9ec9ff" anchorX="center" anchorY="middle">
-        {`Page ${page + 1}/${pageCount}`}
+        {`${totalCount} cards`}
       </UiText>
     </group>
   );
@@ -317,6 +317,58 @@ export function MobileCarouselTrack<T>({
         ))}
       </group>
       <CarouselEdgeFade width={trackWidth} height={cardHeight} />
+    </group>
+  );
+}
+
+export function PagedContentSlide({
+  page,
+  pageCount,
+  width,
+  children
+}: {
+  page: number;
+  pageCount: number;
+  width: number;
+  children: ReactNode;
+}) {
+  const trackRef = useRef<Group>(null);
+  const offsetRef = useRef(0);
+  const targetOffsetRef = useRef(0);
+  const previousPageRef = useRef(page);
+
+  useEffect(() => {
+    const previous = previousPageRef.current;
+    if (previous === page) {
+      return;
+    }
+
+    let direction = page > previous ? 1 : -1;
+    if (pageCount > 2) {
+      const forward = (page - previous + pageCount) % pageCount;
+      const backward = (previous - page + pageCount) % pageCount;
+      direction = forward <= backward ? 1 : -1;
+    }
+
+    offsetRef.current = direction * width * 0.22;
+    targetOffsetRef.current = 0;
+    previousPageRef.current = page;
+  }, [page, pageCount, width]);
+
+  useFrame(() => {
+    if (!trackRef.current) {
+      return;
+    }
+
+    offsetRef.current += (targetOffsetRef.current - offsetRef.current) * 0.18;
+    trackRef.current.position.x = offsetRef.current;
+  });
+
+  return (
+    <group position={[0, 0, 0.03]}>
+      <group ref={trackRef}>
+        {children}
+      </group>
     </group>
   );
 }

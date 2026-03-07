@@ -41,7 +41,7 @@ export interface PlayerWeaponDefinition {
 const PLAYER_WEAPON_DEFINITIONS: Record<PlayerWeaponMode, PlayerWeaponDefinition> = {
   'Auto Pulse': {
     id: 'Auto Pulse',
-    maxLevel: 6,
+    maxLevel: 8,
     defaultLevel: 1,
     defaultUnlocked: true,
     shortLabel: 'Pulse',
@@ -50,7 +50,7 @@ const PLAYER_WEAPON_DEFINITIONS: Record<PlayerWeaponMode, PlayerWeaponDefinition
   },
   'Continuous Laser': {
     id: 'Continuous Laser',
-    maxLevel: 6,
+    maxLevel: 8,
     defaultLevel: 1,
     defaultUnlocked: true,
     shortLabel: 'Laser',
@@ -59,7 +59,7 @@ const PLAYER_WEAPON_DEFINITIONS: Record<PlayerWeaponMode, PlayerWeaponDefinition
   },
   'Heavy Cannon': {
     id: 'Heavy Cannon',
-    maxLevel: 6,
+    maxLevel: 8,
     defaultLevel: 1,
     defaultUnlocked: true,
     shortLabel: 'Cannon',
@@ -68,7 +68,7 @@ const PLAYER_WEAPON_DEFINITIONS: Record<PlayerWeaponMode, PlayerWeaponDefinition
   },
   'Sine SMG': {
     id: 'Sine SMG',
-    maxLevel: 6,
+    maxLevel: 8,
     defaultLevel: 1,
     defaultUnlocked: true,
     shortLabel: 'Sine',
@@ -77,7 +77,7 @@ const PLAYER_WEAPON_DEFINITIONS: Record<PlayerWeaponMode, PlayerWeaponDefinition
   },
   'Flak Cannon': {
     id: 'Flak Cannon',
-    maxLevel: 6,
+    maxLevel: 8,
     defaultLevel: 1,
     defaultUnlocked: false,
     shortLabel: 'Flak',
@@ -86,7 +86,7 @@ const PLAYER_WEAPON_DEFINITIONS: Record<PlayerWeaponMode, PlayerWeaponDefinition
   },
   'Proximity Mines': {
     id: 'Proximity Mines',
-    maxLevel: 6,
+    maxLevel: 8,
     defaultLevel: 1,
     defaultUnlocked: false,
     shortLabel: 'Mines',
@@ -95,7 +95,7 @@ const PLAYER_WEAPON_DEFINITIONS: Record<PlayerWeaponMode, PlayerWeaponDefinition
   },
   'Gravity Bomb': {
     id: 'Gravity Bomb',
-    maxLevel: 6,
+    maxLevel: 8,
     defaultLevel: 1,
     defaultUnlocked: false,
     shortLabel: 'Gravity',
@@ -104,7 +104,7 @@ const PLAYER_WEAPON_DEFINITIONS: Record<PlayerWeaponMode, PlayerWeaponDefinition
   },
   'Thermal Napalm Pods': {
     id: 'Thermal Napalm Pods',
-    maxLevel: 6,
+    maxLevel: 8,
     defaultLevel: 1,
     defaultUnlocked: false,
     shortLabel: 'Napalm',
@@ -113,7 +113,7 @@ const PLAYER_WEAPON_DEFINITIONS: Record<PlayerWeaponMode, PlayerWeaponDefinition
   },
   'Tesla Arc': {
     id: 'Tesla Arc',
-    maxLevel: 6,
+    maxLevel: 8,
     defaultLevel: 1,
     defaultUnlocked: false,
     shortLabel: 'Tesla',
@@ -122,7 +122,7 @@ const PLAYER_WEAPON_DEFINITIONS: Record<PlayerWeaponMode, PlayerWeaponDefinition
   },
   'Chain Laser': {
     id: 'Chain Laser',
-    maxLevel: 6,
+    maxLevel: 8,
     defaultLevel: 1,
     defaultUnlocked: false,
     shortLabel: 'ChainL',
@@ -131,7 +131,7 @@ const PLAYER_WEAPON_DEFINITIONS: Record<PlayerWeaponMode, PlayerWeaponDefinition
   },
   'Ion Burst': {
     id: 'Ion Burst',
-    maxLevel: 6,
+    maxLevel: 8,
     defaultLevel: 1,
     defaultUnlocked: false,
     shortLabel: 'Ion',
@@ -140,7 +140,7 @@ const PLAYER_WEAPON_DEFINITIONS: Record<PlayerWeaponMode, PlayerWeaponDefinition
   },
   'Spread Shot': {
     id: 'Spread Shot',
-    maxLevel: 6,
+    maxLevel: 8,
     defaultLevel: 1,
     defaultUnlocked: false,
     shortLabel: 'Spread',
@@ -149,7 +149,7 @@ const PLAYER_WEAPON_DEFINITIONS: Record<PlayerWeaponMode, PlayerWeaponDefinition
   },
   'Helix Blaster': {
     id: 'Helix Blaster',
-    maxLevel: 6,
+    maxLevel: 8,
     defaultLevel: 1,
     defaultUnlocked: false,
     shortLabel: 'Helix',
@@ -158,7 +158,7 @@ const PLAYER_WEAPON_DEFINITIONS: Record<PlayerWeaponMode, PlayerWeaponDefinition
   },
   'Orbital Drones': {
     id: 'Orbital Drones',
-    maxLevel: 6,
+    maxLevel: 8,
     defaultLevel: 1,
     defaultUnlocked: false,
     shortLabel: 'Orbit',
@@ -167,7 +167,7 @@ const PLAYER_WEAPON_DEFINITIONS: Record<PlayerWeaponMode, PlayerWeaponDefinition
   },
   'Rotary Disc Launcher': {
     id: 'Rotary Disc Launcher',
-    maxLevel: 6,
+    maxLevel: 8,
     defaultLevel: 1,
     defaultUnlocked: false,
     shortLabel: 'Disc',
@@ -176,7 +176,7 @@ const PLAYER_WEAPON_DEFINITIONS: Record<PlayerWeaponMode, PlayerWeaponDefinition
   },
   'Energy Shield Projector': {
     id: 'Energy Shield Projector',
-    maxLevel: 6,
+    maxLevel: 8,
     defaultLevel: 1,
     defaultUnlocked: false,
     shortLabel: 'Shield',
@@ -185,7 +185,7 @@ const PLAYER_WEAPON_DEFINITIONS: Record<PlayerWeaponMode, PlayerWeaponDefinition
   },
   'Reflector Pulse': {
     id: 'Reflector Pulse',
-    maxLevel: 6,
+    maxLevel: 8,
     defaultLevel: 1,
     defaultUnlocked: false,
     shortLabel: 'Reflect',
@@ -194,7 +194,7 @@ const PLAYER_WEAPON_DEFINITIONS: Record<PlayerWeaponMode, PlayerWeaponDefinition
   },
   'Time Distortion Pulse': {
     id: 'Time Distortion Pulse',
-    maxLevel: 6,
+    maxLevel: 8,
     defaultLevel: 1,
     defaultUnlocked: false,
     shortLabel: 'Time',
@@ -203,7 +203,7 @@ const PLAYER_WEAPON_DEFINITIONS: Record<PlayerWeaponMode, PlayerWeaponDefinition
   },
   'Attack Drone': {
     id: 'Attack Drone',
-    maxLevel: 6,
+    maxLevel: 8,
     defaultLevel: 1,
     defaultUnlocked: false,
     shortLabel: 'AtkDrn',
@@ -212,7 +212,7 @@ const PLAYER_WEAPON_DEFINITIONS: Record<PlayerWeaponMode, PlayerWeaponDefinition
   },
   'Interceptor Drone': {
     id: 'Interceptor Drone',
-    maxLevel: 6,
+    maxLevel: 8,
     defaultLevel: 1,
     defaultUnlocked: false,
     shortLabel: 'IntDrn',
@@ -221,7 +221,7 @@ const PLAYER_WEAPON_DEFINITIONS: Record<PlayerWeaponMode, PlayerWeaponDefinition
   },
   'Salvage Drone': {
     id: 'Salvage Drone',
-    maxLevel: 6,
+    maxLevel: 8,
     defaultLevel: 1,
     defaultUnlocked: false,
     shortLabel: 'SalvDrn',
@@ -230,7 +230,7 @@ const PLAYER_WEAPON_DEFINITIONS: Record<PlayerWeaponMode, PlayerWeaponDefinition
   },
   'Prism Splitter': {
     id: 'Prism Splitter',
-    maxLevel: 6,
+    maxLevel: 8,
     defaultLevel: 1,
     defaultUnlocked: false,
     shortLabel: 'Prism',
@@ -239,7 +239,7 @@ const PLAYER_WEAPON_DEFINITIONS: Record<PlayerWeaponMode, PlayerWeaponDefinition
   },
   'Polygon Shredder': {
     id: 'Polygon Shredder',
-    maxLevel: 6,
+    maxLevel: 8,
     defaultLevel: 1,
     defaultUnlocked: false,
     shortLabel: 'Poly',
@@ -248,7 +248,7 @@ const PLAYER_WEAPON_DEFINITIONS: Record<PlayerWeaponMode, PlayerWeaponDefinition
   },
   'Vector Beam': {
     id: 'Vector Beam',
-    maxLevel: 6,
+    maxLevel: 8,
     defaultLevel: 1,
     defaultUnlocked: false,
     shortLabel: 'Vector',

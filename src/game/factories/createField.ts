@@ -11,6 +11,7 @@ export interface CreateFieldOptions {
   triggerRadius?: number;
   armDelayMs?: number;
   ownerId?: number;
+  fieldVisualId?: string;
 }
 
 export function createField(
@@ -32,6 +33,7 @@ export function createField(
     lifetimeMs: options.lifetimeMs ?? 900,
     damage: options.damage ?? 0,
     fieldKind: kind,
+    fieldVisualId: options.fieldVisualId ?? kind,
     fieldRadius: options.fieldRadius ?? radius,
     fieldStrength: options.fieldStrength,
     slowPercent: options.slowPercent,

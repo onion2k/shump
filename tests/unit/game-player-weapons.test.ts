@@ -591,7 +591,134 @@ describe('Game player controls', () => {
       .find((entity) => entity.type === EntityType.Bullet && entity.faction === Faction.Player && entity.projectileKind === 'standard');
     expect(tunedBullet).toBeTruthy();
 
-    expect(Math.abs(tunedBullet?.velocity.y ?? 0)).toBeGreaterThan(Math.abs(baselineBullet?.velocity.y ?? 0));
+  expect(Math.abs(tunedBullet?.velocity.y ?? 0)).toBeGreaterThan(Math.abs(baselineBullet?.velocity.y ?? 0));
+  });
+
+  it('assigns projectile visual IDs for primary weapon bullets', () => {
+    const game = new Game();
+    game.start();
+
+    const player = game.entities.all().find((entity) => entity.type === EntityType.Player);
+    expect(player).toBeTruthy();
+    if (!player) {
+      return;
+    }
+
+    player.weaponMode = 'Heavy Cannon';
+    player.weaponLevels = { ...(player.weaponLevels ?? {}), 'Heavy Cannon': 1 };
+    player.unlockedWeaponModes = ['Auto Pulse', 'Heavy Cannon'];
+
+    game.update(0.4, {
+      hasPosition: true,
+      x: 0,
+      y: -9,
+      leftButtonDown: false,
+      rightButtonDown: false
+    });
+
+    const heavyBullet = game.entities.all().find((entity) => entity.type === EntityType.Bullet && entity.projectileVisualId === 'heavy-cannon');
+    expect(heavyBullet).toBeTruthy();
+  });
+
+  it('assigns field visual IDs for field weapons', () => {
+    const game = new Game();
+    game.start();
+
+    const player = game.entities.all().find((entity) => entity.type === EntityType.Player);
+    expect(player).toBeTruthy();
+    if (!player) {
+      return;
+    }
+
+    player.weaponMode = 'Thermal Napalm Pods';
+    player.weaponLevels = { ...(player.weaponLevels ?? {}), 'Thermal Napalm Pods': 1 };
+    player.unlockedWeaponModes = ['Auto Pulse', 'Thermal Napalm Pods'];
+
+    game.update(0.8, {
+      hasPosition: true,
+      x: 0,
+      y: -9,
+      leftButtonDown: false,
+      rightButtonDown: false
+    });
+
+    const napalmField = game.entities
+      .all()
+      .find((entity) => entity.type === EntityType.Field && entity.fieldVisualId === 'thermal-napalm-pods');
+    expect(napalmField).toBeTruthy();
+  });
+
+  it('spawns tesla and chain beam segment visuals', () => {
+    const game = new Game();
+    game.start();
+
+    const player = game.entities.all().find((entity) => entity.type === EntityType.Player);
+    expect(player).toBeTruthy();
+    if (!player) {
+      return;
+    }
+
+    game.entities.create(createEnemy(0.5, -6, 'straight'));
+    game.entities.create(createEnemy(1.2, -5.5, 'straight'));
+
+    player.weaponMode = 'Tesla Arc';
+    player.weaponLevels = { ...(player.weaponLevels ?? {}), 'Tesla Arc': 1 };
+    player.unlockedWeaponModes = ['Auto Pulse', 'Tesla Arc'];
+    player.weaponLevel = 1;
+    game.update(0.36, {
+      hasPosition: true,
+      x: 0,
+      y: -9,
+      leftButtonDown: false,
+      rightButtonDown: false
+    });
+
+    const teslaBeam = game.entities.all().find(
+      (entity) => entity.type === EntityType.Bullet && entity.projectileVisualId === 'tesla-arc'
+    );
+    expect(teslaBeam).toBeTruthy();
+
+    player.weaponMode = 'Chain Laser';
+    player.weaponLevels = { ...(player.weaponLevels ?? {}), 'Chain Laser': 1 };
+    player.unlockedWeaponModes = ['Auto Pulse', 'Chain Laser'];
+    player.weaponLevel = 1;
+    game.update(0.5, {
+      hasPosition: true,
+      x: 0,
+      y: -9,
+      leftButtonDown: false,
+      rightButtonDown: false
+    });
+
+    const chainBeam = game.entities.all().find(
+      (entity) => entity.type === EntityType.Bullet && entity.projectileKind === 'laser' && entity.projectileVisualId === 'chain-laser'
+    );
+    expect(chainBeam).toBeTruthy();
+  });
+
+  it('assigns drone visual IDs when drones deploy', () => {
+    const game = new Game();
+    game.start();
+
+    const player = game.entities.all().find((entity) => entity.type === EntityType.Player);
+    expect(player).toBeTruthy();
+    if (!player) {
+      return;
+    }
+
+    player.weaponMode = 'Attack Drone';
+    player.weaponLevels = { ...(player.weaponLevels ?? {}), 'Attack Drone': 1 };
+    player.unlockedWeaponModes = ['Auto Pulse', 'Attack Drone'];
+    game.update(0.6, {
+      hasPosition: true,
+      x: 0,
+      y: -9,
+      leftButtonDown: false,
+      rightButtonDown: false
+    });
+
+    const attackDrone = game.entities.all().find((entity) => entity.type === EntityType.Drone && entity.droneVisualId === 'attack-drone');
+    expect(attackDrone).toBeTruthy();
   });
 
   it('collects health and score pickups', () => {

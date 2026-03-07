@@ -69,7 +69,18 @@
         "debug": "#ff8f66",
         "fire": "#ff9d3a",
         "smoke": "#7f8794",
-        "enemy-shard": "#ff5a4f"
+        "enemy-shard": "#ff5a4f",
+        "napalm-ember": "#ff8a52",
+        "tesla-spark": "#8ae7ff",
+        "chain-impact": "#baffde",
+        "ion-pulse": "#72d1ff",
+        "shield-shimmer": "#8bf0ff",
+        "reflector-flash": "#c1f8ff",
+        "time-ripple": "#b8bfff",
+        "polygon-shard": "#ff9fd1",
+        "gravity-swirl": "#92a2ff",
+        "shrapnel-puff": "#ffc28c",
+        "mine-burst": "#f2dd4d"
       }
     },
     "explosionWarp": {

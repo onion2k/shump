@@ -3,6 +3,7 @@ import type { Entity } from '../ecs/components';
 import { EntityType, Faction } from '../ecs/entityTypes';
 import { createBullet } from '../factories/createBullet';
 import { createField } from '../factories/createField';
+import { createParticle } from '../factories/createParticle';
 import { applyDamage } from './damageSystem';
 
 function distanceSquared(ax: number, ay: number, bx: number, by: number): number {
@@ -28,7 +29,7 @@ function nearestEnemy(entityManager: EntityManager, x: number, y: number): Entit
 }
 
 function spawnExplosionField(entityManager: EntityManager, source: Entity, kind: NonNullable<Entity['fieldKind']>): void {
-  entityManager.create(
+  const field = entityManager.create(
     createField(source.position.x, source.position.y, kind, Faction.Player, {
       radius: source.splashRadius ?? 1,
       fieldRadius: source.splashRadius ?? 1,
@@ -39,6 +40,12 @@ function spawnExplosionField(entityManager: EntityManager, source: Entity, kind:
       ownerId: source.ownerId
     })
   );
+  field.fieldVisualId = kind;
+  const particleType = kind === 'gravity-well' ? 'gravity-swirl' : 'shrapnel-puff';
+  for (let i = 0; i < 6; i += 1) {
+    const angle = (i / 6) * Math.PI * 2;
+    entityManager.create(createParticle(source.position.x, source.position.y, Math.cos(angle) * 2.4, Math.sin(angle) * 2.4, particleType, 260, 0.05));
+  }
 }
 
 function applyRadialDamage(entityManager: EntityManager, field: Entity, deltaSeconds: number): number {
@@ -195,7 +202,7 @@ function tickDrones(entityManager: EntityManager, player: Entity, deltaSeconds: 
       const dy = target.position.y - drone.position.y;
       const mag = Math.hypot(dx, dy) || 1;
       const speed = 22;
-      entityManager.create(
+      const projectile = entityManager.create(
         createBullet(
           drone.position.x,
           drone.position.y,
@@ -207,6 +214,14 @@ function tickDrones(entityManager: EntityManager, player: Entity, deltaSeconds: 
           (dx / mag) * speed
         )
       );
+      projectile.projectileVisualId =
+        drone.droneKind === 'attack'
+          ? 'attack-drone-shot'
+          : drone.droneKind === 'interceptor'
+            ? 'interceptor-drone-shot'
+            : drone.droneKind === 'orbital-attack'
+              ? 'orbital-drone-shot'
+              : 'salvage-drone-shot';
     }
 
     drone.fireCooldownMs = drone.droneKind === 'orbital-attack' ? 280 : 220;
@@ -256,7 +271,7 @@ export function weaponEffectSystem(
           continue;
         }
         if (distanceSquared(entity.position.x, entity.position.y, enemy.position.x, enemy.position.y) <= triggerRadiusSq) {
-          entityManager.create(
+          const field = entityManager.create(
             createField(entity.position.x, entity.position.y, 'shrapnel-cloud', Faction.Player, {
               radius: entity.splashRadius ?? 1.5,
               fieldRadius: entity.splashRadius ?? 1.5,
@@ -265,6 +280,11 @@ export function weaponEffectSystem(
               ownerId: player.id
             })
           );
+          field.fieldVisualId = 'shrapnel-cloud';
+          for (let i = 0; i < 8; i += 1) {
+            const theta = (i / 8) * Math.PI * 2;
+            entityManager.create(createParticle(entity.position.x, entity.position.y, Math.cos(theta) * 3, Math.sin(theta) * 3, 'mine-burst', 220, 0.045));
+          }
           entity.health = 0;
           break;
         }

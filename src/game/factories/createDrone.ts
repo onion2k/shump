@@ -10,6 +10,7 @@ export interface CreateDroneOptions {
   orbitRadius?: number;
   orbitAngularSpeed?: number;
   orbitAngle?: number;
+  droneVisualId?: string;
 }
 
 export function createDrone(
@@ -30,6 +31,15 @@ export function createDrone(
     damage: options.damage ?? 1,
     ownerId: options.ownerId,
     droneKind: kind,
+    droneVisualId:
+      options.droneVisualId
+      ?? (kind === 'attack'
+        ? 'attack-drone'
+        : kind === 'interceptor'
+          ? 'interceptor-drone'
+          : kind === 'salvage'
+            ? 'salvage-drone'
+            : 'orbital-drone'),
     orbitRadius: options.orbitRadius,
     orbitAngularSpeed: options.orbitAngularSpeed,
     orbitAngle: options.orbitAngle

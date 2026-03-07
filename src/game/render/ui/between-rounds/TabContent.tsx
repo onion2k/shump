@@ -5,6 +5,7 @@ import { CONTENT_LAYOUT_FRACTIONS } from './constants';
 import {
   FractionColumn,
   MobileCarouselTrack,
+  PagedContentSlide,
   PageControls,
   UiText
 } from './uiPrimitives';
@@ -35,6 +36,9 @@ interface BetweenRoundsTabContentProps {
   textScaleBoost: number;
   foundDeckFull: boolean;
   money: number;
+  foundCardsCount: number;
+  shopCardsCount: number;
+  shipCardsCount: number;
   activeCards: CardDefinition[];
   activeCardLimit: number;
   visibleShopCards: CardDefinition[];
@@ -78,6 +82,9 @@ export function BetweenRoundsTabContent({
   textScaleBoost,
   foundDeckFull,
   money,
+  foundCardsCount,
+  shopCardsCount,
+  shipCardsCount,
   activeCards,
   activeCardLimit,
   visibleShopCards,
@@ -160,24 +167,26 @@ export function BetweenRoundsTabContent({
                   )}
                 />
               ) : (
-                <CardGrid
-                  cards={visibleShopCards}
-                  columns={contentColumns}
-                  rows={contentRows}
-                  cardWidth={contentCardWidth}
-                  cardHeight={contentCardHeight}
-                  gapX={contentGapX}
-                  gapY={contentGapY}
-                  money={money}
-                  activeCards={activeCards}
-                  activeCardLimit={activeCardLimit}
-                  shopMode
-                  shopBlocked={foundDeckFull}
-                  textScale={textScaleBoost}
-                  onActivateCard={onActivateCard}
-                  onDiscardCard={onDiscardCard}
-                  onBuyCard={onBuyCard}
-                />
+                <PagedContentSlide page={shopPage} pageCount={shopPageCount} width={contentWidth}>
+                  <CardGrid
+                    cards={visibleShopCards}
+                    columns={contentColumns}
+                    rows={contentRows}
+                    cardWidth={contentCardWidth}
+                    cardHeight={contentCardHeight}
+                    gapX={contentGapX}
+                    gapY={contentGapY}
+                    money={money}
+                    activeCards={activeCards}
+                    activeCardLimit={activeCardLimit}
+                    shopMode
+                    shopBlocked={foundDeckFull}
+                    textScale={textScaleBoost}
+                    onActivateCard={onActivateCard}
+                    onDiscardCard={onDiscardCard}
+                    onBuyCard={onBuyCard}
+                  />
+                </PagedContentSlide>
               )
           },
           {
@@ -186,8 +195,8 @@ export function BetweenRoundsTabContent({
             content:
               isMobile || shopPageCount > 1 ? (
                 <PageControls
-                  page={shopPage}
                   pageCount={shopPageCount}
+                  totalCount={shopCardsCount}
                   width={Math.min(contentWidth * 0.46, 3.2)}
                   y={0}
                   textScale={textScaleBoost}
@@ -254,23 +263,25 @@ export function BetweenRoundsTabContent({
                   )}
                 />
               ) : (
-                <CardGrid
-                  cards={visibleDeckCards}
-                  columns={contentColumns}
-                  rows={contentRows}
-                  cardWidth={contentCardWidth}
-                  cardHeight={contentCardHeight}
-                  gapX={contentGapX}
-                  gapY={contentGapY}
-                  money={money}
-                  activeCards={activeCards}
-                  activeCardLimit={activeCardLimit}
-                  shopMode={false}
-                  textScale={textScaleBoost}
-                  onActivateCard={onActivateCard}
-                  onDiscardCard={onDiscardCard}
-                  onBuyCard={onBuyCard}
-                />
+                <PagedContentSlide page={deckPage} pageCount={deckPageCount} width={contentWidth}>
+                  <CardGrid
+                    cards={visibleDeckCards}
+                    columns={contentColumns}
+                    rows={contentRows}
+                    cardWidth={contentCardWidth}
+                    cardHeight={contentCardHeight}
+                    gapX={contentGapX}
+                    gapY={contentGapY}
+                    money={money}
+                    activeCards={activeCards}
+                    activeCardLimit={activeCardLimit}
+                    shopMode={false}
+                    textScale={textScaleBoost}
+                    onActivateCard={onActivateCard}
+                    onDiscardCard={onDiscardCard}
+                    onBuyCard={onBuyCard}
+                  />
+                </PagedContentSlide>
               )
           },
           {
@@ -287,8 +298,8 @@ export function BetweenRoundsTabContent({
                     content:
                       isMobile || deckPageCount > 1 ? (
                         <PageControls
-                          page={deckPage}
                           pageCount={deckPageCount}
+                          totalCount={foundCardsCount}
                           width={Math.min(contentWidth * 0.46, 3.2)}
                           y={0}
                           textScale={textScaleBoost}
@@ -372,18 +383,21 @@ export function BetweenRoundsTabContent({
                 }}
               />
             ) : (
-              <ShipStatsPanel
-                cardWidth={contentCardWidth}
-                cardHeight={contentCardHeight}
-                columns={contentColumns}
-                rows={contentRows}
-                gapX={contentGapX}
-                gapY={contentGapY}
-                weaponLevels={weaponLevels}
-                textScale={textScaleBoost}
-                selectedPrimaryWeapon={selectedPrimaryWeapon}
-                onSelectPrimaryWeapon={onSelectPrimaryWeapon}
-              />
+              <PagedContentSlide page={shipPage} pageCount={shipPageCount} width={contentWidth}>
+                <ShipStatsPanel
+                  shipCards={shipCards}
+                  cardWidth={contentCardWidth}
+                  cardHeight={contentCardHeight}
+                  columns={contentColumns}
+                  rows={contentRows}
+                  gapX={contentGapX}
+                  gapY={contentGapY}
+                  weaponLevels={weaponLevels}
+                  textScale={textScaleBoost}
+                  selectedPrimaryWeapon={selectedPrimaryWeapon}
+                  onSelectPrimaryWeapon={onSelectPrimaryWeapon}
+                />
+              </PagedContentSlide>
             )
           },
           {
@@ -417,8 +431,8 @@ export function BetweenRoundsTabContent({
                     content:
                       isMobile || shipPageCount > 1 ? (
                         <PageControls
-                          page={shipPage}
                           pageCount={shipPageCount}
+                          totalCount={shipCardsCount}
                           width={Math.min(contentWidth * 0.46, 3.2)}
                           y={0}
                           textScale={textScaleBoost}

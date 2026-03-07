@@ -3,15 +3,10 @@ import { useMemo, useRef, useState } from 'react';
 import { Box, Flex } from '../layout/FlexLayout';
 import type { Group } from 'three';
 import { isConsumableUpgradeCard, type CardDefinition } from '../../../content/cards';
-import {
-  PLAYER_WEAPON_ORDER,
-  getPlayerWeaponMaxLevel,
-  getPlayerWeaponMinimumLevel,
-  type PlayerWeaponMode
-} from '../../../weapons/playerWeapons';
+import { getPlayerWeaponMinimumLevel, type PlayerWeaponMode } from '../../../weapons/playerWeapons';
 import { MOBILE_TEXT_BREAKPOINT_PX } from './constants';
 import type { CardRenderModel } from './types';
-import { cardColorByRarity, cardIcon, weaponModeTag, weaponShortLabel } from './utils';
+import { cardColorByRarity, cardIcon } from './utils';
 import { ActionButton, UiText } from './uiPrimitives';
 
 interface InteractiveCardProps {
@@ -358,6 +353,7 @@ export function ActiveCardGrid({
 }
 
 export function ShipStatsPanel({
+  shipCards,
   cardWidth,
   cardHeight,
   columns,
@@ -369,6 +365,7 @@ export function ShipStatsPanel({
   selectedPrimaryWeapon,
   onSelectPrimaryWeapon
 }: {
+  shipCards: CardRenderModel[];
   cardWidth: number;
   cardHeight: number;
   columns: number;
@@ -380,26 +377,18 @@ export function ShipStatsPanel({
   selectedPrimaryWeapon: PlayerWeaponMode;
   onSelectPrimaryWeapon: (mode: PlayerWeaponMode) => void;
 }) {
-  const cards: CardRenderModel[] = PLAYER_WEAPON_ORDER.map((mode) => ({
-    id: `ship-${mode}`,
-    name: weaponShortLabel(mode),
-    description: `Level ${weaponLevels[mode] ?? getPlayerWeaponMinimumLevel(mode)}/${getPlayerWeaponMaxLevel(mode)}`,
-    rarity: 'common',
-    tags: [weaponModeTag(mode), 'weapon']
-  }));
-
   const gridWidth = columns * cardWidth + Math.max(0, columns - 1) * gapX;
   const gridHeight = rows * cardHeight + Math.max(0, rows - 1) * gapY;
 
   return (
     <group>
       <Flex size={[gridWidth, gridHeight, 0]} position={[-gridWidth / 2, gridHeight / 2, 0.03]} flexDirection="row" flexWrap="wrap">
-        {cards.map((card, index) => {
+        {shipCards.map((card, index) => {
           const col = index % columns;
           const row = Math.floor(index / columns);
           const rightGap = col < columns - 1 ? gapX : 0;
           const bottomGap = row < rows - 1 ? gapY : 0;
-          const mode = PLAYER_WEAPON_ORDER[index] ?? 'Auto Pulse';
+          const mode = card.id.replace('ship-', '') as PlayerWeaponMode;
           const level = weaponLevels[mode] ?? getPlayerWeaponMinimumLevel(mode);
           return (
             <Box key={card.id} width={cardWidth} height={cardHeight} mr={rightGap} mb={bottomGap} centerAnchor>

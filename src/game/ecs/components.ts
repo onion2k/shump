@@ -66,6 +66,7 @@ export interface Entity {
   podIndex?: number;
   damage?: number;
   projectileKind?: 'standard' | 'missile' | 'laser' | 'mine' | 'disc' | 'arc' | 'barrier' | 'vector' | 'shrapnel';
+  projectileVisualId?: string;
   projectileSpeed?: number;
   homingTargetId?: number;
   homingTurnRate?: number;
@@ -84,6 +85,7 @@ export interface Entity {
   pickupValue?: number;
   particleType?: string;
   fieldKind?: 'shrapnel-cloud' | 'gravity-well' | 'napalm-field' | 'time-distortion' | 'shield-barrier' | 'polygon-shredder';
+  fieldVisualId?: string;
   fieldRadius?: number;
   fieldStrength?: number;
   slowPercent?: number;
@@ -91,6 +93,7 @@ export interface Entity {
   armDelayMs?: number;
   ownerId?: number;
   droneKind?: 'orbital-attack' | 'attack' | 'interceptor' | 'salvage';
+  droneVisualId?: string;
   orbitRadius?: number;
   orbitAngularSpeed?: number;
   orbitAngle?: number;

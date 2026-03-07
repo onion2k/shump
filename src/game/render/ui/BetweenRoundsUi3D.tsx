@@ -118,6 +118,8 @@ export function BetweenRoundsUi3D({
   } = layout;
   const deckCardsPerPage = cardsPerPage;
   const shopCardsPerPage = cardsPerPage;
+  const shipCardsPerPage = cardsPerPage;
+  const activeCardsPerPage = cardsPerPage;
 
   const foundDeckFull = foundCards.length >= 12;
 
@@ -184,7 +186,9 @@ export function BetweenRoundsUi3D({
     activeCardsCount: activeCards.length,
     shipCardsCount: shipCards.length,
     deckCardsPerPage,
-    shopCardsPerPage
+    shopCardsPerPage,
+    shipCardsPerPage,
+    activeCardsPerPage
   });
 
   useEffect(() => {
@@ -207,6 +211,9 @@ export function BetweenRoundsUi3D({
   const visibleShopCards = isMobile
     ? shopCards
     : shopCards.slice(shopPage * shopCardsPerPage, shopPage * shopCardsPerPage + shopCardsPerPage);
+  const visibleShipCards = isMobile
+    ? shipCards
+    : shipCards.slice(shipPage * shipCardsPerPage, shipPage * shipCardsPerPage + shipCardsPerPage);
   const nextRoundInfo = resolveNextRoundDisplay(levelId, roundIndex, totalRounds);
 
   const cycleTab = (direction: -1 | 1) => {
@@ -281,11 +288,14 @@ export function BetweenRoundsUi3D({
               textScaleBoost={textScaleBoost}
               foundDeckFull={foundDeckFull}
               money={money}
+              foundCardsCount={foundCards.length}
+              shopCardsCount={shopCards.length}
+              shipCardsCount={shipCards.length}
               activeCards={activeCards}
               activeCardLimit={activeCardLimit}
               visibleShopCards={visibleShopCards}
               visibleDeckCards={visibleDeckCards}
-              shipCards={shipCards}
+              shipCards={visibleShipCards}
               weaponLevels={weaponLevels}
               weaponEnergyMax={weaponEnergyMax}
               podCount={podCount}
@@ -317,6 +327,7 @@ export function BetweenRoundsUi3D({
             isMobile={isMobile}
             activeCards={activeCards}
             activeCardLimit={activeCardLimit}
+            activeCardsCount={activeCards.length}
             activePage={activePage}
             activePageCount={activePageCount}
             setActivePage={setActivePage}

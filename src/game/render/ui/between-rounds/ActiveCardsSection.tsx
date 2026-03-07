@@ -13,6 +13,7 @@ interface ActiveCardsSectionProps {
   isMobile: boolean;
   activeCards: CardDefinition[];
   activeCardLimit: number;
+  activeCardsCount: number;
   activePage: number;
   activePageCount: number;
   setActivePage: Dispatch<SetStateAction<number>>;
@@ -36,6 +37,7 @@ export function ActiveCardsSection({
   isMobile,
   activeCards,
   activeCardLimit,
+  activeCardsCount,
   activePage,
   activePageCount,
   setActivePage,
@@ -118,8 +120,8 @@ export function ActiveCardsSection({
             content:
               isMobile || activePageCount > 1 ? (
                 <PageControls
-                  page={activePage}
                   pageCount={activePageCount}
+                  totalCount={activeCardsCount}
                   width={Math.min(contentWidth * 0.44, 2.8)}
                   y={0}
                   textScale={textScaleBoost}

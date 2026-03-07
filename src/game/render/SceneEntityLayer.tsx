@@ -4,8 +4,10 @@ import type { PlayerWeaponMode } from '../weapons/playerWeapons';
 import { PlayerMesh } from './meshes/PlayerMesh';
 import { EnemyMesh } from './meshes/EnemyMesh';
 import { PodMesh } from './meshes/PodMesh';
+import { DroneMesh } from './meshes/DroneMesh';
 import { PickupMesh } from './meshes/PickupMesh';
 import { BulletInstances } from './meshes/BulletInstances';
+import { FieldMesh } from './meshes/FieldMesh';
 
 interface SceneEntityLayerProps {
   entities: ReturnType<Game['entitiesForRender']>;
@@ -55,7 +57,7 @@ export function SceneEntityLayer({ entities }: SceneEntityLayerProps) {
         if (entity.type === EntityType.Drone) {
           return (
             <group key={entity.id} position={position} scale={0.85}>
-              <PodMesh />
+              <DroneMesh visualId={entity.droneVisualId} ageMs={entity.ageMs} />
             </group>
           );
         }
@@ -71,10 +73,12 @@ export function SceneEntityLayer({ entities }: SceneEntityLayerProps) {
         if (entity.type === EntityType.Field) {
           return (
             <group key={entity.id} position={position}>
-              <mesh>
-                <ringGeometry args={[Math.max(0.1, (entity.fieldRadius ?? entity.radius) * 0.55), Math.max(0.2, entity.fieldRadius ?? entity.radius), 24]} />
-                <meshBasicMaterial color="#8ed6ff" transparent opacity={0.45} toneMapped={false} />
-              </mesh>
+              <FieldMesh
+                visualId={entity.fieldVisualId ?? entity.fieldKind ?? undefined}
+                radius={entity.fieldRadius ?? entity.radius}
+                ageMs={entity.ageMs}
+                lifetimeMs={entity.lifetimeMs}
+              />
             </group>
           );
         }

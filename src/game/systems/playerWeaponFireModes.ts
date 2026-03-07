@@ -4,6 +4,7 @@ import { createBullet } from '../factories/createBullet';
 import { createLaserBeam } from '../factories/createLaserBeam';
 import { createField } from '../factories/createField';
 import { createDrone } from '../factories/createDrone';
+import { createParticle } from '../factories/createParticle';
 import { EntityType, Faction } from '../ecs/entityTypes';
 import { applyDamage } from './damageSystem';
 import {
@@ -38,6 +39,84 @@ const CANNON_BASE_COST = 14;
 
 const SINE_SMG_BASE_INTERVAL_MS = 58;
 const SINE_SMG_BASE_COST = 2;
+
+const WEAPON_PROJECTILE_VISUAL_ID: Record<PlayerWeaponMode, string> = {
+  'Auto Pulse': 'auto-pulse',
+  'Continuous Laser': 'continuous-laser',
+  'Heavy Cannon': 'heavy-cannon',
+  'Sine SMG': 'sine-smg',
+  'Flak Cannon': 'flak-cannon',
+  'Proximity Mines': 'proximity-mines',
+  'Gravity Bomb': 'gravity-bomb',
+  'Thermal Napalm Pods': 'thermal-napalm-pods',
+  'Tesla Arc': 'tesla-arc',
+  'Chain Laser': 'chain-laser',
+  'Ion Burst': 'ion-burst',
+  'Spread Shot': 'spread-shot',
+  'Helix Blaster': 'helix-blaster',
+  'Orbital Drones': 'orbital-drone-shot',
+  'Rotary Disc Launcher': 'rotary-disc',
+  'Energy Shield Projector': 'energy-shield-projector',
+  'Reflector Pulse': 'reflector-pulse',
+  'Time Distortion Pulse': 'time-distortion-pulse',
+  'Attack Drone': 'attack-drone-shot',
+  'Interceptor Drone': 'interceptor-drone-shot',
+  'Salvage Drone': 'salvage-drone-shot',
+  'Prism Splitter': 'prism-splitter',
+  'Polygon Shredder': 'polygon-shredder',
+  'Vector Beam': 'vector-beam'
+};
+
+const WEAPON_FIELD_VISUAL_ID: Partial<Record<PlayerWeaponMode, string>> = {
+  'Thermal Napalm Pods': 'thermal-napalm-pods',
+  'Ion Burst': 'ion-burst',
+  'Energy Shield Projector': 'energy-shield-projector',
+  'Reflector Pulse': 'reflector-pulse',
+  'Time Distortion Pulse': 'time-distortion-pulse',
+  'Polygon Shredder': 'polygon-shredder'
+};
+
+function setWeaponProjectileVisual(entity: Entity, weaponMode: PlayerWeaponMode): void {
+  entity.projectileVisualId = WEAPON_PROJECTILE_VISUAL_ID[weaponMode];
+}
+
+function setWeaponFieldVisual(entity: Entity, weaponMode: PlayerWeaponMode): void {
+  entity.fieldVisualId = WEAPON_FIELD_VISUAL_ID[weaponMode] ?? weaponMode.toLowerCase().replace(/\s+/g, '-');
+}
+
+function spawnWeaponParticles(entityManager: EntityManager, x: number, y: number, particleType: string, count: number): void {
+  for (let i = 0; i < count; i += 1) {
+    const angle = (i / Math.max(1, count)) * Math.PI * 2;
+    const speed = 2 + (i % 3);
+    entityManager.create(createParticle(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, particleType, 220 + (i % 4) * 40, 0.05));
+  }
+}
+
+function spawnSegmentBeam(
+  entityManager: EntityManager,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  projectileVisualId: string,
+  lifetimeMs: number,
+  jitter = 0
+): void {
+  const seed = Math.sin((x1 + y1 + x2 + y2) * 9.31);
+  const jitterX = seed * jitter * 0.5;
+  const jitterY = Math.cos(seed * 1.7) * jitter * 0.5;
+  const dx = x2 - x1 + jitterX;
+  const dy = y2 - y1 + jitterY;
+  const length = Math.max(0.2, Math.hypot(dx, dy));
+  const nx = dx / length;
+  const ny = dy / length;
+  const beam = entityManager.create(createLaserBeam(x1, y1, length, 0.15, lifetimeMs));
+  beam.projectileKind = 'laser';
+  beam.projectileVisualId = projectileVisualId;
+  beam.velocity.x = nx;
+  beam.velocity.y = ny;
+  beam.faction = undefined;
+}
 
 export interface ModeFireResult extends FireOutcome {
   firedRecords: WeaponFireRecord[];
@@ -139,6 +218,7 @@ function fireMultiPellet(
     if (projectileKind && projectileKind !== 'standard') {
       bullet.projectileKind = projectileKind;
     }
+    setWeaponProjectileVisual(bullet, weaponMode);
     records.push({ weaponMode, projectileEntityId: bullet.id });
   }
   return records;
@@ -246,6 +326,7 @@ export function fireAutoPulse(
           buildProjectileMetadata(options, false)
         )
       );
+      setWeaponProjectileVisual(bullet, 'Auto Pulse');
       firedRecords.push({ weaponMode: 'Auto Pulse', projectileEntityId: bullet.id });
     }
   }
@@ -328,10 +409,14 @@ export function spawnLaserBeam(
   intervalMs: number,
   range: number,
   halfWidth: number,
-  projectileKind: Entity['projectileKind'] = 'laser'
+  projectileKind: Entity['projectileKind'] = 'laser',
+  projectileVisualId?: string
 ): void {
-  const beam = entityManager.create(createLaserBeam(player.position.x, player.position.y + 0.95, range, halfWidth, Math.max(90, intervalMs * 0.65)));
+  const beam = entityManager.create(createLaserBeam(player.position.x, player.position.y + 0.95, range, halfWidth, Math.max(1000, intervalMs * 2)));
   beam.projectileKind = projectileKind;
+  beam.projectileVisualId = projectileVisualId ?? (projectileKind === 'vector' ? 'vector-beam' : 'continuous-laser');
+  beam.velocity.x = 0;
+  beam.velocity.y = 1;
 }
 
 export function fireHeavyCannon(
@@ -409,6 +494,7 @@ export function fireHeavyCannon(
         buildProjectileMetadata(options, true)
       )
     );
+    setWeaponProjectileVisual(bullet, 'Heavy Cannon');
     firedRecords.push({ weaponMode: 'Heavy Cannon', projectileEntityId: bullet.id });
   }
 
@@ -492,6 +578,7 @@ export function fireSineSmg(
         buildProjectileMetadata(options, false)
       )
     );
+    setWeaponProjectileVisual(bullet, 'Sine SMG');
     firedRecords.push({ weaponMode: 'Sine SMG', projectileEntityId: bullet.id });
   }
 
@@ -517,6 +604,7 @@ function fireFlakCannon(
       sourceWeaponTag: 'flak-cannon-shell'
     })
   );
+  setWeaponProjectileVisual(bullet, 'Flak Cannon');
   return { fired: true, intervalMs, energyCost, firedRecords: [{ weaponMode: 'Flak Cannon', projectileEntityId: bullet.id }], scoreDelta: 0 };
 }
 
@@ -536,6 +624,7 @@ function fireProximityMines(
     })
   );
   mine.projectileKind = 'mine';
+  setWeaponProjectileVisual(mine, 'Proximity Mines');
   mine.armDelayMs = 380;
   mine.triggerRadius = 1.2 + level * 0.08;
   mine.splashRadius = 1.4 + level * 0.12;
@@ -557,6 +646,7 @@ function fireGravityBomb(
       sourceWeaponTag: 'gravity-bomb'
     })
   );
+  setWeaponProjectileVisual(bomb, 'Gravity Bomb');
   bomb.splashRadius = 2 + level * 0.15;
   return { fired: true, intervalMs, energyCost, firedRecords: [{ weaponMode: 'Gravity Bomb', projectileEntityId: bomb.id }], scoreDelta: 0 };
 }
@@ -567,7 +657,7 @@ function fireThermalNapalmPods(entityManager: EntityManager, player: PlayerEntit
   if (!minEnergy(player, energyCost)) {
     return noFire(intervalMs, energyCost);
   }
-  entityManager.create(
+  const field = entityManager.create(
     createField(player.position.x, player.position.y - 0.8, 'napalm-field', Faction.Player, {
       radius: 0.9 + level * 0.06,
       fieldRadius: 1.1 + level * 0.08,
@@ -576,6 +666,8 @@ function fireThermalNapalmPods(entityManager: EntityManager, player: PlayerEntit
       ownerId: player.id
     })
   );
+  setWeaponFieldVisual(field, 'Thermal Napalm Pods');
+  spawnWeaponParticles(entityManager, field.position.x, field.position.y, 'napalm-ember', 8);
   return { fired: true, intervalMs, energyCost, firedRecords: [{ weaponMode: 'Thermal Napalm Pods' }], scoreDelta: 0 };
 }
 
@@ -588,8 +680,14 @@ function fireTeslaArc(entityManager: EntityManager, player: PlayerEntity, level:
   const chainTargets = nearestEnemies(entityManager, player.position.x, player.position.y, 2 + Math.floor(level / 2), 7 + level * 0.4);
   let damage = (2 + level * 0.8) * damageScale(options);
   let scoreDelta = 0;
+  let sourceX = player.position.x;
+  let sourceY = player.position.y + 0.74;
   for (const target of chainTargets) {
     scoreDelta += dealDamage(target, Math.max(1, damage));
+    spawnSegmentBeam(entityManager, sourceX, sourceY, target.position.x, target.position.y, 'tesla-arc', 680, 0.22);
+    spawnWeaponParticles(entityManager, target.position.x, target.position.y, 'tesla-spark', 4);
+    sourceX = target.position.x;
+    sourceY = target.position.y;
     damage *= 0.72;
   }
   const visuals = fireMultiPellet(
@@ -604,6 +702,9 @@ function fireTeslaArc(entityManager: EntityManager, player: PlayerEntity, level:
     'arc',
     0.12
   );
+  if (visuals.length === 0) {
+    spawnSegmentBeam(entityManager, player.position.x, player.position.y + 0.74, player.position.x, player.position.y + 2.3, 'tesla-arc', 680, 0.12);
+  }
   return { fired: true, intervalMs, energyCost, firedRecords: visuals, scoreDelta };
 }
 
@@ -625,15 +726,23 @@ function fireChainLaser(
   let scoreDelta = 0;
   if (primary) {
     scoreDelta += dealDamage(primary, baseDamage);
+    spawnSegmentBeam(entityManager, player.position.x, player.position.y + 0.92, primary.position.x, primary.position.y, 'chain-laser', 680);
+    spawnWeaponParticles(entityManager, primary.position.x, primary.position.y, 'chain-impact', 5);
     const secondaryTargets = nearestEnemies(entityManager, primary.position.x, primary.position.y, 3, 5.2).filter((target) => target.id !== primary.id);
     let damage = baseDamage * 0.7;
+    let sourceX = primary.position.x;
+    let sourceY = primary.position.y;
     for (const target of secondaryTargets) {
       scoreDelta += dealDamage(target, damage);
+      spawnSegmentBeam(entityManager, sourceX, sourceY, target.position.x, target.position.y, 'chain-laser', 680);
+      spawnWeaponParticles(entityManager, target.position.x, target.position.y, 'chain-impact', 4);
+      sourceX = target.position.x;
+      sourceY = target.position.y;
       damage *= 0.72;
     }
   }
 
-  spawnLaserBeam(entityManager, player, intervalMs, 34, 0.42);
+  spawnLaserBeam(entityManager, player, intervalMs, 34, 0.42, 'laser', 'chain-laser');
   return { fired: true, intervalMs, energyCost, firedRecords: [{ weaponMode: 'Chain Laser' }], scoreDelta };
 }
 
@@ -649,7 +758,7 @@ function fireIonBurst(entityManager: EntityManager, player: PlayerEntity, level:
     scoreDelta += dealDamage(target, (1 + level * 0.4) * damageScale(options));
     addStatus(target, 'emp-disabled', 650 + level * 50);
   }
-  entityManager.create(
+  const field = entityManager.create(
     createField(player.position.x, player.position.y + 0.6, 'time-distortion', Faction.Player, {
       radius: 0.9,
       fieldRadius: 2 + level * 0.1,
@@ -657,6 +766,8 @@ function fireIonBurst(entityManager: EntityManager, player: PlayerEntity, level:
       lifetimeMs: 220
     })
   );
+  setWeaponFieldVisual(field, 'Ion Burst');
+  spawnWeaponParticles(entityManager, field.position.x, field.position.y, 'ion-pulse', 8);
   return { fired: true, intervalMs, energyCost, firedRecords: [{ weaponMode: 'Ion Burst' }], scoreDelta };
 }
 
@@ -700,6 +811,7 @@ function fireHelixBlaster(
     const theta = phase + offsetPhase;
     const vx = Math.sin(theta) * speed * 0.3 * amp;
     const bullet = entityManager.create(createBullet(player.position.x, player.position.y + 0.7, speed * 0.95, Faction.Player, 1450, damage, 0.16, vx));
+    setWeaponProjectileVisual(bullet, 'Helix Blaster');
     firedRecords.push({ weaponMode: 'Helix Blaster', projectileEntityId: bullet.id });
   }
   player.weaponOscillator = (phase + 0.42 + level * 0.012) % (Math.PI * 2);
@@ -718,6 +830,8 @@ function ensureDrone(
   );
   if (existing) {
     existing.damage = Math.max(existing.damage ?? 1, 1 + Math.floor(level / 2));
+    existing.droneVisualId =
+      droneKind === 'attack' ? 'attack-drone' : droneKind === 'interceptor' ? 'interceptor-drone' : droneKind === 'salvage' ? 'salvage-drone' : 'orbital-drone';
     return existing.id;
   }
 
@@ -730,6 +844,8 @@ function ensureDrone(
       orbitAngle: orbit ? 0 : undefined
     })
   );
+  drone.droneVisualId =
+    droneKind === 'attack' ? 'attack-drone' : droneKind === 'interceptor' ? 'interceptor-drone' : droneKind === 'salvage' ? 'salvage-drone' : 'orbital-drone';
   drone.fireCooldownMs = 0;
   return drone.id;
 }
@@ -755,6 +871,7 @@ function fireOrbitalDrones(entityManager: EntityManager, player: PlayerEntity, l
           orbitAngle: i * Math.PI
         })
       );
+      drone.droneVisualId = 'orbital-drone';
       drone.fireCooldownMs = i * 160;
     }
   }
@@ -774,6 +891,7 @@ function fireRotaryDiscLauncher(entityManager: EntityManager, player: PlayerEnti
     })
   );
   disc.projectileKind = 'disc';
+  setWeaponProjectileVisual(disc, 'Rotary Disc Launcher');
   return {
     fired: true,
     intervalMs,
@@ -789,7 +907,7 @@ function fireEnergyShieldProjector(entityManager: EntityManager, player: PlayerE
   if (!minEnergy(player, energyCost)) {
     return noFire(intervalMs, energyCost);
   }
-  entityManager.create(
+  const field = entityManager.create(
     createField(player.position.x, player.position.y + 1.4, 'shield-barrier', Faction.Player, {
       radius: 0.65 + level * 0.05,
       fieldRadius: 0.9 + level * 0.06,
@@ -798,6 +916,8 @@ function fireEnergyShieldProjector(entityManager: EntityManager, player: PlayerE
       ownerId: player.id
     })
   );
+  setWeaponFieldVisual(field, 'Energy Shield Projector');
+  spawnWeaponParticles(entityManager, field.position.x, field.position.y, 'shield-shimmer', 6);
   return { fired: true, intervalMs, energyCost, firedRecords: [{ weaponMode: 'Energy Shield Projector' }], scoreDelta: 0 };
 }
 
@@ -807,7 +927,7 @@ function fireReflectorPulse(entityManager: EntityManager, player: PlayerEntity, 
   if (!minEnergy(player, energyCost)) {
     return noFire(intervalMs, energyCost);
   }
-  entityManager.create(
+  const field = entityManager.create(
     createField(player.position.x, player.position.y + 0.35, 'time-distortion', Faction.Player, {
       radius: 0.7,
       fieldRadius: 2.1 + level * 0.14,
@@ -815,7 +935,10 @@ function fireReflectorPulse(entityManager: EntityManager, player: PlayerEntity, 
       lifetimeMs: 200,
       ownerId: player.id
     })
-  ).sourceWeaponTag = 'reflector-pulse';
+  );
+  field.sourceWeaponTag = 'reflector-pulse';
+  setWeaponFieldVisual(field, 'Reflector Pulse');
+  spawnWeaponParticles(entityManager, field.position.x, field.position.y, 'reflector-flash', 7);
   return { fired: true, intervalMs, energyCost, firedRecords: [{ weaponMode: 'Reflector Pulse' }], scoreDelta: 0 };
 }
 
@@ -825,7 +948,7 @@ function fireTimeDistortionPulse(entityManager: EntityManager, player: PlayerEnt
   if (!minEnergy(player, energyCost)) {
     return noFire(intervalMs, energyCost);
   }
-  entityManager.create(
+  const field = entityManager.create(
     createField(player.position.x, player.position.y + 0.7, 'time-distortion', Faction.Player, {
       radius: 0.9,
       fieldRadius: 2.5 + level * 0.16,
@@ -834,6 +957,8 @@ function fireTimeDistortionPulse(entityManager: EntityManager, player: PlayerEnt
       ownerId: player.id
     })
   );
+  setWeaponFieldVisual(field, 'Time Distortion Pulse');
+  spawnWeaponParticles(entityManager, field.position.x, field.position.y, 'time-ripple', 7);
   return { fired: true, intervalMs, energyCost, firedRecords: [{ weaponMode: 'Time Distortion Pulse' }], scoreDelta: 0 };
 }
 
@@ -886,6 +1011,7 @@ function firePrismSplitter(entityManager: EntityManager, player: PlayerEntity, l
       sourceWeaponTag: 'prism-splitter'
     })
   );
+  setWeaponProjectileVisual(bullet, 'Prism Splitter');
   if ((options.shotCounter ?? 0) % 6 === 0) {
     const prism = entityManager.create(
       createField(player.position.x + (Math.sin((options.elapsedMs ?? 0) * 0.002) > 0 ? 1 : -1) * 1.2, player.position.y + 3.4, 'time-distortion',
@@ -910,7 +1036,7 @@ function firePolygonShredder(entityManager: EntityManager, player: PlayerEntity,
   if (!minEnergy(player, energyCost)) {
     return noFire(intervalMs, energyCost);
   }
-  entityManager.create(
+  const field = entityManager.create(
     createField(player.position.x, player.position.y + 0.2, 'polygon-shredder', Faction.Player, {
       radius: 0.3,
       fieldRadius: 0.8 + level * 0.2,
@@ -920,6 +1046,8 @@ function firePolygonShredder(entityManager: EntityManager, player: PlayerEntity,
       ownerId: player.id
     })
   );
+  setWeaponFieldVisual(field, 'Polygon Shredder');
+  spawnWeaponParticles(entityManager, field.position.x, field.position.y, 'polygon-shard', 8);
   return { fired: true, intervalMs, energyCost, firedRecords: [{ weaponMode: 'Polygon Shredder' }], scoreDelta: 0 };
 }
 
@@ -941,7 +1069,7 @@ function fireVectorBeam(
   for (const target of targets) {
     scoreDelta += dealDamage(target, damage);
   }
-  spawnLaserBeam(entityManager, player, 120, 40, 0.22, 'vector');
+  spawnLaserBeam(entityManager, player, 120, 40, 0.22, 'vector', 'vector-beam');
   return { fired: true, intervalMs, energyCost, firedRecords: [{ weaponMode: 'Vector Beam' }], scoreDelta };
 }
 
