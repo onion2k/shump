@@ -23,7 +23,18 @@ export type CardEffect =
   | { kind: 'podWeaponMode'; mode: 'Auto Pulse' | 'Homing Missile' }
   | { kind: 'playerStat'; stat: PlayerStatCardStat; amount: number }
   | { kind: 'modifier'; key: GameplayModifierKey; amount: number }
-  | { kind: 'weaponTuning'; weaponMode: WeaponTuningMode; stat: WeaponTuningStat; amount: number };
+  | { kind: 'weaponTuning'; weaponMode: WeaponTuningMode; stat: WeaponTuningStat; amount: number }
+  | { kind: 'weaponAmplifier'; effectId: string; amount: number; weaponMode?: WeaponTuningMode }
+  | { kind: 'projectileModifier'; effectId: string; amount: number; weaponMode?: WeaponTuningMode }
+  | { kind: 'missileModifier'; effectId: string; amount: number; weaponMode?: WeaponTuningMode }
+  | { kind: 'patternModifier'; effectId: string; amount: number; weaponMode?: WeaponTuningMode }
+  | { kind: 'defenseModifier'; effectId: string; amount: number }
+  | { kind: 'mobilityModifier'; effectId: string; amount: number }
+  | { kind: 'droneModifier'; effectId: string; amount: number }
+  | { kind: 'economyModifier'; effectId: string; amount: number }
+  | { kind: 'conditionalModifier'; effectId: string; amount: number }
+  | { kind: 'triggerModifier'; effectId: string; amount: number; chancePercent?: number }
+  | { kind: 'temporaryRoundModifier'; effectId: string; amount: number; durationMs: number };
 
 export interface CardDefinition {
   id: string;
@@ -112,19 +123,6 @@ export const cardCatalog: CardDefinition[] = [
     shopWeight: 1.15,
     dropWeight: 1,
     effects: [{ kind: 'moneyMultiplier', percent: 20 }]
-  },
-  {
-    id: 'laser-calibrator',
-    name: 'Laser Calibrator',
-    description: '+1 Continuous Laser level.',
-    rarity: 'uncommon',
-    tags: ['weapon', 'laser', 'precision'],
-    cost: 58,
-    maxStacks: 2,
-    unlockRound: 2,
-    shopWeight: 1,
-    dropWeight: 0.85,
-    effects: [{ kind: 'weaponLevel', weaponMode: 'Continuous Laser', amount: 1 }]
   },
   {
     id: 'cannon-breach',
@@ -309,6 +307,194 @@ export const cardCatalog: CardDefinition[] = [
       { kind: 'modifier', key: 'spawn.enemyDensityPercent', amount: 10 },
       { kind: 'modifier', key: 'enemy.scorePercent', amount: 25 }
     ]
+  },
+  {
+    id: 'overcharged-capacitors',
+    name: 'Overcharged Capacitors',
+    description: 'Continuous Laser deals more damage with a wider beam.',
+    rarity: 'rare',
+    tags: ['weapon', 'laser', 'precision'],
+    cost: 82,
+    maxStacks: 1,
+    unlockRound: 3,
+    shopWeight: 0.56,
+    dropWeight: 0.44,
+    effects: [
+      { kind: 'weaponAmplifier', effectId: 'overcharged-capacitors-damage', amount: 28, weaponMode: 'Continuous Laser' },
+      { kind: 'weaponAmplifier', effectId: 'overcharged-capacitors-width', amount: 30, weaponMode: 'Continuous Laser' }
+    ]
+  },
+  {
+    id: 'high-velocity-rounds',
+    name: 'High Velocity Rounds',
+    description: 'Ballistic rounds travel faster and pierce an additional enemy.',
+    rarity: 'uncommon',
+    tags: ['weapon', 'assault', 'cannon'],
+    cost: 66,
+    maxStacks: 1,
+    unlockRound: 2,
+    shopWeight: 0.86,
+    dropWeight: 0.7,
+    effects: [
+      { kind: 'projectileModifier', effectId: 'high-velocity-rounds-speed', amount: 24 },
+      { kind: 'projectileModifier', effectId: 'high-velocity-rounds-pierce', amount: 1 }
+    ]
+  },
+  {
+    id: 'twin-mounts',
+    name: 'Twin Mounts',
+    description: 'Primary weapon fires additional parallel streams.',
+    rarity: 'rare',
+    tags: ['weapon', 'assault'],
+    cost: 80,
+    maxStacks: 1,
+    unlockRound: 3,
+    shopWeight: 0.52,
+    dropWeight: 0.42,
+    effects: [{ kind: 'weaponAmplifier', effectId: 'twin-mounts', amount: 1 }]
+  },
+  {
+    id: 'gyrostabilised-cannons',
+    name: 'Gyrostabilised Cannons',
+    description: 'Reduces drift and spread on ballistic volleys.',
+    rarity: 'uncommon',
+    tags: ['weapon', 'cannon', 'precision'],
+    cost: 62,
+    maxStacks: 1,
+    unlockRound: 2,
+    shopWeight: 0.84,
+    dropWeight: 0.68,
+    effects: [{ kind: 'weaponAmplifier', effectId: 'gyrostabilised-cannons', amount: 35 }]
+  },
+  {
+    id: 'explosive-payload',
+    name: 'Explosive Payload',
+    description: 'Projectiles deal splash damage on impact.',
+    rarity: 'rare',
+    tags: ['weapon', 'assault'],
+    cost: 84,
+    maxStacks: 1,
+    unlockRound: 3,
+    shopWeight: 0.48,
+    dropWeight: 0.38,
+    effects: [{ kind: 'projectileModifier', effectId: 'explosive-payload-radius', amount: 0.8 }]
+  },
+  {
+    id: 'fragmenting-shells',
+    name: 'Fragmenting Shells',
+    description: 'Heavy Cannon rounds split into smaller fragments on impact.',
+    rarity: 'rare',
+    tags: ['weapon', 'cannon', 'assault'],
+    cost: 86,
+    maxStacks: 1,
+    unlockRound: 3,
+    shopWeight: 0.46,
+    dropWeight: 0.38,
+    effects: [{ kind: 'projectileModifier', effectId: 'fragmenting-shells', amount: 1 }]
+  },
+  {
+    id: 'accelerated-cooling',
+    name: 'Accelerated Cooling',
+    description: 'Reduces weapon cooldown time.',
+    rarity: 'uncommon',
+    tags: ['weapon', 'utility'],
+    cost: 60,
+    maxStacks: 2,
+    unlockRound: 2,
+    shopWeight: 0.9,
+    dropWeight: 0.72,
+    effects: [{ kind: 'weaponAmplifier', effectId: 'accelerated-cooling', amount: 14 }]
+  },
+  {
+    id: 'ricochet-rounds',
+    name: 'Ricochet Rounds',
+    description: 'Projectiles bounce once after hitting an enemy.',
+    rarity: 'uncommon',
+    tags: ['weapon', 'precision'],
+    cost: 64,
+    maxStacks: 1,
+    unlockRound: 2,
+    shopWeight: 0.78,
+    dropWeight: 0.62,
+    effects: [{ kind: 'projectileModifier', effectId: 'ricochet-rounds', amount: 1 }]
+  },
+  {
+    id: 'kinetic-escalation',
+    name: 'Kinetic Escalation',
+    description: 'Damage scales with consecutive hits.',
+    rarity: 'rare',
+    tags: ['weapon', 'assault', 'precision'],
+    cost: 88,
+    maxStacks: 1,
+    unlockRound: 3,
+    shopWeight: 0.42,
+    dropWeight: 0.34,
+    effects: [{ kind: 'weaponAmplifier', effectId: 'kinetic-escalation', amount: 6 }]
+  },
+  {
+    id: 'piercing-array',
+    name: 'Piercing Array',
+    description: 'Shots pass through multiple enemies.',
+    rarity: 'rare',
+    tags: ['weapon', 'precision'],
+    cost: 86,
+    maxStacks: 1,
+    unlockRound: 3,
+    shopWeight: 0.44,
+    dropWeight: 0.34,
+    effects: [{ kind: 'projectileModifier', effectId: 'piercing-array', amount: 2 }]
+  },
+  {
+    id: 'chain-reaction',
+    name: 'Chain Reaction',
+    description: 'Enemy kills may damage nearby enemies.',
+    rarity: 'rare',
+    tags: ['weapon', 'utility'],
+    cost: 82,
+    maxStacks: 1,
+    unlockRound: 3,
+    shopWeight: 0.42,
+    dropWeight: 0.34,
+    effects: [{ kind: 'triggerModifier', effectId: 'chain-reaction', amount: 25, chancePercent: 25 }]
+  },
+  {
+    id: 'helix-pattern',
+    name: 'Helix Pattern',
+    description: 'Forward shots spiral outward.',
+    rarity: 'uncommon',
+    tags: ['weapon', 'sine', 'precision'],
+    cost: 62,
+    maxStacks: 1,
+    unlockRound: 2,
+    shopWeight: 0.82,
+    dropWeight: 0.66,
+    effects: [{ kind: 'patternModifier', effectId: 'helix-pattern', amount: 1 }]
+  },
+  {
+    id: 'pulse-discharge',
+    name: 'Pulse Discharge',
+    description: 'Periodically releases radial projectile bursts.',
+    rarity: 'rare',
+    tags: ['weapon', 'utility', 'assault'],
+    cost: 90,
+    maxStacks: 1,
+    unlockRound: 3,
+    shopWeight: 0.4,
+    dropWeight: 0.32,
+    effects: [{ kind: 'patternModifier', effectId: 'pulse-discharge', amount: 1 }]
+  },
+  {
+    id: 'vector-scatter',
+    name: 'Vector Scatter',
+    description: 'Occasionally fires diagonal automatic shots.',
+    rarity: 'uncommon',
+    tags: ['weapon', 'assault'],
+    cost: 58,
+    maxStacks: 1,
+    unlockRound: 2,
+    shopWeight: 0.84,
+    dropWeight: 0.68,
+    effects: [{ kind: 'patternModifier', effectId: 'vector-scatter', amount: 1 }]
   }
 ];
 
@@ -326,7 +512,7 @@ export const cardTagSynergies: CardTagSynergyDefinition[] = [
   {
     id: 'precision-lens',
     requirements: [{ tag: 'precision', minCount: 2 }],
-    effects: [{ kind: 'weaponLevel', weaponMode: 'Continuous Laser', amount: 1 }]
+    effects: [{ kind: 'weaponLevel', weaponMode: 'Sine SMG', amount: 1 }]
   },
   {
     id: 'economy-chain',

@@ -67,7 +67,6 @@
         "thruster": "#7be5ff",
         "missile-thruster": "#ffae72",
         "debug": "#ff8f66",
-        "laser-focus": "#b8ffcf",
         "fire": "#ff9d3a",
         "smoke": "#7f8794",
         "enemy-shard": "#ff5a4f"
@@ -184,19 +183,6 @@
       "pulseCooldownMs": 240
     },
     "particles": {
-      "laserFocus": {
-        "directionRadians": 1.5707963267948966,
-        "spreadRadians": 0.22,
-        "directionRandomness": 0.12,
-        "lifetimeMs": 95,
-        "emissionRatePerSecond": 260,
-        "particleLifetimeMs": 120,
-        "particleSpeed": 1.5,
-        "lifetimeRandomness": 0.25,
-        "velocityRandomness": 0.3,
-        "particleRadius": 0.045,
-        "inheritedVelocityFactor": 0.08
-      },
       "missileThruster": {
         "spawnRatePerSecond": 85,
         "spreadMin": -0.16,

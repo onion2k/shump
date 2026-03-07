@@ -8,6 +8,19 @@ export interface Vec2 {
   y: number;
 }
 
+export interface StatusEffectState {
+  effectId: string;
+  remainingMs: number;
+  stacks?: number;
+  sourceCardId?: string;
+}
+
+export interface ProjectileSplitSpec {
+  childCount: number;
+  speedScale: number;
+  damageScale: number;
+}
+
 export interface Entity {
   id: number;
   type: EntityType;
@@ -56,6 +69,15 @@ export interface Entity {
   projectileSpeed?: number;
   homingTargetId?: number;
   homingTurnRate?: number;
+  pierceRemaining?: number;
+  ricochetRemaining?: number;
+  splashRadius?: number;
+  statusEffects?: StatusEffectState[];
+  splitOnImpact?: boolean;
+  splitSpec?: ProjectileSplitSpec;
+  knockbackScale?: number;
+  sourceWeaponTag?: string;
+  sourceCardIds?: string[];
   pickupKind?: 'score' | 'health' | 'energy' | 'weapon' | 'money' | 'card';
   pickupWeaponMode?: PlayerWeaponMode;
   pickupCardId?: string;

@@ -116,31 +116,6 @@ export function spawnEnemyExplosionEffects(
   }
 }
 
-export function spawnLaserFocusEmitter(
-  particles: ParticleSystem,
-  x: number,
-  y: number,
-  vx: number,
-  vy: number
-): void {
-  const laserFocus = particleTuning.laserFocus;
-  particles.addEmitter({
-    position: { x, y },
-    direction: laserFocus.directionRadians,
-    spread: laserFocus.spreadRadians,
-    directionRandomness: laserFocus.directionRandomness,
-    lifetimeMs: laserFocus.lifetimeMs,
-    particleType: 'laser-focus',
-    emissionRatePerSecond: laserFocus.emissionRatePerSecond,
-    particleLifetimeMs: laserFocus.particleLifetimeMs,
-    particleSpeed: laserFocus.particleSpeed,
-    lifetimeRandomness: laserFocus.lifetimeRandomness,
-    velocityRandomness: laserFocus.velocityRandomness,
-    particleRadius: laserFocus.particleRadius,
-    velocityProvider: () => ({ x: vx * laserFocus.inheritedVelocityFactor, y: vy * laserFocus.inheritedVelocityFactor })
-  });
-}
-
 export function emitMissileThrusterParticles(
   entityManager: EntityManager,
   deltaSeconds: number,

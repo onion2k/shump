@@ -1,6 +1,16 @@
 import type { Entity } from '../ecs/components';
 import { EntityType, Faction } from '../ecs/entityTypes';
 
+export interface BulletMetadata {
+  pierceRemaining?: number;
+  ricochetRemaining?: number;
+  splashRadius?: number;
+  splitOnImpact?: boolean;
+  splitSpec?: Entity['splitSpec'];
+  sourceWeaponTag?: string;
+  sourceCardIds?: string[];
+}
+
 export function createBullet(
   x: number,
   y: number,
@@ -9,7 +19,8 @@ export function createBullet(
   lifetimeMs = 2000,
   damage = 1,
   radius = 0.22,
-  vx = 0
+  vx = 0,
+  metadata: BulletMetadata = {}
 ): Omit<Entity, 'id'> {
   return {
     type: EntityType.Bullet,
@@ -21,6 +32,7 @@ export function createBullet(
     maxHealth: 1,
     lifetimeMs,
     damage,
-    projectileKind: 'standard'
+    projectileKind: 'standard',
+    ...metadata
   };
 }

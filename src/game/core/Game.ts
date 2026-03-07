@@ -69,10 +69,23 @@ import {
 import {
   emitMissileThrusterParticles as emitMissileThrusterParticlesEffect,
   spawnEnemyExplosionEffects,
-  spawnLaserFocusEmitter as spawnLaserFocusEmitterEffect,
   tickTrailSources,
   type TrailSource
 } from './particleEffects';
+import { createCardRuntimeState, type CardRuntimeState } from './cardRuntimeState';
+import {
+  runCardProjectilePostHitHooks,
+  runCardProjectilePrefireHooks
+} from '../systems/cardProjectileResolver';
+import {
+  runCardEntityDestroyedTriggerHooks,
+  runCardPickupTriggerHooks,
+  runCardWeaponFiredTriggerHooks
+} from '../systems/cardTriggerResolver';
+import {
+  clearRoundTemporaryCardEffects,
+  tickCardTemporaryEffectHooks
+} from '../systems/cardTemporaryEffectResolver';
 
 export interface GameSnapshot {
   state: GameState;
@@ -177,6 +190,7 @@ export class Game {
   private recoveryAccumulatedMs = 0;
   private enemyDensityScale = 1;
   private runProgress?: RunProgress;
+  private cardRuntimeState: CardRuntimeState = createCardRuntimeState(0);
   private levelDirector = new LevelDirector();
 
   constructor() {
@@ -185,6 +199,7 @@ export class Game {
 
   bootstrap() {
     this.runProgress = undefined;
+    this.resetCardRuntimeState(0);
     this.syncLevelDirectorModifiersWithCards();
     this.resetWorld();
     this.state = GameState.Boot;
@@ -195,6 +210,7 @@ export class Game {
     this.resetWorld();
     const player = this.entities.get(this.playerId);
     this.runProgress = createDefaultRunProgress(seed, createRunPlayerStateFromPlayerEntity(player));
+    this.resetCardRuntimeState(this.runProgress.seed);
     this.levelDirector.configure(this.runProgress.levelId, this.runProgress.roundIndex);
     this.runProgress.levelId = this.levelDirector.currentLevelId();
     this.runProgress.roundIndex = this.levelDirector.currentRoundIndex();
@@ -206,6 +222,7 @@ export class Game {
 
   startFromRunProgress(runProgress: RunProgress) {
     this.runProgress = cloneRunProgress(runProgress);
+    this.resetCardRuntimeState(this.runProgress.seed);
     this.levelDirector.configure(this.runProgress.levelId, this.runProgress.roundIndex);
     this.runProgress.levelId = this.levelDirector.currentLevelId();
     this.runProgress.roundIndex = this.levelDirector.currentRoundIndex();
@@ -230,6 +247,7 @@ export class Game {
 
   clearRunProgress() {
     this.runProgress = undefined;
+    this.resetCardRuntimeState(0);
     this.syncLevelDirectorModifiersWithCards();
   }
 
@@ -348,6 +366,7 @@ export class Game {
       this.runProgress.levelId = this.levelDirector.currentLevelId();
       this.runProgress.roundIndex = nextRoundIndex;
       this.spawner.setScriptedWaves(this.levelDirector.currentRound().waves);
+      this.resetCardRuntimeState(this.runProgress.seed);
     }
 
     this.state = GameState.Playing;
@@ -562,9 +581,23 @@ export class Game {
 
     this.elapsedMs += deltaSeconds * 1000;
     this.distanceTraveled += WORLD_SCROLL_SPEED * deltaSeconds;
+    this.cardRuntimeState = tickCardTemporaryEffectHooks({
+      runtimeState: this.cardRuntimeState,
+      bonuses: cardBonuses,
+      deltaSeconds,
+      elapsedMs: this.elapsedMs
+    });
     this.updateTrailSources(deltaSeconds);
     this.applyPlayerInput(pointer, deltaSeconds);
     shieldSystem(this.entities.all(), deltaSeconds);
+    this.cardRuntimeState = runCardProjectilePrefireHooks({
+      entityManager: this.entities,
+      playerId: this.playerId,
+      deltaSeconds,
+      elapsedMs: this.elapsedMs,
+      bonuses: cardBonuses,
+      runtimeState: this.cardRuntimeState
+    });
     this.handlePlayerWeapons(deltaSeconds, cardBonuses);
     this.spawner.tick(this.entities, deltaSeconds, this.playableBounds, this.distanceTraveled, {
       enemyDensityScale: spawnDensityScale,
@@ -594,12 +627,24 @@ export class Game {
     this.handlePodWeapons(deltaSeconds);
     this.emitMissileThrusterParticles(deltaSeconds);
     const collisions = collisionSystem(this.entities.all());
-    this.score += damageSystem(collisions);
+    const collisionScoreDelta = damageSystem(collisions);
+    const postHitResult = runCardProjectilePostHitHooks({
+      entityManager: this.entities,
+      playerId: this.playerId,
+      collisions,
+      scoreDelta: collisionScoreDelta,
+      deltaSeconds,
+      elapsedMs: this.elapsedMs,
+      bonuses: cardBonuses,
+      runtimeState: this.cardRuntimeState
+    });
+    this.cardRuntimeState = postHitResult.runtimeState;
+    this.score += postHitResult.scoreDelta;
     const pickupResult = pickupSystem(this.entities, this.playerId);
     this.score += pickupResult.scoreDelta;
     for (const collection of pickupResult.collections) {
       this.handleProgressCollection(collection.pickupKind, collection.pickupValue, collection.pickupCardId);
-      this.events.emit({
+      const pickupEvent = {
         type: 'PickupCollected',
         atMs: this.elapsedMs,
         collectorId: this.playerId,
@@ -607,7 +652,13 @@ export class Game {
         pickupKind: collection.pickupKind,
         pickupWeaponMode: collection.pickupWeaponMode,
         pickupCardId: collection.pickupCardId
+      } as const;
+      this.cardRuntimeState = runCardPickupTriggerHooks({
+        event: pickupEvent,
+        bonuses: cardBonuses,
+        runtimeState: this.cardRuntimeState
       });
+      this.events.emit(pickupEvent);
     }
     const despawned = despawnSystem(this.entities, deltaSeconds, this.playableBounds);
 
@@ -647,7 +698,7 @@ export class Game {
         }
       }
 
-      this.events.emit({
+      const destroyedEvent = {
         type: 'EntityDestroyed',
         atMs: this.elapsedMs,
         entityId: entity.id,
@@ -658,7 +709,13 @@ export class Game {
         entityFaction: entity.faction,
         reason,
         scoreValue: entity.scoreValue
+      } as const;
+      this.cardRuntimeState = runCardEntityDestroyedTriggerHooks({
+        event: destroyedEvent,
+        bonuses: cardBonuses,
+        runtimeState: this.cardRuntimeState
       });
+      this.events.emit(destroyedEvent);
     }
 
     const player = this.entities.get(this.playerId);
@@ -710,6 +767,10 @@ export class Game {
 
   private applyRunPlayerState(player: Entity, playerState: RunPlayerState) {
     applyRunPlayerStateToEntity(player, playerState);
+  }
+
+  private resetCardRuntimeState(seed: number) {
+    this.cardRuntimeState = createCardRuntimeState(seed);
   }
 
   private syncPlayerWithRunProgressCards() {
@@ -883,7 +944,11 @@ export class Game {
 
   private handlePlayerWeapons(deltaSeconds: number, bonuses: CardBonuses) {
     const result = playerWeaponSystem(this.entities, this.playerId, deltaSeconds, {
-      weaponTuningBonuses: bonuses.weaponTuningBonuses
+      weaponTuningBonuses: bonuses.weaponTuningBonuses,
+      weaponAmplifierBonus: bonuses.weaponAmplifierBonus,
+      projectileModifierBonus: bonuses.projectileModifierBonus,
+      patternModifierBonus: bonuses.patternModifierBonus,
+      hitStreak: this.cardRuntimeState.hitStreak
     });
     this.score += result.scoreDelta;
 
@@ -893,10 +958,6 @@ export class Game {
     }
 
     for (const shot of result.fired) {
-      if (shot.weaponMode === 'Continuous Laser') {
-        this.spawnLaserFocusEmitter(player.position.x, player.position.y + 0.95, player.velocity.x, player.velocity.y);
-      }
-
       this.emitWeaponFiredEvent(player, shot.weaponMode, shot.projectileEntityId);
     }
   }
@@ -947,6 +1008,7 @@ export class Game {
       return false;
     }
 
+    this.cardRuntimeState = clearRoundTemporaryCardEffects(this.cardRuntimeState);
     this.state = GameState.BetweenRounds;
     return true;
   }
@@ -1092,10 +1154,6 @@ export class Game {
     );
   }
 
-  private spawnLaserFocusEmitter(x: number, y: number, vx: number, vy: number) {
-    spawnLaserFocusEmitterEffect(this.particles, x, y, vx, vy);
-  }
-
   private emitMissileThrusterParticles(deltaSeconds: number) {
     this.missileThrusterAccumulator = emitMissileThrusterParticlesEffect(
       this.entities,
@@ -1166,14 +1224,20 @@ export class Game {
     weaponMode: string,
     projectileEntityId?: number
   ) {
-    this.events.emit({
+    const weaponFiredEvent = {
       type: 'WeaponFired',
       atMs: this.elapsedMs,
       shooterId: shooter.id,
       shooterFaction: shooter.faction,
       weaponMode,
       projectileEntityId
+    } as const;
+    this.cardRuntimeState = runCardWeaponFiredTriggerHooks({
+      event: weaponFiredEvent,
+      bonuses: this.currentCardBonuses(),
+      runtimeState: this.cardRuntimeState
     });
+    this.events.emit(weaponFiredEvent);
   }
 
   subscribe(listener: SnapshotListener): () => void {

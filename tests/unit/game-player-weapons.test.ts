@@ -3,6 +3,7 @@ import { Game } from '../../src/game/core/Game';
 import { EntityType, Faction } from '../../src/game/ecs/entityTypes';
 import { createEnemy } from '../../src/game/factories/createEnemy';
 import { createPickup } from '../../src/game/factories/createPickup';
+import { cardCatalogById } from '../../src/game/content/cards';
 import { getPlayerWeaponMaxLevel } from '../../src/game/weapons/playerWeapons';
 
 describe('Game player controls', () => {
@@ -253,7 +254,7 @@ describe('Game player controls', () => {
     expect(rounds.length).toBeGreaterThan(0);
   });
 
-  it('continuous laser damages enemies directly', () => {
+  it('fires sine smg rounds when Sine SMG mode is selected', () => {
     const game = new Game();
     game.start();
 
@@ -263,13 +264,10 @@ describe('Game player controls', () => {
       return;
     }
 
-    player.unlockedWeaponModes = ['Auto Pulse', 'Continuous Laser'];
-    player.weaponMode = 'Continuous Laser';
+    player.unlockedWeaponModes = ['Auto Pulse', 'Sine SMG'];
+    player.weaponMode = 'Sine SMG';
     player.weaponEnergy = 100;
     player.weaponEnergyRegenPerSecond = 0;
-    const enemy = game.entities.create(createEnemy(0, -7, 'straight'));
-    enemy.health = 4;
-    enemy.velocity.y = 0;
 
     game.update(0.2, {
       hasPosition: true,
@@ -279,7 +277,10 @@ describe('Game player controls', () => {
       rightButtonDown: false
     });
 
-    expect(enemy.health).toBeLessThan(4);
+    const bullets = game.entities
+      .all()
+      .filter((entity) => entity.type === EntityType.Bullet && entity.faction === Faction.Player);
+    expect(bullets.length).toBeGreaterThan(0);
   });
 
   it('applies weapon tuning cards to firing cadence', () => {
@@ -362,6 +363,227 @@ describe('Game player controls', () => {
     const tunedInterval = tuned.snapshot().weaponFireIntervalMs;
 
     expect(tunedInterval).toBeLessThan(baselineInterval);
+  });
+
+  it('applies heavy cannon damage and energy tuning from active cards', () => {
+    const tuningCardId = 'test-heavy-cannon-tuning';
+    cardCatalogById[tuningCardId] = {
+      id: tuningCardId,
+      name: 'Heavy Test',
+      description: 'Heavy cannon tuning test.',
+      rarity: 'rare',
+      tags: ['weapon'],
+      cost: 0,
+      maxStacks: 1,
+      unlockRound: 1,
+      shopWeight: 0,
+      dropWeight: 0,
+      effects: [
+        { kind: 'weaponTuning', weaponMode: 'Heavy Cannon', stat: 'damagePercent', amount: 50 },
+        { kind: 'weaponTuning', weaponMode: 'Heavy Cannon', stat: 'energyCostPercent', amount: -35 }
+      ]
+    };
+
+    try {
+      const baseline = new Game();
+      baseline.startFromRunProgress({
+        seed: 300,
+        levelId: 'level-1',
+        roundIndex: 1,
+        inRunMoney: 0,
+        foundCards: [],
+        activeCards: [],
+        consumedCards: [],
+        playerState: {
+          health: 10,
+          maxHealth: 10,
+          weaponLevels: { 'Auto Pulse': 1, 'Heavy Cannon': 1, 'Sine SMG': 1 },
+          podCount: 0,
+          podWeaponMode: 'Auto Pulse',
+          moveMaxSpeed: 24,
+          moveFollowGain: 6,
+          pickupAttractRange: 4.2,
+          pickupAttractPower: 16,
+          shieldCurrent: 10,
+          shieldMax: 10,
+          shieldRechargeDelayMs: 1400,
+          shieldRechargeTimeMs: 3600,
+          shieldRechargeDelayRemainingMs: 0
+        },
+        elapsedMs: 0,
+        distanceTraveled: 0,
+        score: 0
+      });
+
+      const baselinePlayer = baseline.entities.all().find((entity) => entity.type === EntityType.Player);
+      expect(baselinePlayer).toBeTruthy();
+      if (!baselinePlayer) {
+        return;
+      }
+      baselinePlayer.unlockedWeaponModes = ['Auto Pulse', 'Heavy Cannon'];
+      baselinePlayer.weaponMode = 'Heavy Cannon';
+      baselinePlayer.weaponEnergy = 100;
+      baselinePlayer.weaponEnergyRegenPerSecond = 0;
+
+      baseline.update(0.4, {
+        hasPosition: true,
+        x: 0,
+        y: -9,
+        leftButtonDown: false,
+        rightButtonDown: false
+      });
+
+      const baselineShot = baseline.entities
+        .all()
+        .find((entity) => entity.type === EntityType.Bullet && entity.faction === Faction.Player && entity.projectileKind === 'standard');
+      expect(baselineShot).toBeTruthy();
+      const baselineCost = baseline.snapshot().weaponEnergyCost;
+
+      const tuned = new Game();
+      tuned.startFromRunProgress({
+        seed: 301,
+        levelId: 'level-1',
+        roundIndex: 1,
+        inRunMoney: 0,
+        foundCards: [],
+        activeCards: [tuningCardId],
+        consumedCards: [],
+        playerState: {
+          health: 10,
+          maxHealth: 10,
+          weaponLevels: { 'Auto Pulse': 1, 'Heavy Cannon': 1, 'Sine SMG': 1 },
+          podCount: 0,
+          podWeaponMode: 'Auto Pulse',
+          moveMaxSpeed: 24,
+          moveFollowGain: 6,
+          pickupAttractRange: 4.2,
+          pickupAttractPower: 16,
+          shieldCurrent: 10,
+          shieldMax: 10,
+          shieldRechargeDelayMs: 1400,
+          shieldRechargeTimeMs: 3600,
+          shieldRechargeDelayRemainingMs: 0
+        },
+        elapsedMs: 0,
+        distanceTraveled: 0,
+        score: 0
+      });
+
+      const tunedPlayer = tuned.entities.all().find((entity) => entity.type === EntityType.Player);
+      expect(tunedPlayer).toBeTruthy();
+      if (!tunedPlayer) {
+        return;
+      }
+      tunedPlayer.unlockedWeaponModes = ['Auto Pulse', 'Heavy Cannon'];
+      tunedPlayer.weaponMode = 'Heavy Cannon';
+      tunedPlayer.weaponEnergy = 100;
+      tunedPlayer.weaponEnergyRegenPerSecond = 0;
+
+      tuned.update(0.4, {
+        hasPosition: true,
+        x: 0,
+        y: -9,
+        leftButtonDown: false,
+        rightButtonDown: false
+      });
+
+      const tunedShot = tuned.entities
+        .all()
+        .find((entity) => entity.type === EntityType.Bullet && entity.faction === Faction.Player && entity.projectileKind === 'standard');
+      expect(tunedShot).toBeTruthy();
+      const tunedCost = tuned.snapshot().weaponEnergyCost;
+
+      expect((tunedShot?.damage ?? 0)).toBeGreaterThan((baselineShot?.damage ?? 0));
+      expect(tunedCost).toBeLessThan(baselineCost);
+    } finally {
+      delete cardCatalogById[tuningCardId];
+    }
+  });
+
+  it('applies projectile speed tuning cards to auto pulse shots', () => {
+    const baseline = new Game();
+    baseline.startFromRunProgress({
+      seed: 410,
+      levelId: 'level-1',
+      roundIndex: 1,
+      inRunMoney: 0,
+      foundCards: [],
+      activeCards: [],
+      consumedCards: [],
+      playerState: {
+        health: 10,
+        maxHealth: 10,
+        weaponLevels: { 'Auto Pulse': 1, 'Heavy Cannon': 1, 'Sine SMG': 1 },
+        podCount: 0,
+        podWeaponMode: 'Auto Pulse',
+        moveMaxSpeed: 24,
+        moveFollowGain: 6,
+        pickupAttractRange: 4.2,
+        pickupAttractPower: 16,
+        shieldCurrent: 10,
+        shieldMax: 10,
+        shieldRechargeDelayMs: 1400,
+        shieldRechargeTimeMs: 3600,
+        shieldRechargeDelayRemainingMs: 0
+      },
+      elapsedMs: 0,
+      distanceTraveled: 0,
+      score: 0
+    });
+    baseline.update(0.12, {
+      hasPosition: true,
+      x: 0,
+      y: -9,
+      leftButtonDown: false,
+      rightButtonDown: false
+    });
+    const baselineBullet = baseline.entities
+      .all()
+      .find((entity) => entity.type === EntityType.Bullet && entity.faction === Faction.Player && entity.projectileKind === 'standard');
+    expect(baselineBullet).toBeTruthy();
+
+    const tuned = new Game();
+    tuned.startFromRunProgress({
+      seed: 411,
+      levelId: 'level-1',
+      roundIndex: 1,
+      inRunMoney: 0,
+      foundCards: [],
+      activeCards: ['ballistics-lab'],
+      consumedCards: [],
+      playerState: {
+        health: 10,
+        maxHealth: 10,
+        weaponLevels: { 'Auto Pulse': 1, 'Heavy Cannon': 1, 'Sine SMG': 1 },
+        podCount: 0,
+        podWeaponMode: 'Auto Pulse',
+        moveMaxSpeed: 24,
+        moveFollowGain: 6,
+        pickupAttractRange: 4.2,
+        pickupAttractPower: 16,
+        shieldCurrent: 10,
+        shieldMax: 10,
+        shieldRechargeDelayMs: 1400,
+        shieldRechargeTimeMs: 3600,
+        shieldRechargeDelayRemainingMs: 0
+      },
+      elapsedMs: 0,
+      distanceTraveled: 0,
+      score: 0
+    });
+    tuned.update(0.12, {
+      hasPosition: true,
+      x: 0,
+      y: -9,
+      leftButtonDown: false,
+      rightButtonDown: false
+    });
+    const tunedBullet = tuned.entities
+      .all()
+      .find((entity) => entity.type === EntityType.Bullet && entity.faction === Faction.Player && entity.projectileKind === 'standard');
+    expect(tunedBullet).toBeTruthy();
+
+    expect(Math.abs(tunedBullet?.velocity.y ?? 0)).toBeGreaterThan(Math.abs(baselineBullet?.velocity.y ?? 0));
   });
 
   it('collects health and score pickups', () => {

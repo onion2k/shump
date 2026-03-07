@@ -22,7 +22,7 @@ describe('cardEffectSystem', () => {
       maxHealth: 10,
       weaponMode: 'Auto Pulse',
       weaponLevel: 1,
-      weaponLevels: { 'Auto Pulse': 1, 'Continuous Laser': 1, 'Heavy Cannon': 1, 'Sine SMG': 1 },
+      weaponLevels: { 'Auto Pulse': 1, 'Heavy Cannon': 1, 'Sine SMG': 1 },
       podCount: 0,
       podWeaponMode: 'Auto Pulse' as const,
       moveMaxSpeed: 24,
@@ -39,7 +39,7 @@ describe('cardEffectSystem', () => {
     const baseState = {
       health: 9,
       maxHealth: 10,
-      weaponLevels: { 'Auto Pulse': 1, 'Continuous Laser': 1, 'Heavy Cannon': 1, 'Sine SMG': 1 },
+      weaponLevels: { 'Auto Pulse': 1, 'Heavy Cannon': 1, 'Sine SMG': 1 },
       podCount: 0,
       podWeaponMode: 'Auto Pulse' as const,
       moveMaxSpeed: 24,
@@ -82,7 +82,7 @@ describe('cardEffectSystem', () => {
       maxHealth: 10,
       weaponMode: 'Auto Pulse',
       weaponLevel: 1,
-      weaponLevels: { 'Auto Pulse': 1, 'Continuous Laser': 1, 'Heavy Cannon': 1, 'Sine SMG': 1 },
+      weaponLevels: { 'Auto Pulse': 1, 'Heavy Cannon': 1, 'Sine SMG': 1 },
       podCount: 0,
       podWeaponMode: 'Auto Pulse' as const,
       moveMaxSpeed: 24,
@@ -98,7 +98,7 @@ describe('cardEffectSystem', () => {
     const baseState = {
       health: 8,
       maxHealth: 10,
-      weaponLevels: { 'Auto Pulse': 1, 'Continuous Laser': 1, 'Heavy Cannon': 1, 'Sine SMG': 1 },
+      weaponLevels: { 'Auto Pulse': 1, 'Heavy Cannon': 1, 'Sine SMG': 1 },
       podCount: 0,
       podWeaponMode: 'Auto Pulse' as const,
       moveMaxSpeed: 24,
@@ -147,14 +147,14 @@ describe('cardEffectSystem', () => {
       maxHealth: 10,
       weaponMode: 'Auto Pulse',
       weaponLevel: 1,
-      weaponLevels: { 'Auto Pulse': 1, 'Continuous Laser': 1, 'Heavy Cannon': 1, 'Sine SMG': 1 },
+      weaponLevels: { 'Auto Pulse': 1, 'Heavy Cannon': 1, 'Sine SMG': 1 },
       podCount: 0,
       podWeaponMode: 'Auto Pulse' as const
     };
     const baseState = {
       health: 10,
       maxHealth: 10,
-      weaponLevels: { 'Auto Pulse': 1, 'Continuous Laser': 1, 'Heavy Cannon': 1, 'Sine SMG': 1 },
+      weaponLevels: { 'Auto Pulse': 1, 'Heavy Cannon': 1, 'Sine SMG': 1 },
       podCount: 0,
       podWeaponMode: 'Auto Pulse' as const,
       moveMaxSpeed: 24,
@@ -208,5 +208,90 @@ describe('cardEffectSystem', () => {
     } finally {
       delete cardCatalogById[cardId];
     }
+  });
+
+  it('maps legacy modifier effects onto legacy bonus fields', () => {
+    const cardId = 'test-legacy-modifier-mapping';
+    cardCatalogById[cardId] = {
+      id: cardId,
+      name: 'Legacy Map',
+      description: 'Legacy compatibility.',
+      rarity: 'rare',
+      tags: ['utility'],
+      cost: 0,
+      maxStacks: 1,
+      unlockRound: 1,
+      shopWeight: 0,
+      dropWeight: 0,
+      effects: [
+        { kind: 'modifier', key: 'player.maxHealth', amount: 2 },
+        { kind: 'modifier', key: 'economy.moneyMultiplierPercent', amount: 11 },
+        { kind: 'modifier', key: 'economy.killMoneyFlat', amount: 3 },
+        { kind: 'modifier', key: 'player.podCount', amount: 2 },
+        { kind: 'modifier', key: 'player.moveMaxSpeed', amount: 1.5 }
+      ]
+    };
+
+    try {
+      const bonuses = computeCardBonuses([cardId]);
+      expect(bonuses.maxHealthBonus).toBe(2);
+      expect(bonuses.moneyMultiplierPercent).toBe(11);
+      expect(bonuses.killMoneyFlatBonus).toBe(3);
+      expect(bonuses.podCountBonus).toBe(2);
+      expect(bonuses.playerStatBonus.moveMaxSpeed).toBe(1.5);
+    } finally {
+      delete cardCatalogById[cardId];
+    }
+  });
+
+  it('captures previous pod mode while pod override cards are active', () => {
+    const player: Entity = {
+      id: 4,
+      type: EntityType.Player,
+      position: { x: 0, y: 0 },
+      velocity: { x: 0, y: 0 },
+      radius: 0.6,
+      health: 10,
+      maxHealth: 10,
+      weaponMode: 'Auto Pulse',
+      weaponLevel: 1,
+      weaponLevels: { 'Auto Pulse': 1, 'Heavy Cannon': 1, 'Sine SMG': 1 },
+      podCount: 1,
+      podWeaponMode: 'Homing Missile',
+      moveMaxSpeed: 24,
+      moveFollowGain: 6,
+      pickupAttractRange: 4.2,
+      pickupAttractPower: 16,
+      shieldCurrent: 10,
+      shieldMax: 10,
+      shieldRechargeDelayMs: 1400,
+      shieldRechargeTimeMs: 3600,
+      shieldRechargeDelayRemainingMs: 0
+    };
+
+    const baseState = captureBaseStateFromPlayer(
+      player,
+      ['missile-command'],
+      {
+        health: 10,
+        maxHealth: 10,
+        weaponLevels: { 'Auto Pulse': 1, 'Heavy Cannon': 1, 'Sine SMG': 1 },
+        podCount: 0,
+        podWeaponMode: 'Auto Pulse',
+        moveMaxSpeed: 24,
+        moveFollowGain: 6,
+        pickupAttractRange: 4.2,
+        pickupAttractPower: 16,
+        shieldCurrent: 10,
+        shieldMax: 10,
+        shieldRechargeDelayMs: 1400,
+        shieldRechargeTimeMs: 3600,
+        shieldRechargeDelayRemainingMs: 0
+      }
+    );
+    expect(baseState.podWeaponMode).toBe('Auto Pulse');
+
+    const fallbackBaseState = captureBaseStateFromPlayer(player, ['missile-command']);
+    expect(fallbackBaseState.podWeaponMode).toBe('Auto Pulse');
   });
 });

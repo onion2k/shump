@@ -16,7 +16,7 @@ function createPlayer(entityManager: EntityManager) {
     weaponEnergyMax: 100,
     weaponMode: 'Auto Pulse',
     weaponLevel: 1,
-    weaponLevels: { 'Auto Pulse': 1, 'Continuous Laser': 1, 'Heavy Cannon': 1, 'Sine SMG': 1 },
+    weaponLevels: { 'Auto Pulse': 1, 'Heavy Cannon': 1, 'Sine SMG': 1 },
     unlockedWeaponModes: ['Auto Pulse']
   });
 }
@@ -90,15 +90,15 @@ describe('pickupSystem', () => {
       health: 1,
       maxHealth: 1,
       pickupKind: 'weapon',
-      pickupWeaponMode: 'Continuous Laser',
+      pickupWeaponMode: 'Heavy Cannon',
       pickupValue: 1
     });
 
     pickupSystem(entityManager, player.id);
 
-    expect(player.weaponMode).toBe('Continuous Laser');
-    expect(player.unlockedWeaponModes).toContain('Continuous Laser');
-    expect(player.weaponLevels?.['Continuous Laser']).toBe(1);
+    expect(player.weaponMode).toBe('Heavy Cannon');
+    expect(player.unlockedWeaponModes).toContain('Heavy Cannon');
+    expect(player.weaponLevels?.['Heavy Cannon']).toBe(1);
 
     entityManager.create({
       type: EntityType.Pickup,
@@ -108,12 +108,12 @@ describe('pickupSystem', () => {
       health: 1,
       maxHealth: 1,
       pickupKind: 'weapon',
-      pickupWeaponMode: 'Continuous Laser',
+      pickupWeaponMode: 'Heavy Cannon',
       pickupValue: 1
     });
 
     pickupSystem(entityManager, player.id);
-    expect(player.weaponLevels?.['Continuous Laser']).toBe(2);
+    expect(player.weaponLevels?.['Heavy Cannon']).toBe(2);
     expect(player.weaponLevel).toBe(2);
   });
 

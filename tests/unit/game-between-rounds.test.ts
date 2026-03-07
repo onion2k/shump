@@ -12,7 +12,7 @@ describe('Game between-round flow', () => {
       roundIndex: 1,
       inRunMoney: 80,
       foundCards: ['reinforced-hull'],
-      activeCards: ['pulse-overclock', 'laser-calibrator', 'cannon-breach', 'harmonic-tuner'],
+      activeCards: ['pulse-overclock', 'signal-jammer', 'cannon-breach', 'harmonic-tuner'],
       consumedCards: [],
       playerState: {
         health: 10,
@@ -189,7 +189,7 @@ describe('Game between-round flow', () => {
       roundIndex: 2,
       inRunMoney: 50,
       foundCards: ['satellite-bay'],
-      activeCards: ['pulse-relay', 'laser-calibrator', 'cannon-breach', 'harmonic-tuner'],
+      activeCards: ['pulse-relay', 'signal-jammer', 'cannon-breach', 'harmonic-tuner'],
       consumedCards: [],
       playerState: {
         health: 10,
@@ -217,7 +217,7 @@ describe('Game between-round flow', () => {
     expect(game.enterBetweenRounds()).toBe(true);
     expect(game.activateFoundCard('satellite-bay')).toBe(false);
     expect(game.snapshot().foundCards).toEqual(['satellite-bay']);
-    expect(game.snapshot().activeCards).toEqual(['pulse-relay', 'laser-calibrator', 'cannon-breach', 'harmonic-tuner']);
+    expect(game.snapshot().activeCards).toEqual(['pulse-relay', 'signal-jammer', 'cannon-breach', 'harmonic-tuner']);
   });
 
   it('allows discarding active cards to free a slot, then activating found cards', () => {
@@ -228,7 +228,7 @@ describe('Game between-round flow', () => {
       roundIndex: 2,
       inRunMoney: 50,
       foundCards: ['satellite-bay'],
-      activeCards: ['pulse-relay', 'laser-calibrator', 'cannon-breach', 'harmonic-tuner'],
+      activeCards: ['pulse-relay', 'signal-jammer', 'cannon-breach', 'harmonic-tuner'],
       consumedCards: [],
       playerState: {
         health: 10,
@@ -255,10 +255,10 @@ describe('Game between-round flow', () => {
 
     expect(game.enterBetweenRounds()).toBe(true);
     expect(game.discardActiveCard('pulse-relay')).toBe(true);
-    expect(game.snapshot().activeCards).toEqual(['laser-calibrator', 'cannon-breach', 'harmonic-tuner']);
+    expect(game.snapshot().activeCards).toEqual(['signal-jammer', 'cannon-breach', 'harmonic-tuner']);
     expect(game.activateFoundCard('satellite-bay')).toBe(true);
     expect(game.snapshot().foundCards).toEqual([]);
-    expect(game.snapshot().activeCards).toEqual(['laser-calibrator', 'cannon-breach', 'harmonic-tuner', 'satellite-bay']);
+    expect(game.snapshot().activeCards).toEqual(['signal-jammer', 'cannon-breach', 'harmonic-tuner', 'satellite-bay']);
   });
 
   it('disables shop access and buying when found deck is full (12 cards)', () => {
@@ -273,7 +273,7 @@ describe('Game between-round flow', () => {
         'pulse-overclock',
         'shield-capacitor',
         'salvage-contract',
-        'laser-calibrator',
+        'signal-jammer',
         'cannon-breach',
         'drone-salvager',
         'satellite-bay',

@@ -30,7 +30,19 @@ export function damageSystem(collisions: CollisionPair[]): number {
 
   for (const pair of collisions) {
     const bulletDamage = pair.a.damage ?? 1;
-    pair.a.health -= 1;
+
+    const pierceRemaining = Math.max(0, pair.a.pierceRemaining ?? 0);
+    const ricochetRemaining = Math.max(0, pair.a.ricochetRemaining ?? 0);
+    if (pierceRemaining > 0) {
+      pair.a.pierceRemaining = pierceRemaining - 1;
+    } else if (ricochetRemaining > 0) {
+      pair.a.ricochetRemaining = ricochetRemaining - 1;
+      pair.a.velocity.x *= -0.9;
+      pair.a.velocity.y *= -0.9;
+    } else {
+      pair.a.health -= 1;
+    }
+
     applyDamage(pair.b, bulletDamage);
 
     if (pair.b.health <= 0 && pair.b.scoreValue) {

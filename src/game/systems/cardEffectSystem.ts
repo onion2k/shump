@@ -68,6 +68,16 @@ export interface CardBonuses {
   tagCounts: Record<string, number>;
   gameplayModifiers: GameplayModifierMap;
   weaponTuningBonuses: WeaponTuningBonuses;
+  weaponAmplifierBonus: Record<string, number>;
+  projectileModifierBonus: Record<string, number>;
+  missileModifierBonus: Record<string, number>;
+  patternModifierBonus: Record<string, number>;
+  defenseModifierBonus: Record<string, number>;
+  mobilityModifierBonus: Record<string, number>;
+  droneModifierBonus: Record<string, number>;
+  economyModifierBonus: Record<string, number>;
+  conditionalModifierBonus: Record<string, number>;
+  triggerModifierBonus: Record<string, number>;
 }
 
 export function computeCardBonuses(activeCards: string[]): CardBonuses {
@@ -81,7 +91,17 @@ export function computeCardBonuses(activeCards: string[]): CardBonuses {
     playerStatBonus: {},
     tagCounts: {},
     gameplayModifiers: {},
-    weaponTuningBonuses: {}
+    weaponTuningBonuses: {},
+    weaponAmplifierBonus: {},
+    projectileModifierBonus: {},
+    missileModifierBonus: {},
+    patternModifierBonus: {},
+    defenseModifierBonus: {},
+    mobilityModifierBonus: {},
+    droneModifierBonus: {},
+    economyModifierBonus: {},
+    conditionalModifierBonus: {},
+    triggerModifierBonus: {}
   };
 
   for (const cardId of activeCards) {
@@ -271,8 +291,64 @@ function applyCardEffect(bonuses: CardBonuses, effect: CardEffect): void {
     return;
   }
 
-  addGameplayModifier(bonuses.gameplayModifiers, effect.key, effect.amount);
-  applyModifierToLegacyFields(bonuses, effect.key, effect.amount);
+  if (effect.kind === 'weaponAmplifier') {
+    bonuses.weaponAmplifierBonus[effect.effectId] = (bonuses.weaponAmplifierBonus[effect.effectId] ?? 0) + effect.amount;
+    return;
+  }
+
+  if (effect.kind === 'projectileModifier') {
+    bonuses.projectileModifierBonus[effect.effectId] = (bonuses.projectileModifierBonus[effect.effectId] ?? 0) + effect.amount;
+    return;
+  }
+
+  if (effect.kind === 'missileModifier') {
+    bonuses.missileModifierBonus[effect.effectId] = (bonuses.missileModifierBonus[effect.effectId] ?? 0) + effect.amount;
+    return;
+  }
+
+  if (effect.kind === 'patternModifier') {
+    bonuses.patternModifierBonus[effect.effectId] = (bonuses.patternModifierBonus[effect.effectId] ?? 0) + effect.amount;
+    return;
+  }
+
+  if (effect.kind === 'defenseModifier') {
+    bonuses.defenseModifierBonus[effect.effectId] = (bonuses.defenseModifierBonus[effect.effectId] ?? 0) + effect.amount;
+    return;
+  }
+
+  if (effect.kind === 'mobilityModifier') {
+    bonuses.mobilityModifierBonus[effect.effectId] = (bonuses.mobilityModifierBonus[effect.effectId] ?? 0) + effect.amount;
+    return;
+  }
+
+  if (effect.kind === 'droneModifier') {
+    bonuses.droneModifierBonus[effect.effectId] = (bonuses.droneModifierBonus[effect.effectId] ?? 0) + effect.amount;
+    return;
+  }
+
+  if (effect.kind === 'economyModifier') {
+    bonuses.economyModifierBonus[effect.effectId] = (bonuses.economyModifierBonus[effect.effectId] ?? 0) + effect.amount;
+    return;
+  }
+
+  if (effect.kind === 'conditionalModifier') {
+    bonuses.conditionalModifierBonus[effect.effectId] = (bonuses.conditionalModifierBonus[effect.effectId] ?? 0) + effect.amount;
+    return;
+  }
+
+  if (effect.kind === 'triggerModifier') {
+    bonuses.triggerModifierBonus[effect.effectId] = (bonuses.triggerModifierBonus[effect.effectId] ?? 0) + effect.amount;
+    return;
+  }
+
+  if (effect.kind === 'temporaryRoundModifier') {
+    return;
+  }
+
+  if (effect.kind === 'modifier') {
+    addGameplayModifier(bonuses.gameplayModifiers, effect.key, effect.amount);
+    applyModifierToLegacyFields(bonuses, effect.key, effect.amount);
+  }
 }
 
 function applyModifierToLegacyFields(bonuses: CardBonuses, key: GameplayModifierKey, amount: number): void {
