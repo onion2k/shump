@@ -207,13 +207,13 @@ export function BetweenRoundsUi3D({
 
   const visibleDeckCards = isMobile
     ? foundCards
-    : foundCards.slice(deckPage * deckCardsPerPage, deckPage * deckCardsPerPage + deckCardsPerPage);
+    : foundCards.slice(deckPage, deckPage + deckCardsPerPage);
   const visibleShopCards = isMobile
     ? shopCards
-    : shopCards.slice(shopPage * shopCardsPerPage, shopPage * shopCardsPerPage + shopCardsPerPage);
+    : shopCards.slice(shopPage, shopPage + shopCardsPerPage);
   const visibleShipCards = isMobile
     ? shipCards
-    : shipCards.slice(shipPage * shipCardsPerPage, shipPage * shipCardsPerPage + shipCardsPerPage);
+    : shipCards.slice(shipPage, shipPage + shipCardsPerPage);
   const nextRoundInfo = resolveNextRoundDisplay(levelId, roundIndex, totalRounds);
 
   const cycleTab = (direction: -1 | 1) => {

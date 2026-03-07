@@ -15,6 +15,7 @@ interface SceneUiLayerProps {
   snapshot: GameSnapshot;
   hasSavedRun: boolean;
   effectsQuality: EffectsQuality;
+  hardwareAccelerationWarning?: string;
   titleSettingsOpen: boolean;
   onStart: () => void;
   onStartFresh?: () => void;
@@ -41,6 +42,7 @@ export function SceneUiLayer({
   snapshot,
   hasSavedRun,
   effectsQuality,
+  hardwareAccelerationWarning,
   titleSettingsOpen,
   onStart,
   onStartFresh,
@@ -70,6 +72,7 @@ export function SceneUiLayer({
           state={snapshot.state}
           hasSavedRun={hasSavedRun}
           effectsQuality={effectsQuality}
+          hardwareAccelerationWarning={hardwareAccelerationWarning}
           onStart={onStart}
           onStartFresh={onStartFresh}
           onOpenSettings={onOpenTitleSettings}

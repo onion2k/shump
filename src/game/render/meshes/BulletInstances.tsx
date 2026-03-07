@@ -21,7 +21,7 @@ interface ProjectileProfile {
 }
 
 const MAX_BULLET_INSTANCES = 12000;
-const MAX_BEAM_PARTICLES = 52000;
+const MAX_BEAM_PARTICLES = 16000;
 const STANDARD_BULLET_RADIUS = 0.2;
 
 const PROJECTILE_PROFILES: ProjectileProfile[] = [
@@ -154,9 +154,9 @@ function BeamBatch({ bullets, color }: { bullets: RenderBullet[]; color: string 
       const nx = vx / magnitude;
       const ny = vy / magnitude;
       const angle = Math.atan2(vx, vy);
-      const segmentStep = 0.14;
-      const segmentLength = 0.24;
-      const particlesPerBeam = Math.max(12, Math.min(360, Math.ceil(beamLength / segmentStep) + 1));
+      const segmentStep = 0.12;
+      const segmentLength = 0.2;
+      const particlesPerBeam = Math.max(10, Math.min(140, Math.ceil(beamLength / segmentStep) + 1));
       const flowOffset = (((bullet.ageMs ?? 0) % 160) / 160) * segmentStep;
       const baseRadius = Math.max(0.028, (bullet.radius ?? 0.12) * 0.22);
 

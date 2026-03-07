@@ -665,7 +665,7 @@ describe('Game player controls', () => {
     player.weaponLevels = { ...(player.weaponLevels ?? {}), 'Tesla Arc': 1 };
     player.unlockedWeaponModes = ['Auto Pulse', 'Tesla Arc'];
     player.weaponLevel = 1;
-    game.update(0.36, {
+    game.update(0.12, {
       hasPosition: true,
       x: 0,
       y: -9,
@@ -682,7 +682,14 @@ describe('Game player controls', () => {
     player.weaponLevels = { ...(player.weaponLevels ?? {}), 'Chain Laser': 1 };
     player.unlockedWeaponModes = ['Auto Pulse', 'Chain Laser'];
     player.weaponLevel = 1;
-    game.update(0.5, {
+    game.update(0.24, {
+      hasPosition: true,
+      x: 0,
+      y: -9,
+      leftButtonDown: false,
+      rightButtonDown: false
+    });
+    game.update(0.12, {
       hasPosition: true,
       x: 0,
       y: -9,

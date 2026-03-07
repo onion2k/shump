@@ -412,7 +412,8 @@ export function spawnLaserBeam(
   projectileKind: Entity['projectileKind'] = 'laser',
   projectileVisualId?: string
 ): void {
-  const beam = entityManager.create(createLaserBeam(player.position.x, player.position.y + 0.95, range, halfWidth, Math.max(1000, intervalMs * 2)));
+  const beamLifetimeMs = Math.max(90, Math.min(220, Math.round(intervalMs * 0.85)));
+  const beam = entityManager.create(createLaserBeam(player.position.x, player.position.y + 0.95, range, halfWidth, beamLifetimeMs));
   beam.projectileKind = projectileKind;
   beam.projectileVisualId = projectileVisualId ?? (projectileKind === 'vector' ? 'vector-beam' : 'continuous-laser');
   beam.velocity.x = 0;
@@ -684,7 +685,7 @@ function fireTeslaArc(entityManager: EntityManager, player: PlayerEntity, level:
   let sourceY = player.position.y + 0.74;
   for (const target of chainTargets) {
     scoreDelta += dealDamage(target, Math.max(1, damage));
-    spawnSegmentBeam(entityManager, sourceX, sourceY, target.position.x, target.position.y, 'tesla-arc', 680, 0.22);
+    spawnSegmentBeam(entityManager, sourceX, sourceY, target.position.x, target.position.y, 'tesla-arc', 170, 0.22);
     spawnWeaponParticles(entityManager, target.position.x, target.position.y, 'tesla-spark', 4);
     sourceX = target.position.x;
     sourceY = target.position.y;
@@ -703,7 +704,7 @@ function fireTeslaArc(entityManager: EntityManager, player: PlayerEntity, level:
     0.12
   );
   if (visuals.length === 0) {
-    spawnSegmentBeam(entityManager, player.position.x, player.position.y + 0.74, player.position.x, player.position.y + 2.3, 'tesla-arc', 680, 0.12);
+    spawnSegmentBeam(entityManager, player.position.x, player.position.y + 0.74, player.position.x, player.position.y + 2.3, 'tesla-arc', 170, 0.12);
   }
   return { fired: true, intervalMs, energyCost, firedRecords: visuals, scoreDelta };
 }
@@ -726,7 +727,7 @@ function fireChainLaser(
   let scoreDelta = 0;
   if (primary) {
     scoreDelta += dealDamage(primary, baseDamage);
-    spawnSegmentBeam(entityManager, player.position.x, player.position.y + 0.92, primary.position.x, primary.position.y, 'chain-laser', 680);
+    spawnSegmentBeam(entityManager, player.position.x, player.position.y + 0.92, primary.position.x, primary.position.y, 'chain-laser', 180);
     spawnWeaponParticles(entityManager, primary.position.x, primary.position.y, 'chain-impact', 5);
     const secondaryTargets = nearestEnemies(entityManager, primary.position.x, primary.position.y, 3, 5.2).filter((target) => target.id !== primary.id);
     let damage = baseDamage * 0.7;
@@ -734,7 +735,7 @@ function fireChainLaser(
     let sourceY = primary.position.y;
     for (const target of secondaryTargets) {
       scoreDelta += dealDamage(target, damage);
-      spawnSegmentBeam(entityManager, sourceX, sourceY, target.position.x, target.position.y, 'chain-laser', 680);
+      spawnSegmentBeam(entityManager, sourceX, sourceY, target.position.x, target.position.y, 'chain-laser', 180);
       spawnWeaponParticles(entityManager, target.position.x, target.position.y, 'chain-impact', 4);
       sourceX = target.position.x;
       sourceY = target.position.y;

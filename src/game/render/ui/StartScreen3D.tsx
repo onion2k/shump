@@ -9,6 +9,7 @@ interface StartScreen3DProps {
   state: GameState;
   hasSavedRun: boolean;
   effectsQuality: EffectsQuality;
+  hardwareAccelerationWarning?: string;
   onStart: () => void;
   onStartFresh?: () => void;
   onOpenSettings?: () => void;
@@ -24,6 +25,7 @@ export function StartScreen3D({
   state,
   hasSavedRun,
   effectsQuality,
+  hardwareAccelerationWarning,
   onStart,
   onStartFresh,
   onOpenSettings
@@ -117,6 +119,15 @@ export function StartScreen3D({
                     Survive each wave, then upgrade between rounds.
                   </OverlayText>
                 )
+              },
+              {
+                id: 'start-info-hardware-warning',
+                fraction: hardwareAccelerationWarning ? 0.34 : 0,
+                content: hardwareAccelerationWarning ? (
+                  <OverlayText position={[0, 0, 0.03]} fontSize={0.16 * scale} color="#ffb38a" anchorX="center" anchorY="middle" maxWidth={contentWidth * 0.95}>
+                    {hardwareAccelerationWarning}
+                  </OverlayText>
+                ) : null
               }
             ]}
           />

@@ -22,6 +22,7 @@ import {
 } from './effectsQuality';
 import { SceneEntityLayer } from './SceneEntityLayer';
 import { SceneUiLayer } from './SceneUiLayer';
+import { detectHardwareAccelerationWarning } from './hardwareAcceleration';
 
 interface SceneRootProps {
   game: Game;
@@ -185,6 +186,7 @@ export function SceneRoot({
     !isMobile
     && typeof window !== 'undefined'
     && new URLSearchParams(window.location.search).has('stats');
+  const hardwareAccelerationWarning = useMemo(() => detectHardwareAccelerationWarning(gl), [gl]);
 
   return (
     <>
@@ -196,6 +198,7 @@ export function SceneRoot({
         snapshot={snapshot}
         hasSavedRun={hasSavedRun}
         effectsQuality={effectsQuality}
+        hardwareAccelerationWarning={hardwareAccelerationWarning}
         titleSettingsOpen={titleSettingsOpen}
         onStart={onStart}
         onStartFresh={onStartFresh}
