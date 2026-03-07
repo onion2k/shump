@@ -5,6 +5,20 @@ export interface BetweenRoundsPageCounts {
   shipPageCount: number;
 }
 
+export function stepCarouselPage(current: number, direction: -1 | 1, pageCount: number): number {
+  if (pageCount <= 1) {
+    return 0;
+  }
+  const next = current + direction;
+  if (next < 0) {
+    return 0;
+  }
+  if (next > pageCount - 1) {
+    return pageCount - 1;
+  }
+  return next;
+}
+
 export function computeBetweenRoundsPageCounts(args: {
   isMobile: boolean;
   foundCardsCount: number;

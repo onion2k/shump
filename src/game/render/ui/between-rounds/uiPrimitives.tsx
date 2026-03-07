@@ -170,6 +170,8 @@ export function FractionColumn({ width, height, slots, z = 0 }: { width: number;
 export function PageControls({
   pageCount,
   totalCount,
+  canPrev,
+  canNext,
   width,
   y,
   textScale,
@@ -178,6 +180,8 @@ export function PageControls({
 }: {
   pageCount: number;
   totalCount: number;
+  canPrev: boolean;
+  canNext: boolean;
   width: number;
   y: number;
   textScale: number;
@@ -200,7 +204,7 @@ export function PageControls({
             onClick={onPrev}
             color="#244866"
             textScale={textScale}
-            disabled={!hasMultiplePages}
+            disabled={!hasMultiplePages || !canPrev}
           />
         </Box>
         <Box width={buttonSize} height={buttonSize} centerAnchor>
@@ -211,7 +215,7 @@ export function PageControls({
             onClick={onNext}
             color="#244866"
             textScale={textScale}
-            disabled={!hasMultiplePages}
+            disabled={!hasMultiplePages || !canNext}
           />
         </Box>
       </Flex>

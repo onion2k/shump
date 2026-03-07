@@ -3,6 +3,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import { ACTIVE_LAYOUT_FRACTIONS } from './constants';
 import { ActionButton, FractionColumn, MobileCarouselTrack, PageControls, SectionBackground, UiText } from './uiPrimitives';
 import { ActiveCardGrid, CardFrame } from './cardComponents';
+import { stepCarouselPage } from './pagination';
 import { Box } from '../layout/FlexLayout';
 
 interface ActiveCardsSectionProps {
@@ -122,11 +123,13 @@ export function ActiveCardsSection({
                 <PageControls
                   pageCount={activePageCount}
                   totalCount={activeCardsCount}
+                  canPrev={activePage > 0}
+                  canNext={activePage < activePageCount - 1}
                   width={Math.min(contentWidth * 0.44, 2.8)}
                   y={0}
                   textScale={textScaleBoost}
-                  onPrev={() => setActivePage((value) => (value - 1 + activePageCount) % activePageCount)}
-                  onNext={() => setActivePage((value) => (value + 1) % activePageCount)}
+                  onPrev={() => setActivePage((value) => stepCarouselPage(value, -1, activePageCount))}
+                  onNext={() => setActivePage((value) => stepCarouselPage(value, 1, activePageCount))}
                 />
               ) : null
           }

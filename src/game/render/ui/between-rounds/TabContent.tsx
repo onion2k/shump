@@ -15,6 +15,7 @@ import {
   ShipLoadoutCard,
   ShipStatsPanel
 } from './cardComponents';
+import { stepCarouselPage } from './pagination';
 import { renderTagSummary } from './utils';
 import { getPlayerWeaponMinimumLevel, type PlayerWeaponMode } from '../../../weapons/playerWeapons';
 
@@ -197,11 +198,13 @@ export function BetweenRoundsTabContent({
                 <PageControls
                   pageCount={shopPageCount}
                   totalCount={shopCardsCount}
+                  canPrev={shopPage > 0}
+                  canNext={shopPage < shopPageCount - 1}
                   width={Math.min(contentWidth * 0.46, 3.2)}
                   y={0}
                   textScale={textScaleBoost}
-                  onPrev={() => setShopPage((value) => (value - 1 + shopPageCount) % shopPageCount)}
-                  onNext={() => setShopPage((value) => (value + 1) % shopPageCount)}
+                  onPrev={() => setShopPage((value) => stepCarouselPage(value, -1, shopPageCount))}
+                  onNext={() => setShopPage((value) => stepCarouselPage(value, 1, shopPageCount))}
                 />
               ) : null
           }
@@ -300,11 +303,13 @@ export function BetweenRoundsTabContent({
                         <PageControls
                           pageCount={deckPageCount}
                           totalCount={foundCardsCount}
+                          canPrev={deckPage > 0}
+                          canNext={deckPage < deckPageCount - 1}
                           width={Math.min(contentWidth * 0.46, 3.2)}
                           y={0}
                           textScale={textScaleBoost}
-                          onPrev={() => setDeckPage((value) => (value - 1 + deckPageCount) % deckPageCount)}
-                          onNext={() => setDeckPage((value) => (value + 1) % deckPageCount)}
+                          onPrev={() => setDeckPage((value) => stepCarouselPage(value, -1, deckPageCount))}
+                          onNext={() => setDeckPage((value) => stepCarouselPage(value, 1, deckPageCount))}
                         />
                       ) : null
                   },
@@ -433,11 +438,13 @@ export function BetweenRoundsTabContent({
                         <PageControls
                           pageCount={shipPageCount}
                           totalCount={shipCardsCount}
+                          canPrev={shipPage > 0}
+                          canNext={shipPage < shipPageCount - 1}
                           width={Math.min(contentWidth * 0.46, 3.2)}
                           y={0}
                           textScale={textScaleBoost}
-                          onPrev={() => setShipPage((value) => (value - 1 + shipPageCount) % shipPageCount)}
-                          onNext={() => setShipPage((value) => (value + 1) % shipPageCount)}
+                          onPrev={() => setShipPage((value) => stepCarouselPage(value, -1, shipPageCount))}
+                          onNext={() => setShipPage((value) => stepCarouselPage(value, 1, shipPageCount))}
                         />
                       ) : null
                   }

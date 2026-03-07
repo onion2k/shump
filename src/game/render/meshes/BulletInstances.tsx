@@ -21,7 +21,7 @@ interface ProjectileProfile {
 }
 
 const MAX_BULLET_INSTANCES = 12000;
-const MAX_BEAM_PARTICLES = 28000;
+const MAX_BEAM_PARTICLES = 52000;
 const STANDARD_BULLET_RADIUS = 0.2;
 
 const PROJECTILE_PROFILES: ProjectileProfile[] = [
@@ -153,24 +153,30 @@ function BeamBatch({ bullets, color }: { bullets: RenderBullet[]; color: string 
       const magnitude = Math.hypot(vx, vy) || 1;
       const nx = vx / magnitude;
       const ny = vy / magnitude;
-      const particlesPerBeam = Math.max(6, Math.min(22, Math.round(beamLength * 1.8)));
-      const flow = ((bullet.ageMs ?? 0) % 240) / 240;
-      const baseScale = Math.max(0.04, (bullet.radius ?? 0.12) * 0.26);
+      const angle = Math.atan2(vx, vy);
+      const segmentStep = 0.14;
+      const segmentLength = 0.24;
+      const particlesPerBeam = Math.max(12, Math.min(360, Math.ceil(beamLength / segmentStep) + 1));
+      const flowOffset = (((bullet.ageMs ?? 0) % 160) / 160) * segmentStep;
+      const baseRadius = Math.max(0.028, (bullet.radius ?? 0.12) * 0.22);
 
       for (let i = 0; i < particlesPerBeam; i += 1) {
         if (count >= MAX_BEAM_PARTICLES) {
           break;
         }
-        const t = (i / particlesPerBeam + flow) % 1;
-        const px = bullet.x + nx * beamLength * t;
-        const py = bullet.y + ny * beamLength * t;
-        const pulse = 0.86 + Math.sin((bullet.ageMs ?? 0) * 0.03 + i * 0.8) * 0.14;
+        const dist = i * segmentStep + flowOffset;
+        if (dist > beamLength + segmentStep) {
+          break;
+        }
+        const px = bullet.x + nx * dist;
+        const py = bullet.y + ny * dist;
+        const pulse = 0.9 + Math.sin((bullet.ageMs ?? 0) * 0.025 + i * 0.7) * 0.1;
         dummy.position.set(px, py, 0);
-        dummy.rotation.set(0, 0, 0);
-        dummy.scale.setScalar(baseScale * pulse);
+        dummy.rotation.set(0, 0, -angle);
+        dummy.scale.set(baseRadius * pulse, segmentLength, baseRadius * pulse);
         dummy.updateMatrix();
         core.setMatrixAt(count, dummy.matrix);
-        dummy.scale.setScalar(baseScale * pulse * 2.15);
+        dummy.scale.set(baseRadius * pulse * 2.1, segmentLength * 1.45, baseRadius * pulse * 2.1);
         dummy.updateMatrix();
         glow.setMatrixAt(count, dummy.matrix);
         count += 1;
@@ -186,11 +192,11 @@ function BeamBatch({ bullets, color }: { bullets: RenderBullet[]; color: string 
   return (
     <>
       <instancedMesh ref={coreRef} args={[undefined, undefined, MAX_BEAM_PARTICLES]} frustumCulled={false}>
-        <sphereGeometry args={[0.11, 6, 6]} />
+        <cylinderGeometry args={[1, 1, 1, 6]} />
         <meshBasicMaterial color={color} transparent opacity={0.94} toneMapped={false} />
       </instancedMesh>
       <instancedMesh ref={glowRef} args={[undefined, undefined, MAX_BEAM_PARTICLES]} frustumCulled={false}>
-        <sphereGeometry args={[0.11, 6, 6]} />
+        <cylinderGeometry args={[1, 1, 1, 6]} />
         <meshBasicMaterial color={color} transparent opacity={0.26} blending={AdditiveBlending} depthWrite={false} toneMapped={false} />
       </instancedMesh>
     </>

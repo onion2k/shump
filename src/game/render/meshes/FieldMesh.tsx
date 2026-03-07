@@ -105,6 +105,25 @@ export function FieldMesh({ visualId, radius, ageMs = 0, lifetimeMs = 1 }: Field
     );
   }
 
+  if (visualId === 'flak-shockwave' || visualId === 'mine-shockwave' || visualId === 'gravity-shockwave') {
+    const isGravity = visualId === 'gravity-shockwave';
+    const inner = radius * (0.12 + life * (isGravity ? 0.28 : 0.35));
+    const outer = radius * (0.38 + life * (isGravity ? 1.3 : 1.6));
+    const color = isGravity ? '#a9b7ff' : visualId === 'mine-shockwave' ? '#f2dd4d' : '#ffc995';
+    return (
+      <group rotation={[0, 0, t * (isGravity ? -1.7 : 2.2)]}>
+        <mesh>
+          <ringGeometry args={[Math.max(0.06, inner), Math.max(0.1, outer), 28]} />
+          <meshBasicMaterial color={color} transparent opacity={Math.max(0, 0.72 - life * 0.68)} toneMapped={false} />
+        </mesh>
+        <mesh>
+          <ringGeometry args={[Math.max(0.03, inner * 0.7), Math.max(0.08, outer * 0.86), 20]} />
+          <meshBasicMaterial color={isGravity ? '#d3dbff' : '#fff3d7'} transparent opacity={Math.max(0, 0.35 - life * 0.32)} toneMapped={false} />
+        </mesh>
+      </group>
+    );
+  }
+
   return (
     <mesh>
       <ringGeometry args={[Math.max(0.1, radius * 0.55), Math.max(0.2, radius), 24]} />

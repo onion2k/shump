@@ -42,10 +42,31 @@ function spawnExplosionField(entityManager: EntityManager, source: Entity, kind:
   );
   field.fieldVisualId = kind;
   const particleType = kind === 'gravity-well' ? 'gravity-swirl' : 'shrapnel-puff';
-  for (let i = 0; i < 6; i += 1) {
-    const angle = (i / 6) * Math.PI * 2;
-    entityManager.create(createParticle(source.position.x, source.position.y, Math.cos(angle) * 2.4, Math.sin(angle) * 2.4, particleType, 260, 0.05));
+  for (let i = 0; i < 14; i += 1) {
+    const angle = (i / 14) * Math.PI * 2;
+    const speed = kind === 'gravity-well' ? 1.8 + (i % 4) * 0.4 : 3 + (i % 5) * 0.45;
+    entityManager.create(
+      createParticle(source.position.x, source.position.y, Math.cos(angle) * speed, Math.sin(angle) * speed, particleType, 280 + (i % 4) * 50, 0.055)
+    );
   }
+}
+
+function spawnShockwaveVisual(
+  entityManager: EntityManager,
+  x: number,
+  y: number,
+  radius: number,
+  visualId: 'flak-shockwave' | 'mine-shockwave' | 'gravity-shockwave'
+): void {
+  const ring = entityManager.create(
+    createField(x, y, 'shrapnel-cloud', undefined, {
+      radius,
+      fieldRadius: radius,
+      damage: 0,
+      lifetimeMs: visualId === 'gravity-shockwave' ? 260 : 180
+    })
+  );
+  ring.fieldVisualId = visualId;
 }
 
 function applyRadialDamage(entityManager: EntityManager, field: Entity, deltaSeconds: number): number {
@@ -248,12 +269,14 @@ export function weaponEffectSystem(
 
     if (entity.sourceWeaponTag === 'flak-cannon-shell' && (entity.lifetimeMs ?? 0) < 220) {
       spawnExplosionField(entityManager, entity, 'shrapnel-cloud');
+      spawnShockwaveVisual(entityManager, entity.position.x, entity.position.y, Math.max(0.9, entity.splashRadius ?? 1.1), 'flak-shockwave');
       entity.health = 0;
       continue;
     }
 
     if (entity.sourceWeaponTag === 'gravity-bomb' && (entity.lifetimeMs ?? 0) < 260) {
       spawnExplosionField(entityManager, entity, 'gravity-well');
+      spawnShockwaveVisual(entityManager, entity.position.x, entity.position.y, Math.max(1.25, entity.splashRadius ?? 1.9), 'gravity-shockwave');
       entity.health = 0;
       continue;
     }
@@ -281,6 +304,7 @@ export function weaponEffectSystem(
             })
           );
           field.fieldVisualId = 'shrapnel-cloud';
+          spawnShockwaveVisual(entityManager, entity.position.x, entity.position.y, Math.max(0.95, entity.splashRadius ?? 1.4), 'mine-shockwave');
           for (let i = 0; i < 8; i += 1) {
             const theta = (i / 8) * Math.PI * 2;
             entityManager.create(createParticle(entity.position.x, entity.position.y, Math.cos(theta) * 3, Math.sin(theta) * 3, 'mine-burst', 220, 0.045));
