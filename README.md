@@ -7,10 +7,12 @@ The project uses an ECS-style simulation loop, renders gameplay in 3D, and inclu
 ## Features
 
 - Pointer/touch movement with auto-fire.
-- Game states: boot, playing, paused, game over.
+- Game states: boot, playing, between rounds, shop, paused, game over.
 - Enemy wave spawning with multiple movement patterns (`straight`, `sine`, `zigzag`, `lissajous`, `bezier`).
-- Multiple player weapon modes in the simulation (`Auto Pulse`, `Continuous Laser`, `Heavy Cannon`, `Sine SMG`).
-- Pickups for health, weapon energy, and score.
+- Full multi-weapon roster (24 primary weapon modes) with per-weapon leveling.
+- Between-rounds 3D loadout screen where the player selects the next round primary weapon from all weapon options.
+- Pickups for health, weapon energy, score, money, cards, and weapon unlock/progression.
+- Weapon pickups no longer force mid-round weapon swaps; they unlock/progress weapons and loadout selection happens between rounds.
 - Event bus for gameplay events like `WeaponFired`, `EntityDestroyed`, and `PickupCollected`.
 - HUD showing score, health, and weapon data.
 
@@ -55,8 +57,10 @@ The dev server runs on `127.0.0.1`.
 - Move ship: drag/click pointer (or touch on mobile).
 - Fire: automatic while playing.
 - Pause/resume: `Escape`.
-- Start run: click `Start Run`.
+- Start run: `Enter` (or click `Start Run`).
 - Restart after death: click `Restart`.
+- Between rounds: use the Ship tab to set primary weapon for next round.
+- Between rounds/shop quick weapon select: `1-9`, cycle with `Q`/`E`.
 
 ## Project Structure
 
@@ -87,13 +91,13 @@ Current automated coverage includes:
 
 - Unit tests for core loop mechanics, systems, and input math.
 - Integration tests for gameplay flow and event emission.
-- Playwright E2E tests for app load and playable start-loop behavior across desktop and mobile Chromium.
+- Playwright E2E tests for app load and playable start/pause loop behavior.
 
 Run everything:
 
 ```bash
 npm run check
-npm run e2e
+npm run e2e -- --project=desktop-chromium
 ```
 
 ## Notes
