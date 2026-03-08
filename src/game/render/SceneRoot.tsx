@@ -47,6 +47,8 @@ interface SceneRootProps {
   onOpenTitleSettings: () => void;
   onCloseTitleSettings: () => void;
   onSelectEffectsQuality: (quality: EffectsQuality) => void;
+  debugToolbarEnabled: boolean;
+  onSetDebugToolbarEnabled: (enabled: boolean) => void;
   onResume: () => void;
   onRestart: () => void;
   hasSavedRun: boolean;
@@ -78,6 +80,8 @@ export function SceneRoot({
   onOpenTitleSettings,
   onCloseTitleSettings,
   onSelectEffectsQuality,
+  debugToolbarEnabled,
+  onSetDebugToolbarEnabled,
   onResume,
   onRestart,
   hasSavedRun
@@ -205,6 +209,8 @@ export function SceneRoot({
         onOpenTitleSettings={onOpenTitleSettings}
         onCloseTitleSettings={onCloseTitleSettings}
         onSelectEffectsQuality={onSelectEffectsQuality}
+        debugToolbarEnabled={debugToolbarEnabled}
+        onSetDebugToolbarEnabled={onSetDebugToolbarEnabled}
         onResume={onResume}
         onRestart={onRestart}
         foundCards={foundCards}

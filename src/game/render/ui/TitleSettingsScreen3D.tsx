@@ -16,6 +16,8 @@ interface TitleSettingsScreen3DProps {
   open: boolean;
   effectsQuality: EffectsQuality;
   onSelectEffectsQuality: (quality: EffectsQuality) => void;
+  debugToolbarEnabled: boolean;
+  onSetDebugToolbarEnabled: (enabled: boolean) => void;
   onClose: () => void;
 }
 
@@ -33,6 +35,8 @@ export function TitleSettingsScreen3D({
   open,
   effectsQuality,
   onSelectEffectsQuality,
+  debugToolbarEnabled,
+  onSetDebugToolbarEnabled,
   onClose
 }: TitleSettingsScreen3DProps) {
   const camera = useThree((instance) => instance.camera);
@@ -57,6 +61,11 @@ export function TitleSettingsScreen3D({
   const optionGap = contentWidth * 0.035;
   const optionWidth = (contentWidth - optionGap * (QUALITY_OPTIONS.length - 1)) / QUALITY_OPTIONS.length;
   const closeWidth = Math.min(contentWidth * 0.46, 2.8);
+  const optionRowHeight = optionsHeight * 0.68;
+  const debugRowHeight = optionsHeight * 0.32;
+  const debugLabelWidth = contentWidth * 0.52;
+  const debugToggleGap = contentWidth * 0.03;
+  const debugToggleWidth = Math.min(contentWidth * 0.2, 1.45);
 
   return (
     <group position={[0, 0, 1.8]}>
@@ -113,52 +122,97 @@ export function TitleSettingsScreen3D({
           <Flex
             size={[contentWidth, optionsHeight, 0]}
             position={[-contentWidth / 2, optionsHeight / 2, 0.03]}
-            flexDirection="row"
+            flexDirection="column"
             alignItems="center"
             justifyContent="center"
           >
-            {QUALITY_OPTIONS.map((option, index) => {
-              const isSelected = option === effectsQuality;
-              return (
-                <Box key={option} width={optionWidth} height={optionsHeight} mr={index < QUALITY_OPTIONS.length - 1 ? optionGap : 0} centerAnchor>
-                  <FractionColumnLayout
-                    width={optionWidth}
-                    height={optionsHeight}
-                    slots={[
-                      {
-                        id: `${option}-title`,
-                        fraction: 0.42,
-                        content: (
-                          <OverlayText
-                            position={[0, 0, 0.03]}
-                            fontSize={0.19 * scale}
-                            color={isSelected ? '#eaf5ff' : '#9ec9ff'}
-                            anchorX="center"
-                            anchorY="middle"
-                          >
-                            {effectsQualityLabel(option)}
-                          </OverlayText>
-                        )
-                      },
-                      {
-                        id: `${option}-action`,
-                        fraction: 0.58,
-                        content: (
-                          <OverlayActionButton
-                            label={isSelected ? 'Selected' : 'Use'}
-                            width={Math.min(optionWidth * 0.88, 1.8)}
-                            onClick={() => onSelectEffectsQuality(option)}
-                            color={isSelected ? '#2f8f86' : '#315f91'}
-                            disabled={isSelected}
-                            textScale={scale}
-                          />
-                        )
-                      }
-                    ]}
+            <Box width={contentWidth} height={optionRowHeight} centerAnchor>
+              <Flex
+                size={[contentWidth, optionRowHeight, 0]}
+                position={[-contentWidth / 2, optionRowHeight / 2, 0.03]}
+                flexDirection="row"
+                alignItems="center"
+                justifyContent="center"
+              >
+                {QUALITY_OPTIONS.map((option, index) => {
+                  const isSelected = option === effectsQuality;
+                  return (
+                    <Box key={option} width={optionWidth} height={optionRowHeight} mr={index < QUALITY_OPTIONS.length - 1 ? optionGap : 0} centerAnchor>
+                      <FractionColumnLayout
+                        width={optionWidth}
+                        height={optionRowHeight}
+                        slots={[
+                          {
+                            id: `${option}-title`,
+                            fraction: 0.42,
+                            content: (
+                              <OverlayText
+                                position={[0, 0, 0.03]}
+                                fontSize={0.19 * scale}
+                                color={isSelected ? '#eaf5ff' : '#9ec9ff'}
+                                anchorX="center"
+                                anchorY="middle"
+                              >
+                                {effectsQualityLabel(option)}
+                              </OverlayText>
+                            )
+                          },
+                          {
+                            id: `${option}-action`,
+                            fraction: 0.58,
+                            content: (
+                              <OverlayActionButton
+                                label={isSelected ? 'Selected' : 'Use'}
+                                width={Math.min(optionWidth * 0.88, 1.8)}
+                                onClick={() => onSelectEffectsQuality(option)}
+                                color={isSelected ? '#2f8f86' : '#315f91'}
+                                disabled={isSelected}
+                                textScale={scale}
+                              />
+                            )
+                          }
+                        ]}
+                      />
+                    </Box>
+                  );
+                })}
+              </Flex>
+            </Box>
+            <Box width={contentWidth} height={debugRowHeight} centerAnchor>
+              <Flex
+                size={[contentWidth, debugRowHeight, 0]}
+                position={[-contentWidth / 2, debugRowHeight / 2, 0.03]}
+                flexDirection="row"
+                alignItems="center"
+                justifyContent="center"
+              >
+                <Box width={debugLabelWidth} height={debugRowHeight} centerAnchor>
+                  <OverlayText position={[0, 0, 0.03]} fontSize={0.17 * scale} color="#c5def8" anchorX="center" anchorY="middle">
+                    Debug Toolbar: {debugToolbarEnabled ? 'Enabled' : 'Disabled'}
+                  </OverlayText>
+                </Box>
+                <Box width={debugToggleWidth} height={debugRowHeight} mr={debugToggleGap} centerAnchor>
+                  <OverlayActionButton
+                    label="Enable"
+                    width={debugToggleWidth}
+                    onClick={() => onSetDebugToolbarEnabled(true)}
+                    color={debugToolbarEnabled ? '#2f8f86' : '#315f91'}
+                    disabled={debugToolbarEnabled}
+                    textScale={scale}
                   />
                 </Box>
-              );
-            })}
+                <Box width={debugToggleWidth} height={debugRowHeight} centerAnchor>
+                  <OverlayActionButton
+                    label="Disable"
+                    width={debugToggleWidth}
+                    onClick={() => onSetDebugToolbarEnabled(false)}
+                    color={!debugToolbarEnabled ? '#2f8f86' : '#315f91'}
+                    disabled={!debugToolbarEnabled}
+                    textScale={scale}
+                  />
+                </Box>
+              </Flex>
+            </Box>
           </Flex>
         </Box>
 

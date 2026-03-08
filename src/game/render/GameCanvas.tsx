@@ -32,6 +32,8 @@ interface GameCanvasProps {
   onOpenTitleSettings: () => void;
   onCloseTitleSettings: () => void;
   onSelectEffectsQuality: (quality: EffectsQuality) => void;
+  debugToolbarEnabled: boolean;
+  onSetDebugToolbarEnabled: (enabled: boolean) => void;
 }
 
 export function GameCanvas({
@@ -57,7 +59,9 @@ export function GameCanvas({
   titleSettingsOpen,
   onOpenTitleSettings,
   onCloseTitleSettings,
-  onSelectEffectsQuality
+  onSelectEffectsQuality,
+  debugToolbarEnabled,
+  onSetDebugToolbarEnabled
 }: GameCanvasProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const pointer = useMemo(() => new PointerController(), []);
@@ -113,6 +117,8 @@ export function GameCanvas({
           onOpenTitleSettings={onOpenTitleSettings}
           onCloseTitleSettings={onCloseTitleSettings}
           onSelectEffectsQuality={onSelectEffectsQuality}
+          debugToolbarEnabled={debugToolbarEnabled}
+          onSetDebugToolbarEnabled={onSetDebugToolbarEnabled}
         />
       </Canvas>
     </div>

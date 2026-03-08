@@ -14,6 +14,7 @@ import {
 import { DebugToolbar } from './game/render/ui/DebugToolbar';
 
 const EFFECTS_QUALITY_STORAGE_KEY = 'shump.effects-quality';
+const DEBUG_TOOLBAR_STORAGE_KEY = 'shump.debug-toolbar-enabled';
 
 export function App() {
   const game = useMemo(() => new Game(), []);
@@ -21,6 +22,7 @@ export function App() {
   const [snapshot, setSnapshot] = useState(() => game.snapshot());
   const [saveFile, setSaveFile] = useState<SaveFile>(() => saveService.load().save);
   const [effectsQuality, setEffectsQuality] = useState<EffectsQuality>(loadEffectsQualitySetting);
+  const [debugToolbarEnabled, setDebugToolbarEnabled] = useState<boolean>(loadDebugToolbarSetting);
   const [titleSettingsOpen, setTitleSettingsOpen] = useState(false);
 
   useEffect(() => game.subscribe(setSnapshot), [game]);
@@ -156,6 +158,11 @@ export function App() {
     persistEffectsQualitySetting(quality);
   }
 
+  function setDebugToolbarEnabledSetting(enabled: boolean) {
+    setDebugToolbarEnabled(enabled);
+    persistDebugToolbarSetting(enabled);
+  }
+
   function activateCard(cardId: string) {
     if (!game.activateFoundCard(cardId)) {
       return;
@@ -236,7 +243,7 @@ export function App() {
 
   return (
     <main className="app-shell" data-game-state={snapshot.state}>
-      <DebugToolbar stats={debugStats} />
+      {debugToolbarEnabled && <DebugToolbar stats={debugStats} />}
       <div className="game-stage">
         <GameCanvas
           game={game}
@@ -262,6 +269,8 @@ export function App() {
           onOpenTitleSettings={openTitleSettings}
           onCloseTitleSettings={closeTitleSettings}
           onSelectEffectsQuality={selectEffectsQuality}
+          debugToolbarEnabled={debugToolbarEnabled}
+          onSetDebugToolbarEnabled={setDebugToolbarEnabledSetting}
         />
         {snapshot.state === GameState.Paused && (
           <div
@@ -299,4 +308,25 @@ function persistEffectsQualitySetting(quality: EffectsQuality): void {
   }
 
   window.localStorage.setItem(EFFECTS_QUALITY_STORAGE_KEY, quality);
+}
+
+function loadDebugToolbarSetting(): boolean {
+  if (typeof window === 'undefined') {
+    return true;
+  }
+
+  const raw = window.localStorage.getItem(DEBUG_TOOLBAR_STORAGE_KEY);
+  if (!raw) {
+    return true;
+  }
+
+  return raw !== 'false';
+}
+
+function persistDebugToolbarSetting(enabled: boolean): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.setItem(DEBUG_TOOLBAR_STORAGE_KEY, String(enabled));
 }

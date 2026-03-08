@@ -22,6 +22,8 @@ interface SceneUiLayerProps {
   onOpenTitleSettings: () => void;
   onCloseTitleSettings: () => void;
   onSelectEffectsQuality: (quality: EffectsQuality) => void;
+  debugToolbarEnabled: boolean;
+  onSetDebugToolbarEnabled: (enabled: boolean) => void;
   onResume: () => void;
   onRestart: () => void;
   foundCards: CardDefinition[];
@@ -49,6 +51,8 @@ export function SceneUiLayer({
   onOpenTitleSettings,
   onCloseTitleSettings,
   onSelectEffectsQuality,
+  debugToolbarEnabled,
+  onSetDebugToolbarEnabled,
   onResume,
   onRestart,
   foundCards,
@@ -83,6 +87,8 @@ export function SceneUiLayer({
         open={titleSettingsOpen}
         effectsQuality={effectsQuality}
         onSelectEffectsQuality={onSelectEffectsQuality}
+        debugToolbarEnabled={debugToolbarEnabled}
+        onSetDebugToolbarEnabled={onSetDebugToolbarEnabled}
         onClose={onCloseTitleSettings}
       />
       <PauseScreen3D state={snapshot.state} onResume={onResume} />
