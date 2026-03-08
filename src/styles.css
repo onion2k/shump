@@ -52,6 +52,27 @@ body,
   white-space: nowrap;
 }
 
+.debug-toolbar__item {
+  display: inline-grid;
+  grid-template-columns: max-content max-content;
+  gap: 0.25rem 0.5rem;
+  align-items: center;
+  min-width: 14ch;
+}
+
+.debug-toolbar__item--wide {
+  min-width: 26ch;
+}
+
+.debug-toolbar__label {
+  color: #b8ddf5;
+}
+
+.debug-toolbar__value {
+  justify-self: end;
+  font-variant-numeric: tabular-nums;
+}
+
 .overlay {
   position: absolute;
   inset: 0;

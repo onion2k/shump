@@ -1,11 +1,29 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { shumpTelemetryPlugin } from './plugins/shumpTelemetryPlugin';
+
+type PackageJsonShape = {
+  shump?: {
+    telemetryEnabled?: boolean;
+  };
+};
+
+const packageJson = JSON.parse(
+  readFileSync(resolve(__dirname, 'package.json'), 'utf8')
+) as PackageJsonShape;
+const telemetryEnabled = packageJson.shump?.telemetryEnabled ?? true;
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), shumpTelemetryPlugin({ enabled: telemetryEnabled })],
   build: {
     chunkSizeWarningLimit: 800,
     rollupOptions: {
+      input: {
+        app: resolve(__dirname, 'index.html'),
+        telemetry: resolve(__dirname, 'telemetry.html')
+      },
       output: {
         manualChunks(id) {
           if (!id.includes('node_modules')) {

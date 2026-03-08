@@ -52,6 +52,44 @@ The dev server runs on `127.0.0.1`.
 - `npm run e2e`: Run Playwright end-to-end tests.
 - `npm run check`: Run `typecheck + lint + test`.
 
+## Telemetry
+
+A telemetry collector is injected by the Vite plugin when the game page runs. No direct game integration is required to collect:
+
+- FPS and average frame time
+- JS heap memory usage (`performance.memory` when available)
+- WebGL draw calls per sample window
+
+Open the separate viewer app at [telemetry.html](/Users/christopherneale/projects/shump/telemetry.html) while the game is running.
+
+You can toggle telemetry injection from [package.json](/Users/christopherneale/projects/shump/package.json):
+
+```json
+"shump": {
+  "telemetryEnabled": true
+}
+```
+
+Set `telemetryEnabled` to `false` and restart the dev server/build to disable collector injection.
+
+You can optionally fire custom game events without coupling gameplay systems to telemetry internals:
+
+```ts
+import { emitGameTelemetryEvent } from './telemetry/emitGameTelemetryEvent';
+
+emitGameTelemetryEvent('round-started', { round: 3 });
+```
+
+Or from anywhere:
+
+```ts
+window.dispatchEvent(
+  new CustomEvent('shump:telemetry', {
+    detail: { type: 'boss-spawned', payload: { id: 'alpha' } }
+  })
+);
+```
+
 ## Controls
 
 - Move ship: drag/click pointer (or touch on mobile).
