@@ -194,6 +194,7 @@ export function GpuParticleSystem({ game, maxParticles = 24000, particleScale = 
     }
 
     liveCountRef.current = activeCount;
+    game.setGpuParticleLiveCount(activeCount);
     geometry.setDrawRange(0, activeCount);
     attributes.positionAttr.needsUpdate = compacted || spawned;
     attributes.velocityAttr.needsUpdate = compacted || spawned;

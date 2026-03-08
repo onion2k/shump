@@ -163,6 +163,31 @@ export interface GameUpdateOptions {
   runDebug?: boolean;
 }
 
+export interface GameDebugStats {
+  totalEntities: number;
+  enemies: number;
+  bullets: number;
+  pickups: number;
+  drones: number;
+  fields: number;
+  pods: number;
+  particleEntities: number;
+  activeParticleVisuals: number;
+  gpuParticleLiveCount: number;
+  gpuParticlePendingSpawns: number;
+  particleEmitters: number;
+  scheduledEmitters: number;
+  estimatedFps: number;
+  averageFrameMs: number;
+  enemyDensityScale: number;
+  enemyPoolFree: number;
+  bulletPoolFree: number;
+  pickupPoolFree: number;
+  enemyPoolAllocated: number;
+  bulletPoolAllocated: number;
+  pickupPoolAllocated: number;
+}
+
 interface ScheduledEmitter {
   atMs: number;
   config: ParticleEmitterConfig;
@@ -176,6 +201,11 @@ const ADAPTIVE_LOW_FPS_HOLD_MS = 800;
 const ADAPTIVE_RECOVERY_HOLD_MS = 1800;
 const ENEMY_MONEY_REWARD = 2;
 const POD_CARD_IDS = ['satellite-bay', 'pulse-relay', 'missile-command'] as const;
+const ENTITY_POOL_PREWARM = {
+  enemy: 128,
+  bullet: 512,
+  pickup: 48
+} as const;
 
 export class Game {
   readonly entities = new EntityManager();
@@ -188,6 +218,7 @@ export class Game {
   private playerId = 0;
   private useGpuParticles = false;
   private gpuParticleSpawns: GpuParticleSpawn[] = [];
+  private gpuParticleLiveCount = 0;
   private scheduledEmitters: ScheduledEmitter[] = [];
   private trailSources: TrailSource[] = [];
   private debugEmitterId?: number;
@@ -291,6 +322,7 @@ export class Game {
 
   private resetWorld(playerState?: RunPlayerState) {
     this.entities.clear();
+    this.entities.prewarmPools(ENTITY_POOL_PREWARM);
     this.particles.clearEmitters();
     this.gpuParticleSpawns = [];
     this.scheduledEmitters = [];
@@ -909,6 +941,63 @@ export class Game {
     return count;
   }
 
+  debugStats(): GameDebugStats {
+    let totalEntities = 0;
+    let enemies = 0;
+    let bullets = 0;
+    let pickups = 0;
+    let drones = 0;
+    let fields = 0;
+    let pods = 0;
+    let particleEntities = 0;
+
+    for (const entity of this.entities.values()) {
+      totalEntities += 1;
+      if (entity.type === EntityType.Enemy) {
+        enemies += 1;
+      } else if (entity.type === EntityType.Bullet) {
+        bullets += 1;
+      } else if (entity.type === EntityType.Pickup) {
+        pickups += 1;
+      } else if (entity.type === EntityType.Drone) {
+        drones += 1;
+      } else if (entity.type === EntityType.Field) {
+        fields += 1;
+      } else if (entity.type === EntityType.Pod) {
+        pods += 1;
+      } else if (entity.type === EntityType.Particle) {
+        particleEntities += 1;
+      }
+    }
+
+    const poolStats = this.entities.poolStats();
+
+    return {
+      totalEntities,
+      enemies,
+      bullets,
+      pickups,
+      drones,
+      fields,
+      pods,
+      particleEntities,
+      activeParticleVisuals: particleEntities + this.gpuParticleLiveCount,
+      gpuParticleLiveCount: this.gpuParticleLiveCount,
+      gpuParticlePendingSpawns: this.gpuParticleSpawns.length,
+      particleEmitters: this.particles.countEmitters(),
+      scheduledEmitters: this.scheduledEmitters.length,
+      estimatedFps: 1000 / Math.max(1, this.averageFrameMs),
+      averageFrameMs: this.averageFrameMs,
+      enemyDensityScale: this.enemyDensityScale,
+      enemyPoolFree: poolStats.enemy.pooled,
+      bulletPoolFree: poolStats.bullet.pooled,
+      pickupPoolFree: poolStats.pickup.pooled,
+      enemyPoolAllocated: poolStats.enemy.totalAllocated,
+      bulletPoolAllocated: poolStats.bullet.totalAllocated,
+      pickupPoolAllocated: poolStats.pickup.totalAllocated
+    };
+  }
+
   setPlayableBounds(bounds: WorldBounds) {
     this.playableBounds = bounds;
   }
@@ -933,7 +1022,12 @@ export class Game {
       }
     } else {
       this.gpuParticleSpawns = [];
+      this.gpuParticleLiveCount = 0;
     }
+  }
+
+  setGpuParticleLiveCount(count: number) {
+    this.gpuParticleLiveCount = Math.max(0, Math.floor(count));
   }
 
   consumeGpuParticleSpawns(): GpuParticleSpawn[] {

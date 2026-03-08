@@ -11,6 +11,7 @@ import {
   isEffectsQuality,
   type EffectsQuality
 } from './game/render/effectsQuality';
+import { DebugToolbar } from './game/render/ui/DebugToolbar';
 
 const EFFECTS_QUALITY_STORAGE_KEY = 'shump.effects-quality';
 
@@ -231,9 +232,11 @@ export function App() {
     }
     return game.shopOffers();
   }, [activeCardsKey, foundCardsKey, game, snapshot.roundIndex, snapshot.state]);
+  const debugStats = game.debugStats();
 
   return (
     <main className="app-shell" data-game-state={snapshot.state}>
+      <DebugToolbar stats={debugStats} />
       <div className="game-stage">
         <GameCanvas
           game={game}

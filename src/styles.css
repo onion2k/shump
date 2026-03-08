@@ -28,6 +28,30 @@ body,
   height: 100%;
 }
 
+.debug-toolbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9999;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  align-items: center;
+  padding: 0.35rem 0.55rem;
+  background: rgba(0, 0, 0, 0.64);
+  border-bottom: 1px solid rgba(173, 216, 255, 0.26);
+  color: #d8f0ff;
+  font-size: 0.7rem;
+  font-family: 'SF Mono', 'Roboto Mono', Menlo, Consolas, monospace;
+  pointer-events: none;
+  user-select: text;
+}
+
+.debug-toolbar span {
+  white-space: nowrap;
+}
+
 .overlay {
   position: absolute;
   inset: 0;
