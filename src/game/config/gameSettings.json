@@ -177,7 +177,9 @@
       "healthPickupValue": 2,
       "weaponDropModulo": 7,
       "weaponPickupValue": 1,
-      "weaponPickupLifetimeMs": 8000
+      "weaponPickupLifetimeMs": 8000,
+      "moneyPickupLifetimeMs": 24000,
+      "cardPickupLifetimeMs": 28000
     },
     "pods": {
       "maxCount": 3,

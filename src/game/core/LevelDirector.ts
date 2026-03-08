@@ -72,7 +72,8 @@ export class LevelDirector {
 
 function buildRound(levelNumber: number, roundIndex: number, runtimeModifiers: EncounterDirectorModifiers): RoundDefinition {
   const pacing = roundPacingProfile(levelNumber, roundIndex);
-  const enemyCount = enemiesForLevelRound(levelNumber, roundIndex, runtimeModifiers);
+  const baselineEnemyCount = enemiesForLevelRound(levelNumber, roundIndex, runtimeModifiers);
+  const enemyCount = Math.max(baselineEnemyCount, pacing.waveCount * 2);
   const spawnsPerWave = distribute(enemyCount, pacing.waveCount);
   const unlocked = unlockedPools(levelNumber, runtimeModifiers);
   const formationWaveCount = Math.max(1, Math.round(spawnsPerWave.length * pacing.formationWaveRatio));

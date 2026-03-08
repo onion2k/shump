@@ -200,6 +200,7 @@ const ADAPTIVE_MIN_DENSITY_SCALE = 0.4;
 const ADAPTIVE_LOW_FPS_HOLD_MS = 800;
 const ADAPTIVE_RECOVERY_HOLD_MS = 1800;
 const ENEMY_MONEY_REWARD = 2;
+const SHOP_MIN_OFFERS = 5;
 const POD_CARD_IDS = ['satellite-bay', 'pulse-relay', 'missile-command'] as const;
 const ENTITY_POOL_PREWARM = {
   enemy: 128,
@@ -760,12 +761,22 @@ export class Game {
           activePickups += 1;
         }
         if (this.shouldSpawnDropPickup(entity.id, moneyDropModulo, activePickups, 91)) {
-          this.entities.create(createPickup(entity.position.x, entity.position.y, 'money', 6, 6000));
+          this.entities.create(
+            createPickup(entity.position.x, entity.position.y, 'money', 6, enemyDropTuning.moneyPickupLifetimeMs)
+          );
           activePickups += 1;
         }
         if (this.shouldSpawnDropPickup(entity.id, cardDropModulo, activePickups, 113)) {
           this.entities.create(
-            createPickup(entity.position.x, entity.position.y, 'card', 1, 7000, undefined, this.pickCardDropId(entity.id))
+            createPickup(
+              entity.position.x,
+              entity.position.y,
+              'card',
+              1,
+              enemyDropTuning.cardPickupLifetimeMs,
+              undefined,
+              this.pickCardDropId(entity.id)
+            )
           );
           activePickups += 1;
         }
@@ -1300,7 +1311,7 @@ export class Game {
         activeCards: this.runProgress.activeCards,
         consumedCards: this.runProgress.consumedCards ?? []
       },
-      3
+      SHOP_MIN_OFFERS
     );
 
     return this.applyGuaranteedPodOfferIfNeeded(offers);
@@ -1333,7 +1344,7 @@ export class Game {
     }
 
     const updated = [...offers];
-    if (updated.length >= 3) {
+    if (updated.length >= SHOP_MIN_OFFERS) {
       updated[updated.length - 1] = guaranteedPod;
     } else {
       updated.push(guaranteedPod);

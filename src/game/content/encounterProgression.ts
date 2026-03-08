@@ -65,13 +65,13 @@ export function roundPacingProfile(levelNumber: number, roundIndex: number): Rou
   const safeRound = Math.max(1, Math.min(ROUNDS_PER_LEVEL, Math.floor(roundIndex)));
   const difficultyIndex = (safeLevel - 1) * ROUNDS_PER_LEVEL + (safeRound - 1);
 
-  const waveCount = clampInt(5 + Math.floor(difficultyIndex / 5), 5, 7);
+  const waveCount = clampInt(15 + Math.floor(difficultyIndex / 3), 15, 20);
   const waveStartMs = 1200;
-  const waveGapMs = clampInt(11600 - difficultyIndex * 140, 8600, 11600);
-  const spawnGapMs = clampInt(240 - difficultyIndex * 3, 120, 240);
+  const waveGapMs = clampInt(1500 - difficultyIndex * 24, 500, 1500);
+  const spawnGapMs = clampInt((240 - difficultyIndex * 3) / 1.3, 90, 185);
   const enemyHealthScale = clampNumber(1.35 + difficultyIndex * 0.055, 1.35, 2.7);
   const formationWaveRatio = clampNumber(0.5 + difficultyIndex * 0.012, 0.5, 0.75);
-  const expectedRoundDurationMs = waveStartMs + Math.max(0, waveCount - 1) * waveGapMs + spawnGapMs * 4 + 12000;
+  const expectedRoundDurationMs = waveStartMs + Math.max(0, waveCount - 1) * waveGapMs + spawnGapMs * 4 + waveCount * 2500 + 12000;
 
   return {
     waveCount,
