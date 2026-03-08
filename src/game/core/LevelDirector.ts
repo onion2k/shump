@@ -144,17 +144,19 @@ function buildFormationSpawns(
   const baseAmplitude = 1.4 + ((roundIndex + waveIndex) % 3) * 0.45;
   const baseFrequency = clampNumber(1 + roundIndex * 0.08 + (waveIndex % 2) * 0.2, 0.75, 2.8);
   const archetype = unlocked.archetypes[(spawnCursor + waveIndex + roundIndex) % unlocked.archetypes.length] ?? 'scout';
-  const batchSize = 4;
-  const formationBatchGapMs = Math.max(380, pacing.spawnGapMs * 2);
+  const lineCount = Math.max(2, Math.min(limitedLaneOrder().length, Math.ceil(count / 3)));
+  const lineDelayMs = Math.max(70, Math.round(pacing.spawnGapMs * 0.65));
+  const formationBatchGapMs = Math.max(420, pacing.spawnGapMs * 3);
   const phaseOffsetSeconds = (waveIndex % 4) * 0.2;
-  const laneCycle = mirroredLaneOrder();
+  const laneCycle = limitedLaneOrder();
   const spawns: WaveSpawnDef[] = [];
 
   for (let i = 0; i < count; i += 1) {
-    const batchIndex = Math.floor(i / batchSize);
+    const batchIndex = Math.floor(i / lineCount);
+    const lineIndex = i % lineCount;
     spawns.push({
-      offsetMs: batchIndex * formationBatchGapMs,
-      x: laneCycle[i % laneCycle.length],
+      offsetMs: batchIndex * lineDelayMs + Math.floor(batchIndex / 3) * formationBatchGapMs,
+      x: laneCycle[lineIndex],
       spawnFrom,
       movementPattern: pattern,
       patternAmplitude: baseAmplitude,
@@ -218,8 +220,8 @@ function sanitizeNumber(value: number | undefined, fallback: number): number {
   return value;
 }
 
-function mirroredLaneOrder(): number[] {
-  return [X_LANES[2], X_LANES[1], X_LANES[3], X_LANES[0], X_LANES[4]];
+function limitedLaneOrder(): number[] {
+  return [X_LANES[1], X_LANES[2], X_LANES[3]];
 }
 
 function clampNumber(value: number, min: number, max: number): number {

@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import type { InstancedMesh } from 'three';
 import { AdditiveBlending, BackSide, Object3D } from 'three';
 import type { Game } from '../../core/Game';
@@ -75,10 +75,12 @@ function shapeGeometry(shape: Shape, radius: number) {
 
 function ProjectileBatch({
   bullets,
-  profile
+  profile,
+  resolveRotation
 }: {
   bullets: RenderBullet[];
   profile: ProjectileProfile;
+  resolveRotation?: (bullet: RenderBullet) => number;
 }) {
   const meshRef = useRef<InstancedMesh>(null);
   const outlineRef = useRef<InstancedMesh>(null);
@@ -99,7 +101,8 @@ function ProjectileBatch({
 
       const radiusScale = Math.max(0.4, (bullet.radius ?? profile.radius) / Math.max(0.01, profile.radius));
       dummy.position.set(bullet.x, bullet.y, 0);
-      dummy.rotation.set(0, 0, Math.atan2(bullet.vx ?? 0, bullet.vy ?? 1));
+      const rotation = resolveRotation ? resolveRotation(bullet) : Math.atan2(bullet.vx ?? 0, bullet.vy ?? 1);
+      dummy.rotation.set(0, 0, rotation);
       dummy.scale.setScalar(radiusScale);
       dummy.updateMatrix();
       mesh.setMatrixAt(count, dummy.matrix);
@@ -113,7 +116,7 @@ function ProjectileBatch({
     outline.count = count;
     mesh.instanceMatrix.needsUpdate = true;
     outline.instanceMatrix.needsUpdate = true;
-  }, [bullets, dummy, profile.radius]);
+  }, [bullets, dummy, profile.radius, resolveRotation]);
 
   return (
     <>
@@ -211,6 +214,30 @@ export function BulletInstances({ bullets }: BulletInstancesProps) {
     (bullet) => bullet.faction !== Faction.Enemy && bullet.projectileKind !== 'laser' && bullet.projectileKind !== 'vector' && bullet.projectileKind !== 'missile'
   );
 
+  const missileHeadingByIdRef = useRef(new Map<number, number>());
+
+  useLayoutEffect(() => {
+    const activeIds = new Set(missileBullets.map((bullet) => bullet.id));
+    for (const id of missileHeadingByIdRef.current.keys()) {
+      if (!activeIds.has(id)) {
+        missileHeadingByIdRef.current.delete(id);
+      }
+    }
+  }, [missileBullets]);
+
+  const resolveMissileRotation = useCallback((bullet: RenderBullet): number => {
+    const vx = bullet.vx ?? 0;
+    const vy = bullet.vy ?? 0;
+    const speed = Math.hypot(vx, vy);
+    if (speed > 0.001) {
+      const angle = Math.atan2(vx, vy);
+      missileHeadingByIdRef.current.set(bullet.id, angle);
+      return angle;
+    }
+
+    return missileHeadingByIdRef.current.get(bullet.id) ?? 0;
+  }, []);
+
   const bulletsByProfile = useMemo(() => {
     const bucket = new Map<string, RenderBullet[]>();
     for (const bullet of playerBullets) {
@@ -231,7 +258,11 @@ export function BulletInstances({ bullets }: BulletInstancesProps) {
         bullets={enemyBullets}
         profile={{ id: 'enemy', shape: 'sphere', color: gameSettings.visuals.bullets.enemyColor, radius: STANDARD_BULLET_RADIUS }}
       />
-      <ProjectileBatch bullets={missileBullets} profile={{ id: 'missile', shape: 'cone', color: '#9ec7ff', emissive: '#7eaaff', radius: 0.22 }} />
+      <ProjectileBatch
+        bullets={missileBullets}
+        profile={{ id: 'missile', shape: 'cone', color: '#9ec7ff', emissive: '#7eaaff', radius: 0.22 }}
+        resolveRotation={resolveMissileRotation}
+      />
       {PROJECTILE_PROFILES.map((profile) => (
         <ProjectileBatch key={profile.id} bullets={bulletsByProfile.get(profile.id) ?? []} profile={profile} />
       ))}

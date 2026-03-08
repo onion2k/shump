@@ -1030,6 +1030,45 @@ export const cardCatalog: CardDefinition[] = [
     effects: [{ kind: 'economyModifier', effectId: 'efficient-engineering', amount: 1 }]
   },
   {
+    id: 'salvage-magnet',
+    name: 'Salvage Magnet',
+    description: 'Increases pickup attraction range for money and card salvage.',
+    rarity: 'common',
+    tags: ['economy', 'utility'],
+    cost: 40,
+    maxStacks: 2,
+    unlockRound: 1,
+    shopWeight: 1.06,
+    dropWeight: 0.94,
+    effects: [{ kind: 'playerStat', stat: 'pickupAttractRange', amount: 1.2 }]
+  },
+  {
+    id: 'collection-beacon',
+    name: 'Collection Beacon',
+    description: 'Projects a stronger salvage field that reaches distant rewards.',
+    rarity: 'uncommon',
+    tags: ['economy', 'utility', 'precision'],
+    cost: 60,
+    maxStacks: 2,
+    unlockRound: 2,
+    shopWeight: 0.88,
+    dropWeight: 0.72,
+    effects: [{ kind: 'playerStat', stat: 'pickupAttractRange', amount: 1.8 }]
+  },
+  {
+    id: 'event-horizon-wallet',
+    name: 'Event Horizon Wallet',
+    description: 'A dense gravitic pocket drags in faraway cards and money.',
+    rarity: 'rare',
+    tags: ['economy', 'core', 'utility'],
+    cost: 78,
+    maxStacks: 1,
+    unlockRound: 3,
+    shopWeight: 0.5,
+    dropWeight: 0.4,
+    effects: [{ kind: 'playerStat', stat: 'pickupAttractRange', amount: 2.8 }]
+  },
+  {
     id: 'duplicate-systems',
     name: 'Duplicate Systems',
     description: 'Collected card pickups have a chance to duplicate.',

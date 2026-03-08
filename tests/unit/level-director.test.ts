@@ -127,4 +127,63 @@ describe('LevelDirector', () => {
 
     expect(formationWaves.length).toBeGreaterThanOrEqual(Math.floor(round.waves.length / 2));
   });
+
+  it('builds formation lines where enemies trail on shared lanes with staggered timing', () => {
+    const director = new LevelDirector();
+    director.configure('level-6', 3);
+
+    const round = director.currentRound();
+    const formationWave = round.waves.find((wave) => {
+      const patterns = new Set(wave.spawns.map((spawn) => spawn.movementPattern));
+      const phaseOffsets = new Set(
+        wave.spawns.map((spawn) =>
+          typeof spawn.movementParams?.phaseOffsetSeconds === 'number' ? spawn.movementParams.phaseOffsetSeconds : undefined
+        )
+      );
+      const laneCounts = new Map<number, number>();
+      for (const spawn of wave.spawns) {
+        laneCounts.set(spawn.x, (laneCounts.get(spawn.x) ?? 0) + 1);
+      }
+      const repeatedLanes = [...laneCounts.values()].filter((laneCount) => laneCount > 1).length;
+      return patterns.size === 1 && phaseOffsets.size === 1 && phaseOffsets.has(undefined) === false && repeatedLanes >= 1;
+    });
+
+    expect(formationWave).toBeTruthy();
+    if (!formationWave) {
+      return;
+    }
+
+    const laneOffsets = new Map<number, number[]>();
+    for (const spawn of formationWave.spawns) {
+      const offsets = laneOffsets.get(spawn.x) ?? [];
+      offsets.push(spawn.offsetMs);
+      laneOffsets.set(spawn.x, offsets);
+    }
+
+    expect(laneOffsets.size).toBeGreaterThanOrEqual(2);
+
+    const trailingLines = [...laneOffsets.values()].filter((offsets) => {
+      const uniqueSortedOffsets = [...new Set(offsets)].sort((a, b) => a - b);
+      return uniqueSortedOffsets.length >= 2 && uniqueSortedOffsets[1] > uniqueSortedOffsets[0];
+    });
+    expect(trailingLines.length).toBeGreaterThanOrEqual(1);
+
+    const simultaneousOffsets = new Set<number>();
+    for (const offsets of laneOffsets.values()) {
+      for (const offset of offsets) {
+        simultaneousOffsets.add(offset);
+      }
+    }
+
+    const hasSimultaneousSpawn = [...simultaneousOffsets].some((offset) => {
+      let countAtOffset = 0;
+      for (const offsets of laneOffsets.values()) {
+        if (offsets.includes(offset)) {
+          countAtOffset += 1;
+        }
+      }
+      return countAtOffset >= 2;
+    });
+    expect(hasSimultaneousSpawn).toBe(true);
+  });
 });

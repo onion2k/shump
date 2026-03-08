@@ -71,6 +71,45 @@ describe('cardEffectSystem', () => {
     expect(bonuses.killMoneyFlatBonus).toBe(0);
   });
 
+  it('increases pickup attraction range with salvage magnet cards', () => {
+    const bonuses = computeCardBonuses(['salvage-magnet', 'collection-beacon']);
+    expect(bonuses.playerStatBonus.pickupAttractRange).toBe(3);
+
+    const player: Entity = {
+      id: 22,
+      type: EntityType.Player,
+      position: { x: 0, y: 0 },
+      velocity: { x: 0, y: 0 },
+      radius: 0.6,
+      health: 10,
+      maxHealth: 10,
+      weaponMode: 'Auto Pulse',
+      weaponLevel: 1,
+      weaponLevels: { 'Auto Pulse': 1, 'Heavy Cannon': 1, 'Sine SMG': 1 },
+      podCount: 0,
+      podWeaponMode: 'Auto Pulse'
+    };
+    const baseState = {
+      health: 10,
+      maxHealth: 10,
+      weaponLevels: { 'Auto Pulse': 1, 'Heavy Cannon': 1, 'Sine SMG': 1 },
+      podCount: 0,
+      podWeaponMode: 'Auto Pulse' as const,
+      moveMaxSpeed: 24,
+      moveFollowGain: 6,
+      pickupAttractRange: 4.2,
+      pickupAttractPower: 16,
+      shieldCurrent: 10,
+      shieldMax: 10,
+      shieldRechargeDelayMs: 1400,
+      shieldRechargeTimeMs: 3600,
+      shieldRechargeDelayRemainingMs: 0
+    };
+
+    applyCardsToPlayer(player, baseState, ['salvage-magnet', 'collection-beacon']);
+    expect(player.pickupAttractRange).toBe(7.2);
+  });
+
   it('applies pod count and missile mode overrides from pod cards', () => {
     const player = {
       id: 2,
