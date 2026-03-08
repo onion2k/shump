@@ -624,6 +624,7 @@ export class Game {
       0.25,
       2.4
     );
+    const roundHealthScale = this.levelDirector.currentRoundHealthScale();
 
     this.elapsedMs += deltaSeconds * 1000;
     this.distanceTraveled += WORLD_SCROLL_SPEED * deltaSeconds;
@@ -664,7 +665,8 @@ export class Game {
     this.handlePlayerWeapons(deltaSeconds, cardBonuses);
     this.spawner.tick(this.entities, deltaSeconds, this.playableBounds, this.distanceTraveled, {
       enemyDensityScale: spawnDensityScale,
-      enemyHealthScale: this.cardPercentToScale(getGameplayModifier(cardBonuses.gameplayModifiers, 'enemy.healthPercent')),
+      enemyHealthScale:
+        this.cardPercentToScale(getGameplayModifier(cardBonuses.gameplayModifiers, 'enemy.healthPercent')) * roundHealthScale,
       enemySpeedScale: this.cardPercentToScale(getGameplayModifier(cardBonuses.gameplayModifiers, 'enemy.speedPercent')),
       enemyFireIntervalScale: this.cardPercentToInverseScale(
         getGameplayModifier(cardBonuses.gameplayModifiers, 'enemy.fireRatePercent')

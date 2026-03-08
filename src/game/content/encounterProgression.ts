@@ -17,11 +17,17 @@ export const ROUNDS_PER_LEVEL = 3;
 export const BASE_ROUND_ENEMIES = 10;
 export const ROUND_ENEMY_STEP = 5;
 export const LEVEL_ENEMY_STEP = 5;
-export const WAVE_COUNT = 3;
-export const WAVE_START_MS = 500;
-export const WAVE_GAP_MS = 1200;
-export const SPAWN_GAP_MS = 160;
 export const X_LANES = [-4.8, -2.4, 0, 2.4, 4.8] as const;
+
+export interface RoundPacingProfile {
+  waveCount: number;
+  waveStartMs: number;
+  waveGapMs: number;
+  spawnGapMs: number;
+  enemyHealthScale: number;
+  formationWaveRatio: number;
+  expectedRoundDurationMs: number;
+}
 
 export const BASE_ARCHETYPES: EnemyArchetypeId[] = ['scout'];
 export const BASE_PATTERNS: MovementPatternId[] = ['straight', 'sine'];
@@ -52,6 +58,30 @@ export function enemiesForLevelRound(
   const baseCount = levelBase + (roundIndex - 1) * ROUND_ENEMY_STEP;
   const countMultiplier = Math.max(0.2, 1 + modifiers.enemyCountPercent / 100);
   return Math.max(1, Math.round(baseCount * countMultiplier));
+}
+
+export function roundPacingProfile(levelNumber: number, roundIndex: number): RoundPacingProfile {
+  const safeLevel = Math.max(1, Math.floor(levelNumber));
+  const safeRound = Math.max(1, Math.min(ROUNDS_PER_LEVEL, Math.floor(roundIndex)));
+  const difficultyIndex = (safeLevel - 1) * ROUNDS_PER_LEVEL + (safeRound - 1);
+
+  const waveCount = clampInt(5 + Math.floor(difficultyIndex / 5), 5, 7);
+  const waveStartMs = 1200;
+  const waveGapMs = clampInt(11600 - difficultyIndex * 140, 8600, 11600);
+  const spawnGapMs = clampInt(240 - difficultyIndex * 3, 120, 240);
+  const enemyHealthScale = clampNumber(1.35 + difficultyIndex * 0.055, 1.35, 2.7);
+  const formationWaveRatio = clampNumber(0.5 + difficultyIndex * 0.012, 0.5, 0.75);
+  const expectedRoundDurationMs = waveStartMs + Math.max(0, waveCount - 1) * waveGapMs + spawnGapMs * 4 + 12000;
+
+  return {
+    waveCount,
+    waveStartMs,
+    waveGapMs,
+    spawnGapMs,
+    enemyHealthScale,
+    formationWaveRatio,
+    expectedRoundDurationMs
+  };
 }
 
 export function unlockedPools(
@@ -111,4 +141,12 @@ function applyUnlock(
   if (unlock.pattern && !patterns.includes(unlock.pattern)) {
     patterns.push(unlock.pattern);
   }
+}
+
+function clampInt(value: number, min: number, max: number): number {
+  return Math.floor(clampNumber(value, min, max));
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
 }

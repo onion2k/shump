@@ -181,4 +181,32 @@ describe('MovementControllerRegistry', () => {
       })
     ).toBeUndefined();
   });
+
+  it('applies phaseOffsetSeconds to synchronize or offset pattern motion', () => {
+    const registry = createDefaultMovementControllerRegistry();
+    const sine = registry.resolve('sine');
+
+    const base = sine({
+      ageSeconds: 0.6,
+      baseX: 0,
+      baseY: 0,
+      driftX: 0,
+      driftY: -2,
+      amplitude: 2,
+      frequency: 2,
+      params: { phaseOffsetSeconds: 0 }
+    });
+    const shifted = sine({
+      ageSeconds: 0.6,
+      baseX: 0,
+      baseY: 0,
+      driftX: 0,
+      driftY: -2,
+      amplitude: 2,
+      frequency: 2,
+      params: { phaseOffsetSeconds: 0.4 }
+    });
+
+    expect(base?.x).not.toBeCloseTo(shifted?.x ?? 0, 4);
+  });
 });

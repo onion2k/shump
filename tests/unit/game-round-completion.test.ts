@@ -17,7 +17,7 @@ describe('Game round completion', () => {
     game.startNewRun(101);
 
     let reachedBetweenRounds = false;
-    for (let i = 0; i < 320; i += 1) {
+    for (let i = 0; i < 1400; i += 1) {
       game.update(0.1, IDLE_POINTER);
       for (const entity of game.entities.all()) {
         if (entity.type === EntityType.Enemy) {

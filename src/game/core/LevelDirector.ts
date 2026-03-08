@@ -2,12 +2,9 @@ import type { WaveDef, WaveSpawnDef } from '../systems/waveScript';
 import {
   DEFAULT_ENCOUNTER_DIRECTOR_MODIFIERS,
   ROUNDS_PER_LEVEL,
-  SPAWN_GAP_MS,
-  WAVE_COUNT,
-  WAVE_GAP_MS,
-  WAVE_START_MS,
   X_LANES,
   enemiesForLevelRound,
+  roundPacingProfile,
   type EncounterDirectorModifiers,
   unlockedPools
 } from '../content/encounterProgression';
@@ -15,6 +12,8 @@ import {
 export interface RoundDefinition {
   id: string;
   waves: WaveDef[];
+  enemyHealthScale: number;
+  expectedDurationMs: number;
 }
 
 export class LevelDirector {
@@ -44,6 +43,10 @@ export class LevelDirector {
     return buildRound(this.levelNumber, this.roundIndex, this.runtimeModifiers);
   }
 
+  currentRoundHealthScale(): number {
+    return roundPacingProfile(this.levelNumber, this.roundIndex).enemyHealthScale;
+  }
+
   currentLevelId(): string {
     return this.levelId;
   }
@@ -68,9 +71,11 @@ export class LevelDirector {
 }
 
 function buildRound(levelNumber: number, roundIndex: number, runtimeModifiers: EncounterDirectorModifiers): RoundDefinition {
+  const pacing = roundPacingProfile(levelNumber, roundIndex);
   const enemyCount = enemiesForLevelRound(levelNumber, roundIndex, runtimeModifiers);
-  const spawnsPerWave = distribute(enemyCount, WAVE_COUNT);
+  const spawnsPerWave = distribute(enemyCount, pacing.waveCount);
   const unlocked = unlockedPools(levelNumber, runtimeModifiers);
+  const formationWaveCount = Math.max(1, Math.round(spawnsPerWave.length * pacing.formationWaveRatio));
   let spawnCursor = 0;
 
   const waves: WaveDef[] = spawnsPerWave
@@ -79,23 +84,14 @@ function buildRound(levelNumber: number, roundIndex: number, runtimeModifiers: E
         return undefined;
       }
 
-      const spawns: WaveSpawnDef[] = [];
-      for (let i = 0; i < count; i += 1) {
-        const lane = X_LANES[(spawnCursor + i + waveIndex) % X_LANES.length];
-        const pattern = unlocked.patterns[(spawnCursor + i) % unlocked.patterns.length];
-        const spawnFrom = pattern === 'horseshoe' ? 'bottom' : 'top';
-        spawns.push({
-          offsetMs: i * SPAWN_GAP_MS,
-          x: lane,
-          spawnFrom,
-          movementPattern: pattern,
-          enemyArchetype: unlocked.archetypes[(spawnCursor + i + roundIndex) % unlocked.archetypes.length]
-        });
-      }
+      const isFormationWave = waveIndex < formationWaveCount;
+      const spawns = isFormationWave
+        ? buildFormationSpawns(count, waveIndex, spawnCursor, roundIndex, pacing, unlocked)
+        : buildMixedSpawns(count, waveIndex, spawnCursor, roundIndex, pacing, unlocked);
       spawnCursor += count;
 
       return {
-        startMs: WAVE_START_MS + waveIndex * WAVE_GAP_MS,
+        startMs: pacing.waveStartMs + waveIndex * pacing.waveGapMs,
         spawns
       };
     })
@@ -103,8 +99,73 @@ function buildRound(levelNumber: number, roundIndex: number, runtimeModifiers: E
 
   return {
     id: `l${levelNumber}-r${roundIndex}`,
-    waves
+    waves,
+    enemyHealthScale: pacing.enemyHealthScale,
+    expectedDurationMs: pacing.expectedRoundDurationMs
   };
+}
+
+function buildMixedSpawns(
+  count: number,
+  waveIndex: number,
+  spawnCursor: number,
+  roundIndex: number,
+  pacing: ReturnType<typeof roundPacingProfile>,
+  unlocked: ReturnType<typeof unlockedPools>
+): WaveSpawnDef[] {
+  const spawns: WaveSpawnDef[] = [];
+  for (let i = 0; i < count; i += 1) {
+    const lane = X_LANES[(spawnCursor + i + waveIndex) % X_LANES.length];
+    const pattern = unlocked.patterns[(spawnCursor + i) % unlocked.patterns.length];
+    const spawnFrom = pattern === 'horseshoe' ? 'bottom' : 'top';
+    spawns.push({
+      offsetMs: i * pacing.spawnGapMs,
+      x: lane,
+      spawnFrom,
+      movementPattern: pattern,
+      enemyArchetype: unlocked.archetypes[(spawnCursor + i + roundIndex) % unlocked.archetypes.length]
+    });
+  }
+  return spawns;
+}
+
+function buildFormationSpawns(
+  count: number,
+  waveIndex: number,
+  spawnCursor: number,
+  roundIndex: number,
+  pacing: ReturnType<typeof roundPacingProfile>,
+  unlocked: ReturnType<typeof unlockedPools>
+): WaveSpawnDef[] {
+  const formationPatterns = unlocked.patterns.filter((pattern) => pattern !== 'straight');
+  const pattern = formationPatterns[(spawnCursor + waveIndex) % Math.max(1, formationPatterns.length)] ?? 'sine';
+  const spawnFrom = pattern === 'horseshoe' ? 'bottom' : 'top';
+  const baseAmplitude = 1.4 + ((roundIndex + waveIndex) % 3) * 0.45;
+  const baseFrequency = clampNumber(1 + roundIndex * 0.08 + (waveIndex % 2) * 0.2, 0.75, 2.8);
+  const archetype = unlocked.archetypes[(spawnCursor + waveIndex + roundIndex) % unlocked.archetypes.length] ?? 'scout';
+  const batchSize = 4;
+  const formationBatchGapMs = Math.max(380, pacing.spawnGapMs * 2);
+  const phaseOffsetSeconds = (waveIndex % 4) * 0.2;
+  const laneCycle = mirroredLaneOrder();
+  const spawns: WaveSpawnDef[] = [];
+
+  for (let i = 0; i < count; i += 1) {
+    const batchIndex = Math.floor(i / batchSize);
+    spawns.push({
+      offsetMs: batchIndex * formationBatchGapMs,
+      x: laneCycle[i % laneCycle.length],
+      spawnFrom,
+      movementPattern: pattern,
+      patternAmplitude: baseAmplitude,
+      patternFrequency: baseFrequency,
+      movementParams: {
+        phaseOffsetSeconds
+      },
+      enemyArchetype: archetype
+    });
+  }
+
+  return spawns;
 }
 
 function parseLevelNumber(levelId: string): number {
@@ -154,4 +215,12 @@ function sanitizeNumber(value: number | undefined, fallback: number): number {
   }
 
   return value;
+}
+
+function mirroredLaneOrder(): number[] {
+  return [X_LANES[2], X_LANES[1], X_LANES[3], X_LANES[0], X_LANES[4]];
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
 }

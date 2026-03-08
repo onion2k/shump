@@ -94,4 +94,37 @@ describe('LevelDirector', () => {
     expect(boostedSpawns.some((spawn) => spawn.enemyArchetype === 'striker')).toBe(true);
     expect(boostedSpawns.some((spawn) => spawn.movementPattern === 'zigzag')).toBe(true);
   });
+
+  it('builds longer rounds with pacing targets around one to two minutes', () => {
+    const director = new LevelDirector();
+
+    director.configure('level-1', 1);
+    const round1 = director.currentRound();
+    expect(round1.expectedDurationMs).toBeGreaterThanOrEqual(60000);
+    expect(round1.expectedDurationMs).toBeLessThanOrEqual(120000);
+
+    director.configure('level-6', 3);
+    const lateRound = director.currentRound();
+    expect(lateRound.expectedDurationMs).toBeGreaterThanOrEqual(60000);
+    expect(lateRound.expectedDurationMs).toBeLessThanOrEqual(120000);
+    expect(lateRound.enemyHealthScale).toBeGreaterThan(round1.enemyHealthScale);
+  });
+
+  it('creates formation waves with synchronized movement phase settings', () => {
+    const director = new LevelDirector();
+    director.configure('level-2', 2);
+
+    const round = director.currentRound();
+    const formationWaves = round.waves.filter((wave) => {
+      const patterns = new Set(wave.spawns.map((spawn) => spawn.movementPattern));
+      const phaseOffsets = new Set(
+        wave.spawns.map((spawn) =>
+          typeof spawn.movementParams?.phaseOffsetSeconds === 'number' ? spawn.movementParams.phaseOffsetSeconds : undefined
+        )
+      );
+      return patterns.size === 1 && phaseOffsets.size === 1 && phaseOffsets.has(undefined) === false;
+    });
+
+    expect(formationWaves.length).toBeGreaterThanOrEqual(Math.floor(round.waves.length / 2));
+  });
 });
