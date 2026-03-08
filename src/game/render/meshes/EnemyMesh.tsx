@@ -25,9 +25,15 @@ export function EnemyMesh({ archetype, healthRatio = 1, ageMs = 0 }: EnemyMeshPr
         ? 1.05
         : enemy.id === 'raider'
           ? 1.75
-          : enemy.id === 'striker'
-            ? 1.35
-            : 1.9;
+          : enemy.id === 'lancer'
+            ? 2.05
+            : enemy.id === 'sniper'
+              ? 0.92
+              : enemy.id === 'bastion'
+                ? 0.42
+            : enemy.id === 'striker'
+              ? 1.35
+              : 1.9;
   const rotationX = Math.sin(ageSeconds * 0.9) * 0.16;
   const rotationY = ageSeconds * spinBase;
   const rotationZ = Math.cos(ageSeconds * 0.6) * 0.12 + ageSeconds * spinBase * 0.35;
@@ -35,50 +41,62 @@ export function EnemyMesh({ archetype, healthRatio = 1, ageMs = 0 }: EnemyMeshPr
   return (
     <group scale={enemy.meshScale} rotation={[rotationX, rotationY, rotationZ]}>
       <mesh>
-        {enemy.id === 'juggernaut' ? (
-          <icosahedronGeometry args={[0.86, 0]} />
-        ) : enemy.id === 'sentinel' ? (
-          <cylinderGeometry args={[0.64, 0.8, 1.2, 6]} />
-        ) : enemy.id === 'warp-sphere' ? (
-          <sphereGeometry args={[0.66, 20, 20]} />
-        ) : enemy.id === 'raider' ? (
-          <tetrahedronGeometry args={[0.74, 0]} />
-        ) : enemy.id === 'bruiser' ? (
-          <boxGeometry args={[1.28, 1.04, 1.28]} />
-        ) : enemy.id === 'tank' ? (
-          <boxGeometry args={[1.2, 1.2, 1.2]} />
-        ) : enemy.id === 'striker' ? (
-          <dodecahedronGeometry args={[0.72, 0]} />
-        ) : (
-          <octahedronGeometry args={[0.7, 0]} />
-        )}
+        {enemyGeometry(enemy.id)}
         <meshStandardMaterial
           color={enemy.color}
           emissive={enemy.accentColor}
-          emissiveIntensity={(enemy.id === 'warp-sphere' ? 0.22 : 0.12) + damageGlow * 0.32}
+          emissiveIntensity={(enemy.id === 'warp-sphere' || enemy.id === 'sniper' ? 0.22 : 0.12) + damageGlow * 0.32}
           flatShading
         />
       </mesh>
       <mesh scale={1.1}>
-        {enemy.id === 'juggernaut' ? (
-          <icosahedronGeometry args={[0.86, 0]} />
-        ) : enemy.id === 'sentinel' ? (
-          <cylinderGeometry args={[0.64, 0.8, 1.2, 6]} />
-        ) : enemy.id === 'warp-sphere' ? (
-          <sphereGeometry args={[0.66, 20, 20]} />
-        ) : enemy.id === 'raider' ? (
-          <tetrahedronGeometry args={[0.74, 0]} />
-        ) : enemy.id === 'bruiser' ? (
-          <boxGeometry args={[1.28, 1.04, 1.28]} />
-        ) : enemy.id === 'tank' ? (
-          <boxGeometry args={[1.2, 1.2, 1.2]} />
-        ) : enemy.id === 'striker' ? (
-          <dodecahedronGeometry args={[0.72, 0]} />
-        ) : (
-          <octahedronGeometry args={[0.7, 0]} />
-        )}
+        {enemyGeometry(enemy.id)}
         <meshBasicMaterial color="#000000" side={BackSide} toneMapped={false} />
       </mesh>
     </group>
   );
+}
+
+function enemyGeometry(archetypeId: EnemyArchetypeId) {
+  if (archetypeId === 'juggernaut') {
+    return <icosahedronGeometry args={[0.86, 0]} />;
+  }
+
+  if (archetypeId === 'sentinel') {
+    return <cylinderGeometry args={[0.64, 0.8, 1.2, 6]} />;
+  }
+
+  if (archetypeId === 'warp-sphere') {
+    return <sphereGeometry args={[0.66, 20, 20]} />;
+  }
+
+  if (archetypeId === 'raider') {
+    return <tetrahedronGeometry args={[0.74, 0]} />;
+  }
+
+  if (archetypeId === 'lancer') {
+    return <coneGeometry args={[0.62, 1.35, 5]} />;
+  }
+
+  if (archetypeId === 'sniper') {
+    return <torusKnotGeometry args={[0.5, 0.16, 64, 10, 2, 3]} />;
+  }
+
+  if (archetypeId === 'bastion') {
+    return <cylinderGeometry args={[0.88, 0.88, 1.36, 8]} />;
+  }
+
+  if (archetypeId === 'bruiser') {
+    return <boxGeometry args={[1.28, 1.04, 1.28]} />;
+  }
+
+  if (archetypeId === 'tank') {
+    return <boxGeometry args={[1.2, 1.2, 1.2]} />;
+  }
+
+  if (archetypeId === 'striker') {
+    return <dodecahedronGeometry args={[0.72, 0]} />;
+  }
+
+  return <octahedronGeometry args={[0.7, 0]} />;
 }

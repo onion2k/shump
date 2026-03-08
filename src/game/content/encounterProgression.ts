@@ -46,6 +46,9 @@ const UNLOCK_SEQUENCE: Array<{ enemy?: EnemyArchetypeId; pattern?: MovementPatte
   { enemy: 'raider' },
   { pattern: 'lissajous' },
   { enemy: 'sentinel' },
+  { enemy: 'lancer' },
+  { enemy: 'sniper' },
+  { enemy: 'bastion' },
   { pattern: 'bezier' }
 ];
 

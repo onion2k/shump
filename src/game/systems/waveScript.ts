@@ -429,6 +429,46 @@ export const progressionWaveTemplates: WaveTemplate[] = [
         unlockLevel: 7
       }
     ]
+  },
+  {
+    id: 'elite-hunters',
+    spawns: [
+      {
+        offsetMs: 0,
+        x: -4.2,
+        movementPattern: 'curve',
+        patternAmplitude: 2.8,
+        patternFrequency: 1.3,
+        movementParams: { curveDirection: 1 },
+        enemyArchetype: 'lancer',
+        unlockLevel: 5
+      },
+      {
+        offsetMs: 160,
+        x: 4.2,
+        movementPattern: 'curve',
+        patternAmplitude: 2.8,
+        patternFrequency: 1.3,
+        movementParams: { curveDirection: -1 },
+        enemyArchetype: 'lancer',
+        unlockLevel: 5
+      },
+      {
+        offsetMs: 460,
+        x: 0,
+        movementPattern: 'straight',
+        enemyArchetype: 'sniper',
+        unlockLevel: 6
+      },
+      {
+        offsetMs: 760,
+        x: 0,
+        movementPattern: 'sweep',
+        movementParams: { sweepStartX: 4.6, sweepEndX: -4.6, sweepDepth: 22, periodSeconds: 5.2 },
+        enemyArchetype: 'bastion',
+        unlockLevel: 7
+      }
+    ]
   }
 ];
 

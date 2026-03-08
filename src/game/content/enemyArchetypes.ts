@@ -6,7 +6,10 @@ export type EnemyArchetypeId =
   | 'juggernaut'
   | 'warp-sphere'
   | 'raider'
-  | 'sentinel';
+  | 'sentinel'
+  | 'lancer'
+  | 'sniper'
+  | 'bastion';
 
 export interface EnemyArchetypeDef {
   id: EnemyArchetypeId;
@@ -108,6 +111,39 @@ const ENEMY_ARCHETYPES: Record<EnemyArchetypeId, EnemyArchetypeDef> = {
     color: '#39c8ff',
     accentColor: '#d3f3ff',
     meshScale: 1.36
+  },
+  lancer: {
+    id: 'lancer',
+    health: 4,
+    radius: 0.7,
+    speedYMultiplier: 1.52,
+    scoreValue: 240,
+    fireIntervalMultiplier: 0.82,
+    color: '#ffb347',
+    accentColor: '#fff0c7',
+    meshScale: 1.04
+  },
+  sniper: {
+    id: 'sniper',
+    health: 5,
+    radius: 0.8,
+    speedYMultiplier: 1.04,
+    scoreValue: 310,
+    fireIntervalMultiplier: 0.64,
+    color: '#b15dff',
+    accentColor: '#f3dcff',
+    meshScale: 1.08
+  },
+  bastion: {
+    id: 'bastion',
+    health: 13,
+    radius: 1.18,
+    speedYMultiplier: 0.48,
+    scoreValue: 540,
+    fireIntervalMultiplier: 0.58,
+    color: '#5e89a6',
+    accentColor: '#d4efff',
+    meshScale: 1.5
   }
 };
 
