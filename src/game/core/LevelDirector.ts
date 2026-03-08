@@ -1,4 +1,5 @@
 import type { WaveDef, WaveSpawnDef } from '../systems/waveScript';
+import type { EnemyArchetypeId } from '../content/enemyArchetypes';
 import {
   DEFAULT_ENCOUNTER_DIRECTOR_MODIFIERS,
   ROUNDS_PER_LEVEL,
@@ -98,12 +99,53 @@ function buildRound(levelNumber: number, roundIndex: number, runtimeModifiers: E
     })
     .filter((wave): wave is WaveDef => Boolean(wave));
 
+  waves.push(buildBossWave(waves, pacing.waveGapMs, unlocked.archetypes));
+
   return {
     id: `l${levelNumber}-r${roundIndex}`,
     waves,
     enemyHealthScale: pacing.enemyHealthScale,
     expectedDurationMs: pacing.expectedRoundDurationMs
   };
+}
+
+const BOSS_ARCHETYPE_PRIORITY: EnemyArchetypeId[] = [
+  'bastion',
+  'juggernaut',
+  'sentinel',
+  'bruiser',
+  'tank',
+  'sniper',
+  'lancer',
+  'raider',
+  'striker'
+];
+
+function buildBossWave(existingWaves: WaveDef[], waveGapMs: number, unlockedArchetypes: EnemyArchetypeId[]): WaveDef {
+  const lastWaveStartMs = existingWaves[existingWaves.length - 1]?.startMs ?? 1200;
+  const bossArchetype = pickBossArchetype(unlockedArchetypes);
+
+  return {
+    startMs: lastWaveStartMs + waveGapMs,
+    spawns: [
+      {
+        offsetMs: 0,
+        x: 0,
+        movementPattern: 'straight',
+        enemyArchetype: bossArchetype
+      }
+    ]
+  };
+}
+
+function pickBossArchetype(unlockedArchetypes: EnemyArchetypeId[]): EnemyArchetypeId {
+  for (const archetype of BOSS_ARCHETYPE_PRIORITY) {
+    if (unlockedArchetypes.includes(archetype)) {
+      return archetype;
+    }
+  }
+
+  return 'striker';
 }
 
 function buildMixedSpawns(

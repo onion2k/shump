@@ -71,7 +71,7 @@ export function StartScreen3D({
                 fraction: 0.62,
                 content: (
                   <OverlayText position={[0, 0, 0.03]} fontSize={0.62 * scale} color="#eaf5ff" anchorX="center" anchorY="middle">
-                    SHUMP PROTOTYPE
+                    CODEX SQUADRON
                   </OverlayText>
                 )
               },

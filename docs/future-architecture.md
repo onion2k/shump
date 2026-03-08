@@ -1,4 +1,4 @@
-# Shump Future-Focused Architecture
+# Codex Squadron Future-Focused Architecture
 
 ## Purpose
 This document defines a game architecture that keeps upcoming features additive, testable, and reversible. It is intentionally designed so new mechanics can be introduced without rewriting the core loop.

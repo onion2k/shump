@@ -1,4 +1,4 @@
-# shump
+# Codex Squadron
 
 A small shoot-'em-up prototype built with React, TypeScript, and React Three Fiber.
 

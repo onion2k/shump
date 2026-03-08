@@ -33,7 +33,7 @@ if (!app) {
 app.innerHTML = `
   <main class="tv-shell">
     <header class="tv-header">
-      <h1>Shump Telemetry Viewer</h1>
+      <h1>Codex Squadron Telemetry Viewer</h1>
       <p>Open this page while the game runs to view live performance metrics.</p>
       <p id="status-line" class="tv-status">Waiting for telemetry stream from this origin...</p>
     </header>

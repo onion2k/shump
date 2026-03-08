@@ -64,9 +64,13 @@ describe('LevelDirector', () => {
     const director = new LevelDirector();
 
     director.configure('level-1', 1);
-    const level1Spawns = director.currentRound().waves.flatMap((wave) => wave.spawns);
+    const level1Round = director.currentRound();
+    const level1Spawns = level1Round.waves.slice(0, -1).flatMap((wave) => wave.spawns);
     expect(new Set(level1Spawns.map((spawn) => spawn.enemyArchetype))).toEqual(new Set(['scout']));
     expect(new Set(level1Spawns.map((spawn) => spawn.movementPattern))).toEqual(new Set(['straight', 'sine']));
+    const level1BossWave = level1Round.waves[level1Round.waves.length - 1];
+    expect(level1BossWave.spawns).toHaveLength(1);
+    expect(level1BossWave.spawns[0].enemyArchetype).toBe('striker');
 
     director.configure('level-4', 1);
     const level4Spawns = director.currentRound().waves.flatMap((wave) => wave.spawns);
@@ -75,6 +79,24 @@ describe('LevelDirector', () => {
     director.configure('level-7', 1);
     const level7Spawns = director.currentRound().waves.flatMap((wave) => wave.spawns);
     expect(level7Spawns.some((spawn) => spawn.movementPattern === 'zigzag')).toBe(true);
+  });
+
+  it('adds a single end-of-round boss wave using a harder archetype', () => {
+    const director = new LevelDirector();
+
+    director.configure('level-1', 1);
+    const earlyRound = director.currentRound();
+    const earlyBossWave = earlyRound.waves[earlyRound.waves.length - 1];
+    expect(earlyBossWave.spawns).toHaveLength(1);
+    expect(earlyBossWave.spawns[0].enemyArchetype).toBe('striker');
+
+    director.configure('level-10', 2);
+    const midRound = director.currentRound();
+    const midBossWave = midRound.waves[midRound.waves.length - 1];
+    expect(midBossWave.spawns).toHaveLength(1);
+    expect(midBossWave.spawns[0].enemyArchetype).toBe('tank');
+
+    expect(midBossWave.startMs).toBeGreaterThan(midRound.waves[midRound.waves.length - 2].startMs);
   });
 
   it('applies runtime encounter modifiers for card-driven run variety', () => {
