@@ -1,8 +1,8 @@
-import { useThree } from '@react-three/fiber';
-import { Box, Flex } from './layout/FlexLayout';
+import { useFrame, useThree } from '@react-three/fiber';
+import { useEffect, useState } from 'react';
 import { GameState } from '../../core/GameState';
 import { clamp } from '../../util/math';
-import { FractionColumnLayout, OverlayActionButton, OverlayBackdrop, OverlayPanelFrame, OverlayText } from './OverlayLayout3D';
+import { OverlayActionButton, OverlayBackdrop, OverlayPanelFrame, OverlayText } from './OverlayLayout3D';
 import { effectsQualityLabel, type EffectsQuality } from '../effectsQuality';
 
 interface StartScreen3DProps {
@@ -15,11 +15,11 @@ interface StartScreen3DProps {
   onOpenSettings?: () => void;
 }
 
-const START_SECTION_FRACTIONS = {
-  title: 0.28,
-  info: 0.34,
-  actions: 0.38
-} as const;
+const TITLE_TILT_RADIANS = (-5 * Math.PI) / 180;
+const TITLE_TEXT = 'CODEX SQUADRON';
+const TITLE_REVEAL_STEP_MS = 70;
+const TITLE_POP_SCALE = 1.22;
+const TITLE_POP_DECAY_PER_SECOND = 2.8;
 
 export function StartScreen3D({
   state,
@@ -33,6 +33,47 @@ export function StartScreen3D({
   const camera = useThree((instance) => instance.camera);
   const viewportApi = useThree((instance) => instance.viewport);
   const viewport = viewportApi.getCurrentViewport(camera, [0, 0, 1.75]);
+  const [visibleTitleChars, setVisibleTitleChars] = useState(0);
+  const [titlePopScale, setTitlePopScale] = useState(1);
+
+  useEffect(() => {
+    if (state !== GameState.Boot) {
+      setVisibleTitleChars(TITLE_TEXT.length);
+      setTitlePopScale(1);
+      return;
+    }
+
+    setVisibleTitleChars(0);
+    setTitlePopScale(1);
+
+    const intervalId = window.setInterval(() => {
+      setVisibleTitleChars((previousCount) => {
+        if (previousCount >= TITLE_TEXT.length) {
+          window.clearInterval(intervalId);
+          return previousCount;
+        }
+
+        setTitlePopScale(TITLE_POP_SCALE);
+        return previousCount + 1;
+      });
+    }, TITLE_REVEAL_STEP_MS);
+
+    return () => window.clearInterval(intervalId);
+  }, [state]);
+
+  useFrame((_, delta) => {
+    if (state !== GameState.Boot) {
+      return;
+    }
+
+    setTitlePopScale((previousScale) => {
+      if (previousScale <= 1) {
+        return 1;
+      }
+
+      return Math.max(1, previousScale - delta * TITLE_POP_DECAY_PER_SECOND);
+    });
+  });
 
   if (state !== GameState.Boot) {
     return null;
@@ -40,168 +81,89 @@ export function StartScreen3D({
 
   const panelWidth = Math.max(6.5, viewport.width * 0.72);
   const panelHeight = Math.max(4.4, viewport.height * 0.68);
-  const sidePadding = panelWidth * 0.08;
-  const contentWidth = panelWidth - sidePadding * 2;
+  const safeInsetX = panelWidth * 0.08;
+  const safeInsetY = panelHeight * 0.08;
+  const safeWidth = panelWidth - safeInsetX * 2;
+  const safeHeight = panelHeight - safeInsetY * 2;
   const scale = clamp(viewport.width / 16, 0.7, 1);
+  const titleFontSize = Math.min(0.94, 0.78 * scale + safeWidth * 0.03);
+  const subtitleFontSize = 0.24 * scale;
+  const infoFontSize = 0.18 * scale;
+  const titleY = panelHeight / 2 - safeInsetY - safeHeight * 0.14;
+  const subtitleY = titleY - safeHeight * 0.13;
+  const infoY = subtitleY - safeHeight * 0.13;
 
-  const titleHeight = panelHeight * START_SECTION_FRACTIONS.title;
-  const infoHeight = panelHeight * START_SECTION_FRACTIONS.info;
-  const actionsHeight = panelHeight * START_SECTION_FRACTIONS.actions;
-
-  const hasTwoButtons = hasSavedRun;
-  const buttonGap = contentWidth * 0.05;
-  const singleButtonWidth = Math.min(contentWidth * 0.56, 3.2);
-  const dualButtonWidth = (contentWidth - buttonGap) / 2;
-  const settingsButtonWidth = Math.min(contentWidth * 0.46, 2.8);
+  const buttonWidth = Math.min(safeWidth * 0.64, 3.6);
+  const buttonHeight = clamp(0.5 * scale, 0.4, 0.58);
+  const buttonGap = Math.max(0.12, buttonHeight * 0.34);
+  const buttonStackHeight = buttonHeight * 3 + buttonGap * 2;
+  const buttonStackCenterY = -panelHeight / 2 + safeInsetY + buttonStackHeight / 2;
   const settingsLabel = `Settings (${effectsQualityLabel(effectsQuality)})`;
+  const visibleTitle = TITLE_TEXT.slice(0, visibleTitleChars);
 
   return (
     <group position={[0, 0, 1.75]}>
       <OverlayBackdrop viewportWidth={viewport.width} viewportHeight={viewport.height} />
       <OverlayPanelFrame width={panelWidth} height={panelHeight} />
 
-      <Flex size={[panelWidth, panelHeight, 0]} position={[-panelWidth / 2, panelHeight / 2, 0.03]} flexDirection="column">
-        <Box width={panelWidth} height={titleHeight} centerAnchor>
-          <FractionColumnLayout
-            width={contentWidth}
-            height={titleHeight}
-            slots={[
-              {
-                id: 'start-title',
-                fraction: 0.62,
-                content: (
-                  <OverlayText position={[0, 0, 0.03]} fontSize={0.62 * scale} color="#eaf5ff" anchorX="center" anchorY="middle">
-                    CODEX SQUADRON
-                  </OverlayText>
-                )
-              },
-              {
-                id: 'start-subtitle',
-                fraction: 0.38,
-                content: (
-                  <OverlayText position={[0, 0, 0.03]} fontSize={0.25 * scale} color="#8fc4ff" anchorX="center" anchorY="middle">
-                    {hasSavedRun ? 'Saved Run Detected' : 'Ready To Launch'}
-                  </OverlayText>
-                )
-              }
-            ]}
-          />
-        </Box>
+      <OverlayText
+        position={[0, titleY, 0.04]}
+        rotation={[0, 0, TITLE_TILT_RADIANS]}
+        scale={[titlePopScale, titlePopScale, 1]}
+        fontSize={titleFontSize}
+        color="#f1f8ff"
+        anchorX="center"
+        anchorY="middle"
+        maxWidth={safeWidth * 0.92}
+      >
+        {visibleTitle}
+      </OverlayText>
 
-        <Box width={panelWidth} height={infoHeight} centerAnchor>
-          <FractionColumnLayout
-            width={contentWidth}
-            height={infoHeight}
-            slots={[
-              {
-                id: 'start-info-1',
-                fraction: 0.34,
-                content: (
-                  <OverlayText position={[0, 0, 0.03]} fontSize={0.23 * scale} color="#d5e9ff" anchorX="center" anchorY="middle">
-                    Drag or touch to move. Auto-fire is enabled.
-                  </OverlayText>
-                )
-              },
-              {
-                id: 'start-info-2',
-                fraction: 0.33,
-                content: (
-                  <OverlayText position={[0, 0, 0.03]} fontSize={0.2 * scale} color="#b8d9ff" anchorX="center" anchorY="middle">
-                    Press 1-4 to swap weapons, 5 to cycle pods.
-                  </OverlayText>
-                )
-              },
-              {
-                id: 'start-info-3',
-                fraction: 0.33,
-                content: (
-                  <OverlayText position={[0, 0, 0.03]} fontSize={0.18 * scale} color="#99b7da" anchorX="center" anchorY="middle">
-                    Survive each wave, then upgrade between rounds.
-                  </OverlayText>
-                )
-              },
-              {
-                id: 'start-info-hardware-warning',
-                fraction: hardwareAccelerationWarning ? 0.34 : 0,
-                content: hardwareAccelerationWarning ? (
-                  <OverlayText position={[0, 0, 0.03]} fontSize={0.16 * scale} color="#ffb38a" anchorX="center" anchorY="middle" maxWidth={contentWidth * 0.95}>
-                    {hardwareAccelerationWarning}
-                  </OverlayText>
-                ) : null
-              }
-            ]}
-          />
-        </Box>
+      <OverlayText position={[0, subtitleY, 0.04]} fontSize={subtitleFontSize} color="#8fc4ff" anchorX="center" anchorY="middle" maxWidth={safeWidth * 0.92}>
+        {hasSavedRun ? 'Saved Run Detected' : 'Ready To Launch'}
+      </OverlayText>
 
-        <Box width={panelWidth} height={actionsHeight} centerAnchor>
-          {hasTwoButtons ? (
-            <Flex
-              size={[contentWidth, actionsHeight, 0]}
-              position={[-contentWidth / 2, actionsHeight / 2, 0.03]}
-              flexDirection="column"
-              alignItems="center"
-              justifyContent="center"
-            >
-              <Box width={contentWidth} height={actionsHeight * 0.62} centerAnchor>
-                <Flex
-                  size={[contentWidth, actionsHeight * 0.62, 0]}
-                  position={[-contentWidth / 2, actionsHeight * 0.31, 0.03]}
-                  flexDirection="row"
-                  alignItems="center"
-                  justifyContent="center"
-                >
-                  <Box width={dualButtonWidth} height={actionsHeight * 0.62} mr={buttonGap} centerAnchor>
-                    <OverlayActionButton label="Resume Run" width={dualButtonWidth} onClick={onStart} color="#2b8c56" textScale={scale} />
-                  </Box>
-                  <Box width={dualButtonWidth} height={actionsHeight * 0.62} centerAnchor>
-                    <OverlayActionButton
-                      label="New Run"
-                      width={dualButtonWidth}
-                      onClick={onStartFresh ?? onStart}
-                      color="#315f91"
-                      textScale={scale}
-                    />
-                  </Box>
-                </Flex>
-              </Box>
-              <Box width={contentWidth} height={actionsHeight * 0.38} centerAnchor>
-                <OverlayActionButton
-                  label={settingsLabel}
-                  width={settingsButtonWidth}
-                  onClick={onOpenSettings ?? (() => undefined)}
-                  color="#334e72"
-                  textScale={scale}
-                />
-              </Box>
-            </Flex>
-          ) : (
-            <FractionColumnLayout
-              width={contentWidth}
-              height={actionsHeight}
-              slots={[
-                {
-                  id: 'start-action-main',
-                  fraction: 0.62,
-                  content: <OverlayActionButton label="Start Run" width={singleButtonWidth} onClick={onStart} color="#2b8c56" textScale={scale} />
-                },
-                {
-                  id: 'start-action-settings',
-                  fraction: 0.38,
-                  content: (
-                    <OverlayActionButton
-                      label={settingsLabel}
-                      width={settingsButtonWidth}
-                      onClick={onOpenSettings ?? (() => undefined)}
-                      color="#334e72"
-                      textScale={scale}
-                    />
-                  )
-                }
-              ]}
-            />
-          )}
-        </Box>
-      </Flex>
+      <OverlayText position={[0, infoY, 0.04]} fontSize={infoFontSize} color="#bddfff" anchorX="center" anchorY="middle" maxWidth={safeWidth * 0.94}>
+        Drag or touch to move. Auto-fire is enabled.
+      </OverlayText>
+
+      {hardwareAccelerationWarning ? (
+        <OverlayText
+          position={[0, infoY - safeHeight * 0.09, 0.04]}
+          fontSize={Math.max(0.14, infoFontSize * 0.84)}
+          color="#ffb38a"
+          anchorX="center"
+          anchorY="middle"
+          maxWidth={safeWidth * 0.95}
+        >
+          {hardwareAccelerationWarning}
+        </OverlayText>
+      ) : null}
+
+      <group position={[0, buttonStackCenterY, 0.04]}>
+        <group position={[0, buttonHeight + buttonGap, 0]}>
+          <OverlayActionButton label="New Run" width={buttonWidth} height={buttonHeight} onClick={onStartFresh ?? onStart} color="#315f91" textScale={scale} />
+        </group>
+        <OverlayActionButton
+          label="Resume Run"
+          width={buttonWidth}
+          height={buttonHeight}
+          onClick={onStart}
+          color="#2b8c56"
+          textScale={scale}
+          disabled={!hasSavedRun}
+        />
+        <group position={[0, -(buttonHeight + buttonGap), 0]}>
+          <OverlayActionButton
+            label={settingsLabel}
+            width={buttonWidth}
+            height={buttonHeight}
+            onClick={onOpenSettings ?? (() => undefined)}
+            color="#334e72"
+            textScale={scale}
+          />
+        </group>
+      </group>
     </group>
   );
 }

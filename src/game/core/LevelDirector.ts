@@ -189,6 +189,7 @@ function buildFormationSpawns(
   const lineCount = Math.max(2, Math.min(limitedLaneOrder().length, Math.ceil(count / 3)));
   const lineDelayMs = Math.max(70, Math.round(pacing.spawnGapMs * 0.65));
   const formationBatchGapMs = Math.max(420, pacing.spawnGapMs * 3);
+  const laneStaggerMs = Math.max(35, Math.round(pacing.spawnGapMs * 0.45));
   const phaseOffsetSeconds = (waveIndex % 4) * 0.2;
   const laneCycle = limitedLaneOrder();
   const spawns: WaveSpawnDef[] = [];
@@ -197,7 +198,8 @@ function buildFormationSpawns(
     const batchIndex = Math.floor(i / lineCount);
     const lineIndex = i % lineCount;
     spawns.push({
-      offsetMs: batchIndex * lineDelayMs + Math.floor(batchIndex / 3) * formationBatchGapMs,
+      // Stagger each lane spawn so formation enemies don't appear as a single clump.
+      offsetMs: batchIndex * lineDelayMs + lineIndex * laneStaggerMs + Math.floor(batchIndex / 3) * formationBatchGapMs,
       x: laneCycle[lineIndex],
       spawnFrom,
       movementPattern: pattern,

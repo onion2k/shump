@@ -150,7 +150,7 @@ describe('LevelDirector', () => {
     expect(formationWaves.length).toBeGreaterThanOrEqual(Math.floor(round.waves.length / 2));
   });
 
-  it('builds formation lines where enemies trail on shared lanes with staggered timing', () => {
+  it('builds formation lines where enemies trail on shared lanes without simultaneous clumping', () => {
     const director = new LevelDirector();
     director.configure('level-6', 3);
 
@@ -206,6 +206,6 @@ describe('LevelDirector', () => {
       }
       return countAtOffset >= 2;
     });
-    expect(hasSimultaneousSpawn).toBe(true);
+    expect(hasSimultaneousSpawn).toBe(false);
   });
 });
