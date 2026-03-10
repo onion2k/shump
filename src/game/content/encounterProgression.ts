@@ -30,18 +30,16 @@ export interface RoundPacingProfile {
 }
 
 export const BASE_ARCHETYPES: EnemyArchetypeId[] = ['scout'];
-export const BASE_PATTERNS: MovementPatternId[] = ['straight', 'sine'];
+export const BASE_PATTERNS: MovementPatternId[] = ['straight', 'sine', 'zigzag', 'curve'];
 
 const UNLOCK_SEQUENCE: Array<{ enemy?: EnemyArchetypeId; pattern?: MovementPatternId }> = [
   { enemy: 'striker' },
-  { pattern: 'zigzag' },
-  { enemy: 'tank' },
-  { pattern: 'curve' },
-  { enemy: 'bruiser' },
-  { pattern: 'spiral' },
-  { enemy: 'juggernaut' },
-  { pattern: 'sweep' },
   { pattern: 'shallow-zigzag' },
+  { enemy: 'tank' },
+  { pattern: 'spiral' },
+  { enemy: 'bruiser' },
+  { pattern: 'sweep' },
+  { enemy: 'juggernaut' },
   { pattern: 'horseshoe' },
   { enemy: 'raider' },
   { pattern: 'lissajous' },

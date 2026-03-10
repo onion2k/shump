@@ -67,9 +67,9 @@ describe('LevelDirector', () => {
     const level1Round = director.currentRound();
     const level1Spawns = level1Round.waves.slice(0, -1).flatMap((wave) => wave.spawns);
     expect(new Set(level1Spawns.map((spawn) => spawn.enemyArchetype))).toEqual(new Set(['scout']));
-    expect(new Set(level1Spawns.map((spawn) => spawn.movementPattern))).toEqual(new Set(['straight', 'sine']));
+    expect(new Set(level1Spawns.map((spawn) => spawn.movementPattern))).toEqual(new Set(['straight', 'sine', 'zigzag', 'curve']));
     const level1BossWave = level1Round.waves[level1Round.waves.length - 1];
-    expect(level1BossWave.spawns).toHaveLength(1);
+    expect(level1BossWave.spawns).toHaveLength(3);
     expect(level1BossWave.spawns[0].enemyArchetype).toBe('striker');
 
     director.configure('level-4', 1);
@@ -78,7 +78,7 @@ describe('LevelDirector', () => {
 
     director.configure('level-7', 1);
     const level7Spawns = director.currentRound().waves.flatMap((wave) => wave.spawns);
-    expect(level7Spawns.some((spawn) => spawn.movementPattern === 'zigzag')).toBe(true);
+    expect(level7Spawns.some((spawn) => spawn.movementPattern === 'shallow-zigzag')).toBe(true);
   });
 
   it('adds a single end-of-round boss wave using a harder archetype', () => {
@@ -87,16 +87,42 @@ describe('LevelDirector', () => {
     director.configure('level-1', 1);
     const earlyRound = director.currentRound();
     const earlyBossWave = earlyRound.waves[earlyRound.waves.length - 1];
-    expect(earlyBossWave.spawns).toHaveLength(1);
+    expect(earlyBossWave.spawns).toHaveLength(3);
     expect(earlyBossWave.spawns[0].enemyArchetype).toBe('striker');
 
     director.configure('level-10', 2);
     const midRound = director.currentRound();
     const midBossWave = midRound.waves[midRound.waves.length - 1];
-    expect(midBossWave.spawns).toHaveLength(1);
+    expect(midBossWave.spawns).toHaveLength(3);
     expect(midBossWave.spawns[0].enemyArchetype).toBe('tank');
 
     expect(midBossWave.startMs).toBeGreaterThan(midRound.waves[midRound.waves.length - 2].startMs);
+  });
+
+  it('keeps every wave size between three and ten enemies', () => {
+    const director = new LevelDirector();
+    director.configure('level-6', 3);
+
+    const round = director.currentRound();
+    for (const wave of round.waves) {
+      expect(wave.spawns.length).toBeGreaterThanOrEqual(3);
+      expect(wave.spawns.length).toBeLessThanOrEqual(10);
+    }
+  });
+
+  it('keeps spawn timing gaps in each wave between 400ms and 800ms', () => {
+    const director = new LevelDirector();
+    director.configure('level-8', 2);
+
+    const round = director.currentRound();
+    for (const wave of round.waves) {
+      const orderedOffsets = wave.spawns.map((spawn) => spawn.offsetMs).sort((a, b) => a - b);
+      for (let i = 1; i < orderedOffsets.length; i += 1) {
+        const gap = orderedOffsets[i] - orderedOffsets[i - 1];
+        expect(gap).toBeGreaterThanOrEqual(400);
+        expect(gap).toBeLessThanOrEqual(800);
+      }
+    }
   });
 
   it('applies runtime encounter modifiers for card-driven run variety', () => {
@@ -114,7 +140,7 @@ describe('LevelDirector', () => {
 
     expect(boostedSpawns.length).toBeGreaterThanOrEqual(baselineSpawns.length);
     expect(boostedSpawns.some((spawn) => spawn.enemyArchetype === 'striker')).toBe(true);
-    expect(boostedSpawns.some((spawn) => spawn.movementPattern === 'zigzag')).toBe(true);
+    expect(boostedSpawns.some((spawn) => spawn.movementPattern === 'shallow-zigzag')).toBe(true);
   });
 
   it('builds longer rounds with pacing targets around one to two minutes', () => {
