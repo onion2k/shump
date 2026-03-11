@@ -212,7 +212,7 @@ function buildFormationSpawns(
   unlocked: ReturnType<typeof unlockedPools>
 ): WaveSpawnDef[] {
   const formationPatterns = unlocked.patterns.filter((pattern) => pattern !== 'straight');
-  const pattern = formationPatterns[(spawnCursor + waveIndex) % Math.max(1, formationPatterns.length)] ?? 'sine';
+  const pattern = formationPatterns[(spawnCursor + waveIndex) % Math.max(1, formationPatterns.length)] ?? 'curve';
   const spawnFrom = pattern === 'horseshoe' ? 'bottom' : 'top';
   const archetype = unlocked.archetypes[(spawnCursor + waveIndex + roundIndex) % unlocked.archetypes.length] ?? 'scout';
   const lineCount = Math.max(2, Math.min(limitedLaneOrder().length, Math.ceil(count / 3)));

@@ -67,7 +67,7 @@ describe('LevelDirector', () => {
     const level1Round = director.currentRound();
     const level1Spawns = level1Round.waves.slice(0, -1).flatMap((wave) => wave.spawns);
     expect(new Set(level1Spawns.map((spawn) => spawn.enemyArchetype))).toEqual(new Set(['scout']));
-    expect(new Set(level1Spawns.map((spawn) => spawn.movementPattern))).toEqual(new Set(['straight', 'sine', 'zigzag', 'curve']));
+    expect(new Set(level1Spawns.map((spawn) => spawn.movementPattern))).toEqual(new Set(['straight', 'curve']));
     const level1BossWave = level1Round.waves[level1Round.waves.length - 1];
     expect(level1BossWave.spawns).toHaveLength(3);
     expect(level1BossWave.spawns[0].enemyArchetype).toBe('striker');
@@ -78,7 +78,7 @@ describe('LevelDirector', () => {
 
     director.configure('level-7', 1);
     const level7Spawns = director.currentRound().waves.flatMap((wave) => wave.spawns);
-    expect(level7Spawns.some((spawn) => spawn.movementPattern === 'shallow-zigzag')).toBe(true);
+    expect(level7Spawns.some((spawn) => spawn.movementPattern === 'spiral')).toBe(true);
   });
 
   it('adds a single end-of-round boss wave using a harder archetype', () => {
@@ -140,7 +140,16 @@ describe('LevelDirector', () => {
 
     expect(boostedSpawns.length).toBeGreaterThanOrEqual(baselineSpawns.length);
     expect(boostedSpawns.some((spawn) => spawn.enemyArchetype === 'striker')).toBe(true);
-    expect(boostedSpawns.some((spawn) => spawn.movementPattern === 'shallow-zigzag')).toBe(true);
+    expect(boostedSpawns.some((spawn) => spawn.movementPattern === 'spiral')).toBe(true);
+  });
+
+  it('does not use side-to-side oscillation patterns in generated rounds', () => {
+    const director = new LevelDirector();
+    director.configure('level-12', 3);
+
+    const disallowed = new Set(['sine', 'zigzag', 'shallow-zigzag']);
+    const roundSpawns = director.currentRound().waves.flatMap((wave) => wave.spawns);
+    expect(roundSpawns.some((spawn) => disallowed.has(spawn.movementPattern))).toBe(false);
   });
 
   it('builds longer rounds with pacing targets around one to two minutes', () => {
