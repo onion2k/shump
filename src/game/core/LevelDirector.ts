@@ -394,7 +394,7 @@ function motionFrequencyForPattern(pattern: MovementPatternId, roundIndex: numbe
     case 'horseshoe':
       return clampNumber(base * 0.62, 0.45, 1.2);
     case 'spiral':
-      return clampNumber(base * 0.72, 0.55, 1.35);
+      return clampNumber(base * 0.6, 0.45, 1.05);
     case 'lissajous':
     case 'bezier':
       return clampNumber(base * 0.78, 0.6, 1.45);
@@ -436,13 +436,16 @@ function buildMovementParams(
       return {
         phaseOffsetSeconds,
         curveDirection: ((waveIndex + spawnIndex) % 2 === 0 ? 1 : -1),
-        yAmplitude: 0.2 + (spawnIndex % 3) * 0.08
+        sweepDirection: (roundIndex + waveIndex) % 2 === 0 ? 1 : -1,
+        yAmplitude: 0.5 + (spawnIndex % 3) * 0.12
       };
     case 'spiral':
       return {
         phaseOffsetSeconds,
-        spiralTurns: 1.4 + ((waveIndex + spawnIndex) % 4) * 0.3,
-        spiralDecay: 0.3 + (roundIndex % 4) * 0.06
+        spiralTurns: 0.85 + ((waveIndex + spawnIndex) % 3) * 0.18,
+        spiralDecay: 0.12 + (roundIndex % 3) * 0.03,
+        spiralMinRadiusFactor: 0.62 + ((roundIndex + spawnIndex) % 2) * 0.1,
+        spiralDiveSpeed: 2.2 + (roundIndex % 4) * 0.3
       };
     case 'lissajous':
       return {
@@ -455,10 +458,12 @@ function buildMovementParams(
     case 'bezier':
       return {
         phaseOffsetSeconds,
+        // Ping-pong along the same bezier arc to avoid hard wrap jumps.
+        bezierPingPong: 1,
         bezierStartX: base.baseX,
-        bezierControl1X: base.baseX - base.baseAmplitude * (0.8 + (spawnIndex % 3) * 0.2),
-        bezierControl2X: base.baseX + base.baseAmplitude * (0.9 + (waveIndex % 3) * 0.2),
-        bezierEndX: -base.baseX * (0.25 + ((roundIndex + spawnIndex) % 3) * 0.15),
+        bezierControl1X: base.baseX - base.baseAmplitude * 0.5 * (0.8 + (spawnIndex % 3) * 0.2),
+        bezierControl2X: base.baseX + base.baseAmplitude * 0.5 * (0.9 + (waveIndex % 3) * 0.2),
+        bezierEndX: -base.baseX * 0.5 * (0.25 + ((roundIndex + spawnIndex) % 3) * 0.15),
         yAmplitude: 0.3 + (spawnIndex % 3) * 0.08
       };
     case 'sweep':

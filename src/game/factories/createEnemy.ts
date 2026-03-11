@@ -28,12 +28,16 @@ export function createEnemy(
   const fireIntervalScale = clampScale(statScales.fireIntervalScale ?? 1, 0.2, 4);
   const scoreScale = clampScale(statScales.scoreScale ?? 1, 0.2, 10);
   const scaledHealth = Math.max(1, Math.round(archetype.health * healthScale));
+  const configuredSpeedY = gameSettings.enemy.speedY * archetype.speedYMultiplier * speedScale;
+  // Keep enemy drift visibly faster than terrain scroll so arcs read as forward motion, not static horizontal wobble.
+  const minScrollRelativeSpeed = gameSettings.world.scrollSpeed * 1.25;
+  const speedY = -Math.max(Math.abs(configuredSpeedY), minScrollRelativeSpeed);
 
   return {
     type: EntityType.Enemy,
     faction: Faction.Enemy,
     position: { x, y },
-    velocity: { x: 0, y: gameSettings.enemy.speedY * archetype.speedYMultiplier * speedScale },
+    velocity: { x: 0, y: speedY },
     radius: archetype.radius,
     health: scaledHealth,
     maxHealth: scaledHealth,

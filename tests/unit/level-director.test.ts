@@ -67,7 +67,7 @@ describe('LevelDirector', () => {
     const level1Round = director.currentRound();
     const level1Spawns = level1Round.waves.slice(0, -1).flatMap((wave) => wave.spawns);
     expect(new Set(level1Spawns.map((spawn) => spawn.enemyArchetype))).toEqual(new Set(['scout']));
-    expect(new Set(level1Spawns.map((spawn) => spawn.movementPattern))).toEqual(new Set(['straight', 'curve']));
+    expect(new Set(level1Spawns.map((spawn) => spawn.movementPattern))).toEqual(new Set(['curve', 'sweep', 'bezier']));
     const level1BossWave = level1Round.waves[level1Round.waves.length - 1];
     expect(level1BossWave.spawns).toHaveLength(3);
     expect(level1BossWave.spawns[0].enemyArchetype).toBe('striker');

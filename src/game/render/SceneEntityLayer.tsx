@@ -41,7 +41,12 @@ export function SceneEntityLayer({ entities }: SceneEntityLayerProps) {
           const healthRatio = entity.maxHealth > 0 ? entity.health / entity.maxHealth : 1;
           return (
             <group key={entity.id} position={position}>
-              <EnemyMesh archetype={entity.enemyArchetype} healthRatio={healthRatio} ageMs={entity.ageMs} />
+              <EnemyMesh
+                archetype={entity.enemyArchetype}
+                movementPattern={entity.movementPattern}
+                healthRatio={healthRatio}
+                ageMs={entity.ageMs}
+              />
             </group>
           );
         }

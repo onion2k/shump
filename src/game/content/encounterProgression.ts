@@ -30,7 +30,7 @@ export interface RoundPacingProfile {
 }
 
 export const BASE_ARCHETYPES: EnemyArchetypeId[] = ['scout'];
-export const BASE_PATTERNS: MovementPatternId[] = ['straight', 'curve'];
+export const BASE_PATTERNS: MovementPatternId[] = ['curve', 'sweep', 'bezier'];
 
 const UNLOCK_SEQUENCE: Array<{ enemy?: EnemyArchetypeId; pattern?: MovementPatternId }> = [
   { enemy: 'striker' },

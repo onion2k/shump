@@ -56,8 +56,15 @@ const defaultZigZagController: MovementController = ({ ageSeconds, baseX, driftY
 const defaultBezierController: MovementController = ({ ageSeconds, baseX, driftY, amplitude, frequency, params }) => {
   const phasedAge = ageSeconds + (params?.phaseOffsetSeconds ?? 0);
   const rawT = phasedAge * frequency;
+  const pingPong = params?.bezierPingPong === 1;
   const loop = params?.bezierLoop !== 0;
-  const t = loop ? rawT - Math.floor(rawT) : clamp(rawT, 0, 1);
+  const loopT = rawT - Math.floor(rawT);
+  const t = pingPong
+    // Smooth ping-pong traversal to avoid a hard velocity snap at the turnaround point.
+    ? 0.5 - 0.5 * Math.cos(rawT * Math.PI)
+    : loop
+      ? loopT
+      : clamp(rawT, 0, 1);
   const startX = params?.bezierStartX ?? baseX;
   const endX = params?.bezierEndX ?? baseX;
   const cp1 = params?.bezierControl1X ?? baseX - amplitude;
@@ -81,26 +88,31 @@ const defaultLissajousController: MovementController = ({ ageSeconds, baseX, dri
 };
 const defaultCurveController: MovementController = ({ ageSeconds, baseX, driftY, amplitude, frequency, params }) => {
   const phasedAge = ageSeconds + (params?.phaseOffsetSeconds ?? 0);
-  const direction = params?.curveDirection ?? 1;
-  const verticalAmplitude = params?.yAmplitude ?? amplitude * 0.28;
-  const t = phasedAge * frequency;
-  const eased = 0.5 - 0.5 * Math.cos(t * Math.PI * 2);
+  const curveDirection = params?.curveDirection ?? 1;
+  const sweepDirection = params?.sweepDirection ?? 1;
+  const verticalAmplitude = params?.yAmplitude ?? amplitude * 0.2;
+  // One-way arc sweep: avoids repetitive side-to-side oscillation that reads as static.
+  const progress = 1 - Math.exp(-Math.max(0, phasedAge) * Math.max(0.001, frequency) * 1.4);
+  const clampedProgress = clamp(progress, 0, 1);
+  const eased = 0.5 - 0.5 * Math.cos(clampedProgress * Math.PI);
+  const arcLift = Math.sin(clampedProgress * Math.PI) * verticalAmplitude;
   return {
-    x: baseX + direction * amplitude * eased,
-    y: driftY + Math.sin(t * Math.PI * 2) * verticalAmplitude
+    x: baseX + curveDirection * sweepDirection * amplitude * eased,
+    y: driftY + arcLift
   };
 };
 const defaultSpiralController: MovementController = ({ ageSeconds, baseX, driftY, amplitude, frequency, params }) => {
   const phasedAge = ageSeconds + (params?.phaseOffsetSeconds ?? 0);
-  const spiralTurns = params?.spiralTurns ?? 1.8;
-  const decay = params?.spiralDecay ?? 0.45;
+  const spiralTurns = params?.spiralTurns ?? 1.35;
+  const decay = params?.spiralDecay ?? 0.2;
   const theta = phasedAge * frequency * Math.PI * 2 * spiralTurns;
-  const minRadiusFactor = params?.spiralMinRadiusFactor ?? 0.35;
+  const minRadiusFactor = params?.spiralMinRadiusFactor ?? 0.55;
+  const verticalDiveSpeed = params?.spiralDiveSpeed ?? Math.max(1.6, amplitude * 0.75);
   const decayed = Math.exp(-phasedAge * frequency * decay);
   const radius = amplitude * (minRadiusFactor + (1 - minRadiusFactor) * decayed);
   return {
     x: baseX + Math.cos(theta) * radius,
-    y: driftY + Math.sin(theta) * radius * 0.65
+    y: driftY - phasedAge * verticalDiveSpeed + Math.sin(theta) * radius * 0.45
   };
 };
 const defaultSweepController: MovementController = ({ ageSeconds, baseX, baseY, amplitude, frequency, params }) => {

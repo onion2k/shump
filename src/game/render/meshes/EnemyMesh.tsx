@@ -1,15 +1,20 @@
 import { BackSide } from 'three';
 import type { EnemyArchetypeId } from '../../content/enemyArchetypes';
 import { resolveEnemyArchetype } from '../../content/enemyArchetypes';
+import type { MovementPatternId } from '../../movement/patterns';
 
 interface EnemyMeshProps {
   archetype?: EnemyArchetypeId;
+  movementPattern?: MovementPatternId;
   healthRatio?: number;
   ageMs?: number;
 }
 
-export function EnemyMesh({ archetype, healthRatio = 1, ageMs = 0 }: EnemyMeshProps) {
+export function EnemyMesh({ archetype, movementPattern, healthRatio = 1, ageMs = 0 }: EnemyMeshProps) {
   const enemy = resolveEnemyArchetype(archetype);
+  const patternColors = colorForPattern(movementPattern);
+  const baseColor = patternColors?.base ?? enemy.color;
+  const accentColor = patternColors?.accent ?? enemy.accentColor;
   const damageGlow = Math.max(0, Math.min(1, 1 - healthRatio));
   const ageSeconds = ageMs / 1000;
   const spinBase =
@@ -43,8 +48,8 @@ export function EnemyMesh({ archetype, healthRatio = 1, ageMs = 0 }: EnemyMeshPr
       <mesh>
         {enemyGeometry(enemy.id)}
         <meshStandardMaterial
-          color={enemy.color}
-          emissive={enemy.accentColor}
+          color={baseColor}
+          emissive={accentColor}
           emissiveIntensity={(enemy.id === 'warp-sphere' || enemy.id === 'sniper' ? 0.22 : 0.12) + damageGlow * 0.32}
           flatShading
         />
@@ -99,4 +104,33 @@ function enemyGeometry(archetypeId: EnemyArchetypeId) {
   }
 
   return <octahedronGeometry args={[0.7, 0]} />;
+}
+
+function colorForPattern(
+  pattern: MovementPatternId | undefined
+): { base: string; accent: string } | undefined {
+  switch (pattern) {
+    case 'straight':
+      return { base: '#9aa5b1', accent: '#e0e6ed' };
+    case 'curve':
+      return { base: '#ff8c42', accent: '#ffd8a8' };
+    case 'spiral':
+      return { base: '#7e57ff', accent: '#d6c6ff' };
+    case 'sweep':
+      return { base: '#20c997', accent: '#b2f2db' };
+    case 'horseshoe':
+      return { base: '#f59f00', accent: '#ffec99' };
+    case 'lissajous':
+      return { base: '#3bc9db', accent: '#c5f6fa' };
+    case 'bezier':
+      return { base: '#f06595', accent: '#fcc2d7' };
+    case 'sine':
+      return { base: '#4dabf7', accent: '#d0ebff' };
+    case 'zigzag':
+      return { base: '#82c91e', accent: '#d8f5a2' };
+    case 'shallow-zigzag':
+      return { base: '#fcc419', accent: '#fff3bf' };
+    default:
+      return undefined;
+  }
 }
